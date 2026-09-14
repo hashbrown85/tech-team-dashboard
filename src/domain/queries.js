@@ -28,6 +28,68 @@
  * @property {Record<string, any>} settings
  */
 
+import { byId } from '../lib/seq.js';
+
+/**
+ * A person by id, or null.
+ *
+ * @param {Snapshot} snap
+ * @param {string} [id]
+ * @returns {any | null}
+ */
+export function person(snap, id) {
+  return byId(snap.people, id);
+}
+
+/**
+ * A person's name for display, or 'Unassigned' when the id points at nobody.
+ *
+ * The fallback matters: people get deleted while their work lives on, so this is
+ * reached in normal use, not just in error cases. board.html:533.
+ *
+ * @param {Snapshot} snap
+ * @param {string} [id]
+ * @returns {string}
+ */
+export function personName(snap, id) {
+  const p = person(snap, id);
+  return p ? p.name : 'Unassigned';
+}
+
+/**
+ * Everyone invited to a meeting, in role order: reporting, supporting, optional.
+ *
+ * Note this can include ids of people who have since been deleted — callers that
+ * need real people filter with `person()`. board.html:550.
+ *
+ * @param {any} tab
+ * @returns {string[]}
+ */
+export function attendeeIds(tab) {
+  return (tab.members || []).concat(tab.support || [], tab.optional || []);
+}
+
+/**
+ * What an action is about, in words — the issue text, or the project name with
+ * "(project)" after it so the two are distinguishable in a flat list.
+ *
+ * An action whose parent has been deleted reads as empty rather than broken.
+ * board.html:575-579.
+ *
+ * @param {Snapshot} snap
+ * @param {any} action
+ * @returns {string}
+ */
+export function parentText(snap, action) {
+  if (!action.parent) return '';
+  if (action.parent.type === 'issue') {
+    const i = byId(snap.issues, action.parent.id);
+    return i ? i.text : '';
+  }
+  const p = byId(snap.projects, action.parent.id);
+  return p ? p.name + ' (project)' : '';
+}
+
 /**
  * Is this action still outstanding?
  *
