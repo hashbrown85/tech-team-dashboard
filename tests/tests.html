@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Board rule tests</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 24px 16px;
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 900px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #666; margin: 0 0 24px; font-size: 13px; }
+  @media (prefers-color-scheme: dark) { .hint { color: #999; } }
+  h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+    color: #666; margin: 28px 0 8px; font-weight: 600;
+  }
+  @media (prefers-color-scheme: dark) { h2 { color: #999; } }
+  .total { font-size: 17px; font-weight: 600; padding: 12px 14px; border-radius: 8px; }
+  .total.good { background: #e2f0e7; color: #1d5334; }
+  .total.bad  { background: #f6e6e8; color: #7d1622; }
+  @media (prefers-color-scheme: dark) {
+    .total.good { background: #1c3326; color: #8ad3a8; }
+    .total.bad  { background: #3a2124; color: #eba0a6; }
+  }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 5px 0; border-bottom: 1px solid #0001; }
+  @media (prefers-color-scheme: dark) { li { border-bottom-color: #fff2; } }
+  .mark {
+    display: inline-block; min-width: 3.4em; font-size: 11px; font-weight: 700;
+    letter-spacing: .06em;
+  }
+  .pass .mark { color: #2f7a4f; }
+  .fail .mark { color: #9b1c28; }
+  .fail { font-weight: 500; }
+  @media (prefers-color-scheme: dark) {
+    .pass .mark { color: #5dbb85; }
+    .fail .mark { color: #e0636c; }
+  }
+  pre {
+    margin: 6px 0 6px 3.4em; padding: 8px 10px; border-radius: 6px;
+    background: #0000000d; font-size: 12.5px; white-space: pre-wrap; overflow-x: auto;
+  }
+  @media (prefers-color-scheme: dark) { pre { background: #ffffff14; } }
+  .setup {
+    margin: 0 0 24px; padding: 12px 14px; border-radius: 8px;
+    background: #f7eedb; color: #5d3f08; font-size: 13px;
+  }
+  @media (prefers-color-scheme: dark) { .setup { background: #3a2f1a; color: #e0c583; } }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
+</style>
+</head>
+<body>
+
+<h1>Board rule tests</h1>
+<p class="hint">
+  Checks the rules in <code>docs/BUSINESS_RULES.md</code> against
+  <code>src/domain/</code>. No database, no network, no meeting required.
+</p>
+
+<noscript><p class="setup">These tests need JavaScript enabled.</p></noscript>
+
+<p class="setup" id="setup">
+  <strong>Nothing showing?</strong> This page has to be served over <code>http://</code> —
+  browsers block JavaScript modules opened directly as a file. From the project folder run
+  <code>npx serve</code> (or <code>python -m http.server</code>) and then open
+  <code>localhost:3000/tests/tests.html</code> — check the port your server prints.
+</p>
+
+<div id="results"></div>
+
+<script type="module">
+  // If the import below fails, the setup note above stays visible and the reason
+  // is in the browser console. If it succeeds, hide the note.
+  import('./domain.test.js')
+    .then(() => { document.getElementById('setup').hidden = true; })
+    .catch((err) => {
+      console.error(err);
+      document.getElementById('results').innerHTML =
+        '<p class="total bad">Could not load the tests — see the note above and the console.</p>';
+    });
+</script>
+
+</body>
+</html>
