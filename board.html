@@ -471,6 +471,10 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     { name: 'Issues', short: 'Issues', tiny: 'Issues', f: 0.50, rule: 'Only what has no path yet, ranked. Work from the top: agree the action, <b>one</b> owner, who supports, and the date. Once it has an owner it stops being an issue and moves to Action items.' },
     { name: 'Rate the Meeting', short: 'Rate', tiny: 'Rate', f: 0.10, rule: 'Everyone scores the meeting 1–5. The test: did we leave with clear actions, one owner each, and dates?' }
   ];
+  var TECHDIR_SEGS = SEGS.map(function (s) { return Object.assign({}, s); });
+  TECHDIR_SEGS[1] = Object.assign({}, SEGS[1], { name: 'Business Project Review', short: 'Business Review', tiny: 'Review', rule: 'A company-wide look at every active project, from every meeting. Not a status update — just making sure nothing important is missing.' });
+  TECHDIR_SEGS[2] = Object.assign({}, SEGS[2], { name: 'Tech-Projects', short: 'Tech-Projects', tiny: 'Tech', rule: 'One selection each: on track, off track, on hold, cancelled or done. These are this group’s own technical initiatives — separate from the business-facing projects reviewed in the area meetings.' });
+  function segsFor(t) { return (t && t.id === 'techdir') ? TECHDIR_SEGS : SEGS; }
   var SEV = { stopper: 'Urgent', offtrack: 'Project Off-Track', risk: 'Important' };
   var PST = [['on', 'On track'], ['off', 'Off track'], ['hold', 'On hold'], ['cancelled', 'Cancelled'], ['done', 'Done']];
   var ACTIVE = { 'new': 1, on: 1, off: 1, hold: 1 };
@@ -506,14 +510,16 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
   var TODAY = toStr(new Date());
 
   /* ---------- state (a live local mirror of the shared database) ---------- */
-  function blank() { return { people: [], tabs: [], entries: [], projects: [], issues: [], actions: [], meetings: {} }; }
+  function blank() { return { people: [], tabs: [], entries: [], projects: [], issues: [], actions: [], meetings: {}, settings: {} }; }
+  function chemList() { return (state.settings.chemistries && state.settings.chemistries.items) || []; }
+  function canSeeDetails(tabId) { var p = P(ui.iam); return !!(p && Array.isArray(p.detailAreas) && p.detailAreas.indexOf(tabId) >= 0); }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var state = blank();
   var db = null, sample = null;
   var contentMode = 'connecting', settingsMode = 'connecting';
   var lastUndo = null, toastTimer = null;
 
-  var ui = Object.assign({ view: 'overview', tab: null, dates: {}, steps: {}, filter: 'open', person: 'all', regTab: 'all', timers: {}, follow: false, open: null, settings: false, tlGroup: 'meeting', proj: null, projFilter: 'all', importTid: null, importDate: null, importText: '', importDraft: null, importBusy: false }, sget('s', K_UI) || {});
+  var ui = Object.assign({ view: 'overview', tab: null, dates: {}, steps: {}, filter: 'open', person: 'all', regTab: 'all', timers: {}, follow: false, open: null, settings: false, tlGroup: 'meeting', proj: null, projFilter: 'all', importTid: null, importDate: null, importText: '', importDraft: null, importBusy: false, iam: null }, sget('s', K_UI) || {});
   ['dates', 'timers', 'steps'].forEach(function (k) { if (!ui[k] || typeof ui[k] !== 'object') ui[k] = {}; });
   function saveUi() { sset('s', K_UI, ui); }
 
@@ -621,7 +627,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
   function stepOf(t) { var s = ui.steps[t.id]; return s >= 0 && s <= 4 ? s : 0; }
 
   /* ---------- database writes ---------- */
-  function areaOf(col) { return (col === 'people' || col === 'tabs') ? 'settings' : 'content'; }
+  function areaOf(col) { return (col === 'people' || col === 'tabs' || col === 'settings') ? 'settings' : 'content'; }
   function writeFail(col, e) {
     var area = areaOf(col);
     if (e && e.code === 'invalid_argument') {
@@ -688,6 +694,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     var s = stats('all');
     var names = state.people.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; });
     var personSel = '<option value="all">Everyone</option>' + names.map(function (p) { return '<option value="' + esc(p.name) + '"' + (ui.person === p.name ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('');
+    var iamSel = '<option value="">(pick your name)</option>' + names.map(function (p) { return '<option value="' + p.id + '"' + (ui.iam === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('');
     var addTabBtn = settingsMode === 'live' ? '<button type="button" class="ng-add" data-act="addTab" aria-label="Add a tab" title="Add a tab">+</button>' : '';
     var side = '<aside class="side" aria-label="Navigation">' +
       '<div class="brand"><div class="mark"><span class="shield" aria-hidden="true"></span><div class="wm" role="img" aria-label="Perfex Chemical Solutions"><i class="pf"></i><i class="cs"></i></div></div>' +
@@ -698,7 +705,8 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       '<div class="nsep"></div>' +
       item('actions', 'Action items', s.over ? '<span class="cnt">' + s.over + '</span>' : '<span class="cnt n">' + s.open + '</span>') +
       item('timeline', 'Timeline') + item('people', 'People') + item('import', 'Import from notes') + '</nav>' +
-      '<div class="side-foot"><label class="lbl" for="f-person">Show items for</label><select class="fld" id="f-person" data-edit="personFilter">' + personSel + '</select>' + connPill() + '</div></aside>';
+      '<div class="side-foot"><label class="lbl" for="f-iam">I am</label><select class="fld" id="f-iam" data-edit="iam">' + iamSel + '</select>' +
+      '<label class="lbl" for="f-person">Show items for</label><select class="fld" id="f-person" data-edit="personFilter">' + personSel + '</select>' + connPill() + '</div></aside>';
     var navOpts = '<option value="overview"' + (ui.view === 'overview' ? ' selected' : '') + '>Overview</option>' +
       '<optgroup label="Area meetings">' + areas.map(function (t) { return '<option value="tab:' + t.id + '"' + (cur('tab', t.id) ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</optgroup>' +
       '<optgroup label="Internal &amp; initiatives">' + other.map(function (t) { return '<option value="tab:' + t.id + '"' + (cur('tab', t.id) ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</optgroup>' +
@@ -774,7 +782,8 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       issueItems(t.id).length,
       ratingInfo(t.id, d).n
     ];
-    var steps = SEGS.map(function (s, i) {
+    var segs = segsFor(t);
+    var steps = segs.map(function (s, i) {
       return '<button type="button" class="st' + (i === step ? ' cur' : '') + (i === 3 ? ' main' : '') + '" id="st-' + i + '" data-act="step" data-v="' + i + '"' + (i === step ? ' aria-current="step"' : '') + '>' +
         '<span class="st-n">' + (i + 1) + '</span><span class="st-t">' + s.short + '</span><span class="st-y">' + s.tiny + '</span><span class="st-b">' + fmtMin(L * s.f) + (counts[i] ? ' · <b>' + counts[i] + '</b>' : '') + '</span><i class="st-p" id="stp-' + i + '"></i></button>';
     }).join('');
@@ -786,12 +795,12 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     return head + stepper + '<div class="mgrid"><section class="panel stage" aria-live="polite">' + renderStage(t, step, d, ents) + '</section><aside class="rail">' + renderRail(t, step) + '</aside></div>';
   }
 
-  function stageHead(i, extra) {
-    return '<div class="stg-h"><span class="segno">' + (i + 1) + '</span><div class="tt"><h2>' + SEGS[i].name + '</h2><p class="rule">' + SEGS[i].rule + '</p></div>' + (extra || '') + '</div>';
+  function stageHead(segs, i, extra) {
+    return '<div class="stg-h"><span class="segno">' + (i + 1) + '</span><div class="tt"><h2>' + segs[i].name + '</h2><p class="rule">' + segs[i].rule + '</p></div>' + (extra || '') + '</div>';
   }
-  function stageFoot(i) {
-    return '<div class="stg-f">' + (i > 0 ? '<button class="btn ghost" type="button" data-act="step" data-v="' + (i - 1) + '">← ' + SEGS[i - 1].short + '</button>' : '<span></span>') +
-      (i < 4 ? '<button class="btn" type="button" data-act="step" data-v="' + (i + 1) + '">Next: ' + SEGS[i + 1].short + ' →</button>' :
+  function stageFoot(segs, i) {
+    return '<div class="stg-f">' + (i > 0 ? '<button class="btn ghost" type="button" data-act="step" data-v="' + (i - 1) + '">← ' + segs[i - 1].short + '</button>' : '<span></span>') +
+      (i < 4 ? '<button class="btn" type="button" data-act="step" data-v="' + (i + 1) + '">Next: ' + segs[i + 1].short + ' →</button>' :
         '<span class="fr"><button class="btn ghost" type="button" data-act="toggleSummary" aria-expanded="' + !!ui.sumShow + '">' + (ui.sumShow ? 'Hide preview' : 'Preview summary') + '</button><button class="btn" type="button" data-act="copySummary">Copy meeting summary</button></span>') + '</div>';
   }
   function addBtn(key, label) { return '<button type="button" class="add-btn edit-only" data-act="openForm" data-v="' + key + '">+ ' + label + '</button>'; }
@@ -828,6 +837,22 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       '<select id="f-a-sup-' + k + '" name="support" aria-label="Support from">' + nameOpts('', 'Support from…', tid) + '</select>' + tabField +
       '<select class="full" id="f-a-rel-' + k + '" name="rel" aria-label="Related to">' + relOpts(tid, o.rel || '') + '</select>' +
       '<input type="date" id="f-a-due-' + k + '" name="due" value="' + addDays(o.d || TODAY, 7) + '" required aria-label="Due date">' + formEnd('Add action') + '</form>';
+  }
+  /* ---------- project details (soft-gated) ---------- */
+  var RESOURCES = [['lab', 'Lab Testing'], ['manhours', 'Man-Hours'], ['field', 'Field Survey']];
+  function renderProjectDetails(p) {
+    var chems = chemList();
+    return '<div class="sgrid"><div><label class="lbl" for="pd-val-' + p.id + '">Estimated value ($)</label><input class="fld n" type="number" min="0" step="1" id="pd-val-' + p.id + '" data-edit="pdValue" data-id="' + p.id + '" value="' + (p.estValue || '') + '"></div>' +
+      '<div><label class="lbl" for="pd-win-' + p.id + '">Win likelihood (%)</label><input class="fld n" type="number" min="0" max="100" step="5" id="pd-win-' + p.id + '" data-edit="pdWin" data-id="' + p.id + '" value="' + (p.winPct != null ? p.winPct : '') + '"></div></div>' +
+      '<div style="margin-top:8px"><label class="lbl" for="pd-why-' + p.id + '">Why (reason for the estimate)</label><input class="fld full" type="text" id="pd-why-' + p.id + '" data-edit="pdReason" data-id="' + p.id + '" value="' + esc(p.winReason || '') + '"></div>' +
+      '<div style="margin-top:8px"><span class="lbl" style="display:block;margin-bottom:4px">Potential resources</span>' + RESOURCES.map(function (r) {
+        var on = (p.resources || []).indexOf(r[0]) >= 0;
+        return '<label style="margin-right:14px"><input type="checkbox" data-edit="pdResource" data-id="' + p.id + '" data-v="' + r[0] + '"' + (on ? ' checked' : '') + '> ' + r[1] + '</label>';
+      }).join('') + '</div>' +
+      '<div style="margin-top:8px"><span class="lbl" style="display:block;margin-bottom:4px">Chemistries involved</span>' + (chems.length ? chems.map(function (c) {
+        var on = (p.chemistries || []).indexOf(c) >= 0;
+        return '<label style="margin-right:14px"><input type="checkbox" data-edit="pdChem" data-id="' + p.id + '" data-v="' + esc(c) + '"' + (on ? ' checked' : '') + '> ' + esc(c) + '</label>';
+      }).join('') : '<span class="muted sm">No chemistries defined yet — add some on the People page.</span>') + '</div>';
   }
   function dueCheck(t, d) {
     var prev = addDays(d, -7);
@@ -871,13 +896,31 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     return L.join('\n') + '\n';
   }
 
+  function renderBusinessReview() {
+    var groups = {};
+    state.projects.filter(function (x) { return ACTIVE[x.status]; }).forEach(function (x) {
+      var t2 = T(x.tab), label = t2 ? t2.name : x.tab;
+      (groups[label] = groups[label] || []).push(x);
+    });
+    var names = Object.keys(groups).sort();
+    if (!names.length) return '<p class="none">No active projects anywhere yet.</p>';
+    return names.map(function (label) {
+      var rows = groups[label].map(function (x) {
+        return '<li><button type="button" class="ri" data-act="focusProject" data-id="' + x.id + '"><span class="chip ' + (x.status === 'off' ? 'offtrack' : 'tab') + '">' + esc(PSTL[x.status]) + '</span><span class="it-t">' + esc(x.name) + '</span><span class="m">' + esc(pn(x.personId)) + (x.due ? ' · due ' + fmtDay(x.due) : '') + '</span></button></li>';
+      }).join('');
+      return '<div class="mgroup"><div class="lbl">' + esc(label) + '</div><ul class="rlist">' + rows + '</ul></div>';
+    }).join('');
+  }
   function renderStage(t, step, d, ents) {
+    var segs = segsFor(t);
     var mem = t.members.filter(P);
     if (!mem.length && step < 3) {
-      return stageHead(step) + '<p class="none">No one is set to report in this meeting yet. Open <button type="button" class="linkbtn" data-act="openSettings">Settings</button> and mark who reports.</p>' + stageFoot(step);
+      return stageHead(segs, step) + '<p class="none">No one is set to report in this meeting yet. Open <button type="button" class="linkbtn" data-act="openSettings">Settings</button> and mark who reports.</p>' + stageFoot(segs, step);
     }
     var body = '';
-    if (step === 0 || step === 1) {
+    if (step === 1 && t.id === 'techdir') {
+      body = renderBusinessReview();
+    } else if (step === 0 || step === 1) {
       var kinds = step === 0 ? ['win', 'loss'] : ['opp'];
       var list = ents.filter(function (e) { return kinds.indexOf(e.kind) >= 0; });
       body = (step === 0 ? dueCheck(t, d) : '') + groupsFor(t, list.map(function (e) { return e.personId; })).map(function (pid) {
@@ -905,10 +948,14 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
             (x.due ? 'Due <span class="mono">' + fmt(x.due) + '</span>' : 'No due date') + ' · ' + (n ? n + ' open action' + (n > 1 ? 's' : '') : 'no open actions') +
             (x.status === 'off' ? (n ? ' · recovery underway' : ' · <b class="warnt">no path yet, in Issues</b>') : '') + (x.note ? '<br>Challenge: ' + esc(x.note) : '');
           function sb(v, l) { return '<button type="button" data-act="projStatus" data-id="' + x.id + '" data-v="' + v + '" aria-pressed="' + (x.status === v) + '"' + DIS() + '>' + l + '</button>'; }
+          var pdKey = 'pd:' + x.id;
+          var pdHtml = canSeeDetails(t.id) ? (ui.open === pdKey ?
+            '<div class="pd">' + renderProjectDetails(x) + '<div style="margin-top:8px"><button class="btn ghost sm" type="button" data-act="closeForm">Hide details</button></div></div>' :
+            '<button type="button" class="linkbtn" data-act="openForm" data-v="' + pdKey + '" style="display:block;margin-top:6px">Project details</button>') : '';
           return '<li class="proj ps-' + x.status + (sel ? ' sel' : '') + '" id="proj-' + x.id + '">' +
             '<button type="button" class="pname" data-act="selProj" data-id="' + x.id + '" aria-pressed="' + sel + '" title="' + (sel ? 'Show all actions' : 'Show only this project’s actions') + '"><span class="it-t">' + esc(x.name) + '</span><span class="meta">' + meta + '</span></button>' +
             '<button class="x edit-only" type="button" data-act="delProject" data-id="' + x.id + '" aria-label="Remove project">×</button>' +
-            '<div class="stat" role="group" aria-label="Status of ' + esc(x.name) + '">' + PST.map(function (s2) { return sb(s2[0], s2[1]); }).join('') + '</div></li>';
+            '<div class="stat" role="group" aria-label="Status of ' + esc(x.name) + '">' + PST.map(function (s2) { return sb(s2[0], s2[1]); }).join('') + '</div>' + pdHtml + '</li>';
         }).join('');
         var form = ui.open === key ? '<form class="add edit-only" data-form="project" data-pid="' + pid + '"><input type="text" id="f-pj-name-' + pid + '" name="name" placeholder="Project name" required aria-label="Project name"><input type="date" id="f-pj-due-' + pid + '" name="due" aria-label="Project due date">' + formEnd('Add project') + '</form>' : addBtn(key, 'Project');
         return '<div class="rp"><div class="rp-h"><b>' + esc(p ? p.name : 'Unassigned') + '</b><span>' + esc(p ? p.title : '') + '</span></div><div class="rp-b">' + (rows ? '<ul class="items">' + rows + '</ul>' : '') + form + '</div></div>';
@@ -943,8 +990,8 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       var newForm = ui.open === 'issue' ? '<form class="add edit-only" data-form="issue" style="margin-bottom:12px"><input type="text" class="full" id="f-is-text" name="text" placeholder="What’s the issue?" required aria-label="New issue">' +
         '<select id="f-is-who" name="who" aria-label="Raised by">' + attendeeIds(t).filter(P).map(function (pid) { return '<option value="' + pid + '">' + esc(pn(pid)) + '</option>'; }).join('') + '</select>' +
         '<select id="f-is-sev" name="sev" aria-label="Severity"><option value="stopper">Urgent</option><option value="risk">Important</option><option value="offtrack">Project Off-Track</option></select>' + formEnd('Add issue') + '</form>' : '';
-      return stageHead(3, ui.open === 'issue' ? '' : '<button class="btn edit-only" type="button" data-act="openForm" data-v="issue">+ New issue</button>') + '<div class="stg-body">' + newForm +
-        (cards || (ui.open === 'issue' ? '' : '<p class="none">Nothing without a path. Add one with “+ New issue”.</p>')) + movedHtml + resolved + '</div>' + stageFoot(3);
+      return stageHead(segs, 3, ui.open === 'issue' ? '' : '<button class="btn edit-only" type="button" data-act="openForm" data-v="issue">+ New issue</button>') + '<div class="stg-body">' + newForm +
+        (cards || (ui.open === 'issue' ? '' : '<p class="none">Nothing without a path. Add one with “+ New issue”.</p>')) + movedHtml + resolved + '</div>' + stageFoot(segs, 3);
     } else {
       var mt = state.meetings[mkey(t.id, d)] || { ratings: {}, note: '' }, r = ratingInfo(t.id, d), total = attendeeIds(t).filter(P).length;
       function rrows(ids, label) {
@@ -962,7 +1009,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
         '<label class="lbl" for="f-note" style="display:block;margin-top:16px">One change for next time</label><textarea class="fld" id="f-note" data-edit="meetingNote" placeholder="What would make the next meeting better?"' + DIS() + '>' + esc(mt.note || '') + '</textarea></div></div>' +
         (ui.sumShow ? '<div class="sumbox"><label class="lbl" for="f-summary">Meeting summary · paste into email or Teams</label><textarea id="f-summary" readonly>' + esc(meetingSummary(t, d)) + '</textarea></div>' : '');
     }
-    return stageHead(step) + '<div class="stg-body">' + body + '</div>' + stageFoot(step);
+    return stageHead(segs, step) + '<div class="stg-body">' + body + '</div>' + stageFoot(segs, step);
   }
 
   function renderRail(t, step) {
@@ -1140,21 +1187,33 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
 
   /* ---------- people ---------- */
   function renderPeople() {
+    var areaTabs = state.tabs.filter(function (t) { return t.kind === 'area'; });
     var rows = state.people.map(function (p) {
       var chips = state.tabs.map(function (t) {
         var r = t.members.indexOf(p.id) >= 0 ? 'm' : t.support.indexOf(p.id) >= 0 ? 's' : t.optional.indexOf(p.id) >= 0 ? 'o' : '';
         return r ? '<span class="pchip ' + r + '" title="' + (r === 'm' ? 'Reports' : r === 's' ? 'Supports' : 'Optional') + '">' + esc(t.name) + '</span>' : '';
       }).join('');
+      var access = areaTabs.map(function (t) {
+        var on = (p.detailAreas || []).indexOf(t.id) >= 0;
+        return '<label style="display:inline-flex;align-items:center;gap:3px;margin-right:10px;font-size:12.5px"><input type="checkbox" data-act="personAreaToggle" data-id="' + p.id + '" data-v="' + t.id + '"' + (on ? ' checked' : '') + DIS() + '> ' + esc(t.name) + '</label>';
+      }).join('') || '<span class="muted sm">No areas yet</span>';
       return '<tr><td><input class="fld" type="text" id="pn-' + p.id + '" data-edit="personName" data-id="' + p.id + '" value="' + esc(p.name) + '" aria-label="Name"' + DIS() + '></td>' +
         '<td><input class="fld" type="text" id="pt-' + p.id + '" data-edit="personTitle" data-id="' + p.id + '" value="' + esc(p.title) + '" aria-label="Title"' + DIS() + '></td>' +
         '<td><input class="fld" type="text" id="ph-' + p.id + '" data-edit="personHome" data-id="' + p.id + '" value="' + esc(p.home) + '" aria-label="Area"' + DIS() + '></td>' +
         '<td><div class="mchips">' + (chips || '<span class="muted sm">Not in a meeting</span>') + '</div></td>' +
+        '<td class="edit-only">' + access + '</td>' +
         '<td><button class="x edit-only" type="button" data-act="delPerson" data-id="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">×</button></td></tr>';
     }).join('');
     var form = ui.open === 'person' ? '<form class="add edit-only" data-form="person" style="margin-top:12px"><input type="text" id="f-pp-name" name="name" placeholder="Name" required aria-label="Name"><input type="text" id="f-pp-title" name="title" placeholder="Title" aria-label="Title"><input type="text" id="f-pp-home" name="home" placeholder="Area (e.g. Rockies or National)" aria-label="Area">' + formEnd('Add person') + '</form>' : '';
+    var chemChips = chemList().map(function (c) {
+      return '<span class="pchip" style="margin:0 6px 6px 0;display:inline-flex;align-items:center;gap:6px">' + esc(c) + '<button class="x edit-only" type="button" data-act="delChem" data-id="' + esc(c) + '" aria-label="Remove ' + esc(c) + '" style="width:16px;height:16px;font-size:13px">×</button></span>';
+    }).join('') || '<span class="muted sm">No chemistries yet.</span>';
+    var chemSection = '<section class="panel edit-only"><div class="pan-h"><h2>Chemistries</h2><span class="sub">The managed list used in each project’s Details panel</span></div><div>' + chemChips + '</div>' +
+      '<form class="add edit-only" data-form="chem" style="margin-top:10px"><input type="text" name="chem" placeholder="Add a chemistry (e.g. H2S Scavenger)" required aria-label="New chemistry">' + formEnd('Add') + '</form></section>';
     return ph('People', state.people.length + ' people · assign them to meetings in each meeting’s Settings', ui.open === 'person' ? '' : '<button class="btn edit-only" type="button" data-act="openForm" data-v="person">+ Person</button>') +
       '<section class="panel"><div class="pan-h"><div class="legend"><span class="pchip m">Reports</span><span class="pchip">Supports</span><span class="pchip o">Optional</span></div></div>' + form +
-      '<div class="tbl-scroll" style="margin-top:10px"><table class="t"><thead><tr><th style="min-width:160px">Name</th><th style="min-width:220px">Title</th><th style="min-width:150px">Area</th><th>Meetings</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      '<div class="tbl-scroll" style="margin-top:10px"><table class="t"><thead><tr><th style="min-width:160px">Name</th><th style="min-width:220px">Title</th><th style="min-width:150px">Area</th><th>Meetings</th><th class="edit-only">Project Details access</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>' +
+      chemSection;
   }
 
   /* ---------- import from notes ---------- */
@@ -1238,17 +1297,18 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     el.textContent = clock(e);
     document.getElementById('tmr').classList.toggle('over', e > tot);
     var b = document.getElementById('t-btn'); b.textContent = tm.start ? '❚❚' : '▶'; b.setAttribute('aria-label', tm.start ? 'Pause meeting clock' : (tm.acc ? 'Resume meeting clock' : 'Start meeting clock'));
-    var cum = 0, idx = SEGS.length - 1, left = 0;
-    for (var i = 0; i < SEGS.length; i++) {
-      var segLen = SEGS[i].f * tot, startS = cum; cum += segLen;
+    var segs = segsFor(t);
+    var cum = 0, idx = segs.length - 1, left = 0;
+    for (var i = 0; i < segs.length; i++) {
+      var segLen = segs[i].f * tot, startS = cum; cum += segLen;
       var p = document.getElementById('stp-' + i); if (p) p.style.width = Math.max(0, Math.min(100, (e - startS) / segLen * 100)) + '%';
-      if (e < cum && idx === SEGS.length - 1 && left === 0) { idx = i; left = cum - e; }
+      if (e < cum && idx === segs.length - 1 && left === 0) { idx = i; left = cum - e; }
     }
-    for (var j = 0; j < SEGS.length; j++) { var s = document.getElementById('st-' + j); if (s) s.classList.toggle('due', !!(tm.start || tm.acc) && j === idx && e <= tot); }
+    for (var j = 0; j < segs.length; j++) { var s = document.getElementById('st-' + j); if (s) s.classList.toggle('due', !!(tm.start || tm.acc) && j === idx && e <= tot); }
     var h = document.getElementById('t-hint'); h.className = 't-hint';
     if (!tm.start && !tm.acc) h.innerHTML = 'Start the clock when the meeting begins. It will suggest which segment you should be on.';
     else if (e > tot) { h.className = 't-hint over'; h.innerHTML = '<b>Over by ' + clock(e - tot) + '.</b> Take the rest offline and close with the rating.'; }
-    else h.innerHTML = 'Clock says you should be on <b>' + (idx + 1) + ' · ' + SEGS[idx].short + '</b>, ' + clock(left) + ' left in it.';
+    else h.innerHTML = 'Clock says you should be on <b>' + (idx + 1) + ' · ' + segs[idx].short + '</b>, ' + clock(left) + ' left in it.';
   }
   setInterval(function () { var t = T(ui.tab); if (ui.view === 'tab' && t && ui.timers[tkey(t)] && ui.timers[tkey(t)].start) tick(); }, 1000);
 
@@ -1418,6 +1478,16 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       };
       toast(p.name + ' removed. Their items stay.', true);
     },
+    delChem: function (id) {
+      var items = chemList().filter(function (x) { return x !== id; });
+      setDoc('settings', 'chemistries', { items: items });
+    },
+    personAreaToggle: function (id, v) {
+      var p = P(id); if (!p) return;
+      var cur = (p.detailAreas || []).filter(function (x) { return x !== v; });
+      if ((p.detailAreas || []).indexOf(v) < 0) cur.push(v);
+      updateDoc('people', id, { detailAreas: cur });
+    },
     timerToggle: function () { var tm = tmr(cur()); if (tm.start) { tm.acc += Date.now() - tm.start; tm.start = 0; } else tm.start = Date.now(); saveUi(); tick(); },
     timerReset: function () { ui.timers[tkey(cur())] = { acc: 0, start: 0 }; saveUi(); tick(); },
     extractImport: function () {
@@ -1539,6 +1609,11 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       ui.open = null;
       setDoc('people', uid(), { name: n, title: val(fd, 'title'), home: val(fd, 'home') });
       render();
+    },
+    chem: function (fd) {
+      var v = val(fd, 'chem'); if (!v) return false;
+      var items = chemList().slice(); if (items.indexOf(v) < 0) items.push(v);
+      setDoc('settings', 'chemistries', { items: items });
     }
   };
   var C = {
@@ -1598,7 +1673,23 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     importDate: function (el) { ui.importDate = el.value; },
     importText: function (el) { ui.importText = el.value; },
     importToggle: function (el) { var it = ui.importDraft && ui.importDraft[+el.dataset.id]; if (it) it.include = el.checked; },
-    importField: function (el) { var it = ui.importDraft && ui.importDraft[+el.dataset.id]; if (it) it[el.dataset.f] = el.value; }
+    importField: function (el) { var it = ui.importDraft && ui.importDraft[+el.dataset.id]; if (it) it[el.dataset.f] = el.value; },
+    iam: function (el) { ui.iam = el.value || null; render(); },
+    pdValue: function (el) { updateDoc('projects', el.dataset.id, { estValue: Math.max(0, parseFloat(el.value) || 0) }); },
+    pdWin: function (el) { updateDoc('projects', el.dataset.id, { winPct: Math.max(0, Math.min(100, parseInt(el.value, 10) || 0)) }); },
+    pdReason: function (el) { updateDoc('projects', el.dataset.id, { winReason: el.value.trim() }); },
+    pdResource: function (el) {
+      var p = byId(state.projects, el.dataset.id); if (!p) return;
+      var cur = (p.resources || []).filter(function (x) { return x !== el.dataset.v; });
+      if (el.checked) cur.push(el.dataset.v);
+      updateDoc('projects', el.dataset.id, { resources: cur });
+    },
+    pdChem: function (el) {
+      var p = byId(state.projects, el.dataset.id); if (!p) return;
+      var cur = (p.chemistries || []).filter(function (x) { return x !== el.dataset.v; });
+      if (el.checked) cur.push(el.dataset.v);
+      updateDoc('projects', el.dataset.id, { chemistries: cur });
+    }
   };
 
   root.addEventListener('click', function (e) {
@@ -1621,7 +1712,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
 
   /* ---------- boot ---------- */
   render();
-  var COLS = ['people', 'tabs', 'entries', 'projects', 'issues', 'actions', 'meetings'];
+  var COLS = ['people', 'tabs', 'entries', 'projects', 'issues', 'actions', 'meetings', 'settings'];
   var loadedCols = {};
   function subscribeCol(col) {
     db.collection(col).onSnapshot(function (snap) {
@@ -1633,6 +1724,8 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       } else if (col === 'tabs') {
         arr.forEach(function (t) { ['members', 'support', 'optional'].forEach(function (r) { if (!Array.isArray(t[r])) t[r] = []; }); if (t.weekday == null) t.weekday = 1; if (!t.lengthMin) t.lengthMin = 30; if (!t.kind) t.kind = 'internal'; });
         state.tabs = arr;
+      } else if (col === 'settings') {
+        var s = {}; arr.forEach(function (x) { s[x.id] = x; }); state.settings = s;
       } else {
         state[col] = arr;
       }
