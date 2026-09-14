@@ -471,7 +471,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     { name: 'Issues', short: 'Issues', tiny: 'Issues', f: 0.50, rule: 'Only what has no path yet, ranked. Work from the top: agree the action, <b>one</b> owner, who supports, and the date. Once it has an owner it stops being an issue and moves to Action items.' },
     { name: 'Rate the Meeting', short: 'Rate', tiny: 'Rate', f: 0.10, rule: 'Everyone scores the meeting 1–5. The test: did we leave with clear actions, one owner each, and dates?' }
   ];
-  var SEV = { stopper: 'Show-stopper', offtrack: 'Off-track', risk: 'Risk' };
+  var SEV = { stopper: 'Urgent', offtrack: 'Project Off-Track', risk: 'Important' };
   var PST = [['on', 'On track'], ['off', 'Off track'], ['hold', 'On hold'], ['cancelled', 'Cancelled'], ['done', 'Done']];
   var ACTIVE = { 'new': 1, on: 1, off: 1, hold: 1 };
   var WD = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
@@ -797,14 +797,20 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
   function addBtn(key, label) { return '<button type="button" class="add-btn edit-only" data-act="openForm" data-v="' + key + '">+ ' + label + '</button>'; }
   function formEnd(label) { return '<span class="acts-r"><button class="btn ghost sm" type="button" data-act="closeForm">Done</button><button class="btn sm" type="submit">' + label + '</button></span>'; }
   function groupsFor(t, ids) { var g = t.members.filter(P); ids.forEach(function (id) { if (g.indexOf(id) < 0) g.push(id); }); return g; }
-  function entryItem(e) {
+  function entryItem(e, t, d) {
     var chip = e.kind === 'win' ? '<span class="chip win">Win</span>' : e.kind === 'loss' ? '<span class="chip loss">Loss</span>' : '<span class="chip opp">Opp</span>';
     var lines = '';
     if (e.why) lines += '<div class="why"><span>' + (e.kind === 'opp' ? 'Challenge' : 'Why') + '</span>' + esc(e.why) + '</div>';
     if (e.change) lines += '<div class="why' + (e.kind === 'loss' ? ' own' : '') + '"><span>' + (e.kind === 'loss' ? 'Doing differently' : 'Keep doing') + '</span>' + esc(e.change) + '</div>';
     var op = e.projectId ? byId(state.projects, e.projectId) : null;
     if (op) lines += '<div class="why fwd"><span>Next</span>' + (op.start && op.start > TODAY ? 'Joins Current Projects on ' + fmtDay(op.start) : 'Now in Current Projects') + '</div>';
-    return '<li class="item">' + chip + '<div><div class="it-t">' + esc(e.text) + '</div>' + lines + '</div><button class="x edit-only" type="button" data-act="delEntry" data-id="' + e.id + '" aria-label="Remove">×</button></li>';
+    var actsHtml = '';
+    if (e.kind === 'opp' && e.projectId) {
+      var oppActs = actsOf(e.projectId), fk = 'oppact:' + e.id;
+      actsHtml = (oppActs.length ? '<ul class="acts">' + oppActs.map(function (a) { return actRow(a, false); }).join('') + '</ul>' : '') +
+        (ui.open === fk ? actionForm(fk, { tid: t.id, d: d, rel: 'p:' + e.projectId }) : addBtn(fk, 'Action for this opportunity'));
+    }
+    return '<li class="item">' + chip + '<div><div class="it-t">' + esc(e.text) + '</div>' + lines + actsHtml + '</div><button class="x edit-only" type="button" data-act="delEntry" data-id="' + e.id + '" aria-label="Remove">×</button></li>';
   }
   function actRow(a, withMeeting) {
     var c = dueCls(a);
@@ -887,7 +893,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
             '<input type="text" id="f-opp-why-' + pid + '" name="why" placeholder="Major challenge (if any)" aria-label="Major challenge">' + formEnd('Add') + '</form>';
         } else form = addBtn(key, step === 0 ? 'Win or loss' : 'Opportunity');
         return '<div class="rp"><div class="rp-h"><b>' + esc(p ? p.name : 'Unassigned') + '</b><span>' + esc(p ? p.title : '') + '</span></div><div class="rp-b">' +
-          (mine.length ? '<ul class="items">' + mine.map(entryItem).join('') + '</ul>' : '') + form + '</div></div>';
+          (mine.length ? '<ul class="items">' + mine.map(function (e) { return entryItem(e, t, d); }).join('') + '</ul>' : '') + form + '</div></div>';
       }).join('');
     } else if (step === 2) {
       var projs = state.projects.filter(function (x) { return projVisible(x, t.id, d); });
@@ -936,7 +942,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       }).join('');
       var newForm = ui.open === 'issue' ? '<form class="add edit-only" data-form="issue" style="margin-bottom:12px"><input type="text" class="full" id="f-is-text" name="text" placeholder="What’s the issue?" required aria-label="New issue">' +
         '<select id="f-is-who" name="who" aria-label="Raised by">' + attendeeIds(t).filter(P).map(function (pid) { return '<option value="' + pid + '">' + esc(pn(pid)) + '</option>'; }).join('') + '</select>' +
-        '<select id="f-is-sev" name="sev" aria-label="Severity"><option value="stopper">Show-stopper</option><option value="offtrack">Off-track</option><option value="risk">Risk</option></select>' + formEnd('Add issue') + '</form>' : '';
+        '<select id="f-is-sev" name="sev" aria-label="Severity"><option value="stopper">Urgent</option><option value="risk">Important</option><option value="offtrack">Project Off-Track</option></select>' + formEnd('Add issue') + '</form>' : '';
       return stageHead(3, ui.open === 'issue' ? '' : '<button class="btn edit-only" type="button" data-act="openForm" data-v="issue">+ New issue</button>') + '<div class="stg-body">' + newForm +
         (cards || (ui.open === 'issue' ? '' : '<p class="none">Nothing without a path. Add one with “+ New issue”.</p>')) + movedHtml + resolved + '</div>' + stageFoot(3);
     } else {
