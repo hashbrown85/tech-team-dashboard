@@ -16,11 +16,9 @@
 import { issueItems } from './queries.js';
 import { addDays } from '../lib/dates.js';
 
-/** Statuses that count as live work. Matches ACTIVE in board.html:480. */
-export const ACTIVE_STATUSES = ['new', 'on', 'off', 'hold'];
-
-/** Every status a project can hold, in the order they appear as buttons. */
-export const STATUSES = ['on', 'off', 'hold', 'cancelled', 'done'];
+// The status vocabulary lives in constants.js — re-exported here because callers
+// dealing with project status shouldn't have to know that.
+export { STATUSES, ACTIVE_STATUSES, STATUS_LABELS } from './constants.js';
 
 /**
  * @typedef {import('./queries.js').Snapshot} Snapshot
