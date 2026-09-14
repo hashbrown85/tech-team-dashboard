@@ -512,6 +512,7 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
   /* ---------- state (a live local mirror of the shared database) ---------- */
   function blank() { return { people: [], tabs: [], entries: [], projects: [], issues: [], actions: [], meetings: {}, settings: {} }; }
   function chemList() { return (state.settings.chemistries && state.settings.chemistries.items) || []; }
+  function resourceList() { return (state.settings.resources && state.settings.resources.items) || []; }
   function canSeeDetails(tabId) { var p = P(ui.iam); return !!(p && Array.isArray(p.detailAreas) && p.detailAreas.indexOf(tabId) >= 0); }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var state = blank();
@@ -839,16 +840,15 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       '<input type="date" id="f-a-due-' + k + '" name="due" value="' + addDays(o.d || TODAY, 7) + '" required aria-label="Due date">' + formEnd('Add action') + '</form>';
   }
   /* ---------- project details (soft-gated) ---------- */
-  var RESOURCES = [['lab', 'Lab Testing'], ['manhours', 'Man-Hours'], ['field', 'Field Survey']];
   function renderProjectDetails(p) {
-    var chems = chemList();
+    var chems = chemList(), resources = resourceList();
     return '<div class="sgrid"><div><label class="lbl" for="pd-val-' + p.id + '">Estimated value ($)</label><input class="fld n" type="number" min="0" step="1" id="pd-val-' + p.id + '" data-edit="pdValue" data-id="' + p.id + '" value="' + (p.estValue || '') + '"></div>' +
       '<div><label class="lbl" for="pd-win-' + p.id + '">Win likelihood (%)</label><input class="fld n" type="number" min="0" max="100" step="5" id="pd-win-' + p.id + '" data-edit="pdWin" data-id="' + p.id + '" value="' + (p.winPct != null ? p.winPct : '') + '"></div></div>' +
-      '<div style="margin-top:8px"><label class="lbl" for="pd-why-' + p.id + '">Why (reason for the estimate)</label><input class="fld full" type="text" id="pd-why-' + p.id + '" data-edit="pdReason" data-id="' + p.id + '" value="' + esc(p.winReason || '') + '"></div>' +
-      '<div style="margin-top:8px"><span class="lbl" style="display:block;margin-bottom:4px">Potential resources</span>' + RESOURCES.map(function (r) {
-        var on = (p.resources || []).indexOf(r[0]) >= 0;
-        return '<label style="margin-right:14px"><input type="checkbox" data-edit="pdResource" data-id="' + p.id + '" data-v="' + r[0] + '"' + (on ? ' checked' : '') + '> ' + r[1] + '</label>';
-      }).join('') + '</div>' +
+      '<div style="margin-top:8px"><label class="lbl" for="pd-why-' + p.id + '">Win % Reasoning</label><input class="fld full" type="text" id="pd-why-' + p.id + '" data-edit="pdReason" data-id="' + p.id + '" value="' + esc(p.winReason || '') + '"></div>' +
+      '<div style="margin-top:8px"><span class="lbl" style="display:block;margin-bottom:4px">Potential resources</span>' + (resources.length ? resources.map(function (r) {
+        var on = (p.resources || []).indexOf(r) >= 0;
+        return '<label style="margin-right:14px"><input type="checkbox" data-edit="pdResource" data-id="' + p.id + '" data-v="' + esc(r) + '"' + (on ? ' checked' : '') + '> ' + esc(r) + '</label>';
+      }).join('') : '<span class="muted sm">No resources defined yet — add some on the People page.</span>') + '</div>' +
       '<div style="margin-top:8px"><span class="lbl" style="display:block;margin-bottom:4px">Chemistries involved</span>' + (chems.length ? chems.map(function (c) {
         var on = (p.chemistries || []).indexOf(c) >= 0;
         return '<label style="margin-right:14px"><input type="checkbox" data-edit="pdChem" data-id="' + p.id + '" data-v="' + esc(c) + '"' + (on ? ' checked' : '') + '> ' + esc(c) + '</label>';
@@ -1210,10 +1210,15 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
     }).join('') || '<span class="muted sm">No chemistries yet.</span>';
     var chemSection = '<section class="panel edit-only"><div class="pan-h"><h2>Chemistries</h2><span class="sub">The managed list used in each project’s Details panel</span></div><div>' + chemChips + '</div>' +
       '<form class="add edit-only" data-form="chem" style="margin-top:10px"><input type="text" name="chem" placeholder="Add a chemistry (e.g. H2S Scavenger)" required aria-label="New chemistry">' + formEnd('Add') + '</form></section>';
+    var resourceChips = resourceList().map(function (r) {
+      return '<span class="pchip" style="margin:0 6px 6px 0;display:inline-flex;align-items:center;gap:6px">' + esc(r) + '<button class="x edit-only" type="button" data-act="delResource" data-id="' + esc(r) + '" aria-label="Remove ' + esc(r) + '" style="width:16px;height:16px;font-size:13px">×</button></span>';
+    }).join('') || '<span class="muted sm">No potential resources yet.</span>';
+    var resourceSection = '<section class="panel edit-only"><div class="pan-h"><h2>Potential Resources</h2><span class="sub">The managed list used in each project’s Details panel</span></div><div>' + resourceChips + '</div>' +
+      '<form class="add edit-only" data-form="resource" style="margin-top:10px"><input type="text" name="resource" placeholder="Add a resource (e.g. Lab Testing)" required aria-label="New resource">' + formEnd('Add') + '</form></section>';
     return ph('People', state.people.length + ' people · assign them to meetings in each meeting’s Settings', ui.open === 'person' ? '' : '<button class="btn edit-only" type="button" data-act="openForm" data-v="person">+ Person</button>') +
       '<section class="panel"><div class="pan-h"><div class="legend"><span class="pchip m">Reports</span><span class="pchip">Supports</span><span class="pchip o">Optional</span></div></div>' + form +
       '<div class="tbl-scroll" style="margin-top:10px"><table class="t"><thead><tr><th style="min-width:160px">Name</th><th style="min-width:220px">Title</th><th style="min-width:150px">Area</th><th>Meetings</th><th class="edit-only">Project Details access</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>' +
-      chemSection;
+      chemSection + resourceSection;
   }
 
   /* ---------- import from notes ---------- */
@@ -1482,6 +1487,10 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       var items = chemList().filter(function (x) { return x !== id; });
       setDoc('settings', 'chemistries', { items: items });
     },
+    delResource: function (id) {
+      var items = resourceList().filter(function (x) { return x !== id; });
+      setDoc('settings', 'resources', { items: items });
+    },
     personAreaToggle: function (id, v) {
       var p = P(id); if (!p) return;
       var cur = (p.detailAreas || []).filter(function (x) { return x !== v; });
@@ -1614,6 +1623,11 @@ table.t input[type="radio"]{width:16px;height:16px;accent-color:var(--brand);mar
       var v = val(fd, 'chem'); if (!v) return false;
       var items = chemList().slice(); if (items.indexOf(v) < 0) items.push(v);
       setDoc('settings', 'chemistries', { items: items });
+    },
+    resource: function (fd) {
+      var v = val(fd, 'resource'); if (!v) return false;
+      var items = resourceList().slice(); if (items.indexOf(v) < 0) items.push(v);
+      setDoc('settings', 'resources', { items: items });
     }
   };
   var C = {
