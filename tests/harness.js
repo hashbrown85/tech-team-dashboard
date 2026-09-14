@@ -16,23 +16,44 @@ export function group(name) {
   currentGroup = name;
 }
 
+/** @type {Promise<void>[]} */
+const pending = [];
+
+function record(name, group, err) {
+  results.push({
+    name,
+    group,
+    ok: !err,
+    detail: err ? (err.message ? err.message : String(err)) : ''
+  });
+}
+
 /**
  * Define and immediately run one test.
+ *
+ * Works for both ordinary and async tests: if `fn` returns a promise, the result is
+ * recorded when it settles and `report()` waits for it. Tests within a group still
+ * run in the order they are written.
+ *
  * @param {string} name - what this test proves, in plain language
- * @param {() => void} fn - throws on failure (use the check helpers below)
+ * @param {() => void | Promise<void>} fn - throws (or rejects) on failure
  */
 export function test(name, fn) {
+  const g = currentGroup;
+  let out;
   try {
-    fn();
-    results.push({ name, group: currentGroup, ok: true, detail: '' });
+    out = fn();
   } catch (err) {
-    results.push({
-      name,
-      group: currentGroup,
-      ok: false,
-      detail: err && err.message ? err.message : String(err)
-    });
+    record(name, g, err);
+    return;
   }
+  if (out && typeof out.then === 'function') {
+    pending.push(
+      out.then(function () { record(name, g, null); }, function (err) { record(name, g, err); })
+    );
+    return;
+  }
+  record(name, g, null);
 }
 
 /** Fail unless `actual` deep-equals `expected`. */
@@ -57,10 +78,14 @@ export function notOk(value, because) {
 }
 
 /**
- * Write every result into the page and log a one-line summary.
+ * Wait for any async tests, then write every result into the page and log a
+ * one-line summary.
+ *
  * @param {HTMLElement | null} into
  */
-export function report(into) {
+export async function report(into) {
+  await Promise.all(pending);
+
   const passed = results.filter((r) => r.ok).length;
   const failed = results.length - passed;
 
