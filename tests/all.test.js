@@ -14,6 +14,8 @@ import './queries.test.js';
 import './projects.test.js';
 import './issues.test.js';
 import './actions.test.js';
+import './meetings.test.js';
+import './cascade.test.js';
 
 export const summary = report(
   typeof document === 'undefined' ? null : document.getElementById('results')
