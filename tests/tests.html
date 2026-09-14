@@ -75,7 +75,7 @@
 <script type="module">
   // If the import below fails, the setup note above stays visible and the reason
   // is in the browser console. If it succeeds, hide the note.
-  import('./domain.test.js')
+  import('./all.test.js')
     .then(() => { document.getElementById('setup').hidden = true; })
     .catch((err) => {
       console.error(err);

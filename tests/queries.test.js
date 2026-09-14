@@ -10,7 +10,7 @@
  * the extraction is still in progress.
  */
 
-import { group, test, eq, ok, notOk, report } from './harness.js';
+import { group, test, eq, ok, notOk } from './harness.js';
 import {
   isOpen,
   openActsFor,
@@ -325,6 +325,4 @@ test('An action with no parent belongs to nothing and blocks nothing', () => {
   eq(idsIn(issueItems(snap, 't1')), ['i1'], 'an orphaned action does not give the issue a path');
 });
 
-/* ---------- run ---------- */
-
-export const summary = report(document.getElementById('results'));
+/* Tests run on import. tests/all.test.js gathers every file and reports once. */
