@@ -244,3 +244,24 @@ Be honest about these — three of them look like controls and aren't:
   `optional` at once.
 - **Losses require a "what we'll do differently"** (board.html:1572) — this one *is*
   enforced, and it's the only content validation in the app beyond required fields.
+
+---
+
+## Known defects, found while writing this down
+
+Recorded rather than fixed, because the port deliberately changes no behaviour
+(outside the planned owner-id migration). Each is a small, separate change once the
+extraction is finished.
+
+- **The board thinks it's still yesterday if left open overnight.** `TODAY` is read
+  once at startup (board.html:510) and never refreshed, so overdue actions don't turn
+  over at midnight and `doneOn` can be stamped with the wrong date. `src/lib/dates.js`
+  exposes `today()` as a function so this becomes fixable at the call sites.
+- **A new show-stopper can get a rank of `NaN`** if the last existing show-stopper has
+  no rank at all (board.html:1596 does `rank + 0.5`). Only reachable from data that
+  predates the ranking logic, or from the notes-import path. See rule 6.
+- **`doneOn` uses today's date, everything else uses the meeting date**
+  (board.html:1637). Not wrong exactly, but inconsistent, and it means an action
+  closed while reviewing last week's meeting is stamped with today.
+- **A rating and a meeting note written at the same moment can clobber each other**,
+  because both writers replace the whole `meetings` document rather than patching it.
