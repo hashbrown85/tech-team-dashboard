@@ -176,7 +176,7 @@ function stageWins(snap, ui, env, tab, d, ents) {
       '<ul class="alist">' + due.map(function (a) {
         return '<li class="arow"><span class="aid">' + actionLabel(a) + '</span>' +
           '<span class="atext">' + esc(a.text) + '</span>' +
-          '<span class="adue ' + dueClass(a, d) + '">' + dueLabel(a, d) + '</span>' +
+          '<span class="adue ' + dueClass(a, env.today) + '">' + dueLabel(a, env.today) + '</span>' +
           '<span class="own">' + esc(a.owner || 'No owner') + '</span></li>';
       }).join('') + '</ul>' +
       '<p class="dc-tip">Close what is done as you go round — tick it in Action items.</p></div>'
@@ -370,27 +370,43 @@ function stageIssues(snap, ui, env, tab, d) {
       '<span class="rank">' + (idx + 1) + '</span>' +
       '<span class="chip ' + esc(it.sev) + '">' +
       (isProject ? 'Off-track project' : SEVERITY_LABELS[it.sev]) + '</span>' +
-      '<div class="is-tools">' +
-      '<button class="icon" type="button" data-act="moveIssue" data-id="' + esc(key) + '" data-v="-1" aria-label="Move up"' + dis(env) + '>▲</button>' +
-      '<button class="icon" type="button" data-act="moveIssue" data-id="' + esc(key) + '" data-v="1" aria-label="Move down"' + dis(env) + '>▼</button>' +
+      // `edit-only` hides the whole toolbar when the board is read-only, so these
+      // do not each need disabling. The move buttons ARE disabled at the ends of
+      // the list, which is clearer than a button that silently does nothing.
+      '<div class="is-tools edit-only">' +
+      '<button class="mv" type="button" data-act="moveIssue" data-id="' + esc(key) +
+      '" data-v="-1" aria-label="Move up"' + (idx === 0 ? ' disabled' : '') + '>▲</button>' +
+      '<button class="mv" type="button" data-act="moveIssue" data-id="' + esc(key) +
+      '" data-v="1" aria-label="Move down"' + (idx === queue.length - 1 ? ' disabled' : '') + '>▼</button>' +
       (isProject
         ? ''
-        : '<button class="icon" type="button" data-act="resolveIssue" data-id="' + esc(o.id) + '" aria-label="Mark resolved"' + dis(env) + '>✓</button>' +
-          '<button class="icon danger" type="button" data-act="delIssue" data-id="' + esc(o.id) + '" aria-label="Delete"' + dis(env) + '>×</button>') +
+        : '<button class="btn ghost sm" type="button" data-act="resolveIssue" data-id="' +
+          esc(o.id) + '">Resolved</button>' +
+          '<button class="x" type="button" data-act="delIssue" data-id="' + esc(o.id) +
+          '" aria-label="Remove issue">×</button>') +
       '</div></div>' +
       '<div class="is-body"><p class="is-sub">' + esc(o.text || o.name) + '</p>' +
       '<p class="meta">' + esc(personName(snap, o.personId)) +
       (o.meeting ? ' · raised ' + fmt(o.meeting) : '') + '</p>' + form + '</div></article>';
   }).join('');
 
+  // The markup here is dictated by the stylesheet: `.moved li` is a two-column
+  // grid whose first column is the severity chip and whose second holds the text
+  // and the action lines. Do not add `.item` (a competing three-column grid) or
+  // `.mv` (the 26px move button) — either one collapses the row.
   const movedBlock = moved.length
-    ? '<div class="moved"><div class="lbl">Moved — now tracked as actions</div><ul class="items">' +
+    ? '<div class="moved"><div class="lbl">Has a path and owner · now tracked as actions (' +
+      moved.length + ')</div><ul>' +
       moved.map(function (it) {
         const acts = actsOf(snap, it.o.id).filter(isOpen);
-        return '<li class="item mv"><span class="it-t">' + esc(it.o.text || it.o.name) + '</span>' +
+        return '<li id="iss-' + esc(it.o.id) + '">' +
+          '<span class="chip ' + esc(it.sev) + '">' +
+          (it.type === 'p' ? 'Off-track project' : SEVERITY_LABELS[it.sev]) + '</span>' +
+          '<span class="mv-t">' + esc(it.o.text || it.o.name) + '</span>' +
           '<span class="mv-a">' + acts.map(function (a) {
-            return actionLabel(a) + ' · ' + esc(a.owner || 'no owner');
-          }).join(', ') + '</span></li>';
+            return '→ ' + actionLabel(a) + ' ' + esc(a.owner || 'No owner') +
+              ' · ' + dueLabel(a, env.today);
+          }).join('<br>') + '</span></li>';
       }).join('') + '</ul></div>'
     : '';
 
@@ -507,11 +523,11 @@ function renderRail(snap, ui, env, tab, step, d) {
 
   const rows = list.length
     ? '<ul class="alist">' + list.map(function (a) {
-        return '<li class="arow ' + dueClass(a, d) + '" id="row-' + esc(a.id) + '">' +
+        return '<li class="arow ' + dueClass(a, env.today) + '" id="row-' + esc(a.id) + '">' +
           '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
           (isOpen(a) ? '' : ' checked') + dis(env) + '><span class="aid">' + actionLabel(a) + '</span></label>' +
           '<span class="atext">' + esc(a.text) + '</span>' +
-          '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, d) + '</span></li>';
+          '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, env.today) + '</span></li>';
       }).join('') + '</ul>'
     : '<p class="none">' + (selected ? 'No actions on this project yet.' : 'No open actions in this meeting.') + '</p>';
 

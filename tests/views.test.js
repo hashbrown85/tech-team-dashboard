@@ -12,7 +12,7 @@
  * for. These check it does not fall over.
  */
 
-import { group, test, ok, eq } from './harness.js';
+import { group, test, ok, notOk, eq } from './harness.js';
 import { renderApp } from '../src/views/render.js';
 import { demoBoard } from '../src/demo-data.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
@@ -110,6 +110,77 @@ test('A read-only area disables its controls and says so', function () {
 test('Read-only in one area leaves the other alone', function () {
   const html = render({ view: 'actions' }, { content: 'live', settings: 'readonly' });
   ok(html.indexOf('View only') < 0, 'content is still editable');
+});
+
+group('Markup the stylesheet dictates');
+
+/*
+ * These exist because of a real bug: the "now tracked as actions" rows were given
+ * `class="item mv"`. `.mv` is the 26px move BUTTON, so every row was forced to 26px
+ * wide and the text wrapped one character per line. `.item` added a second,
+ * competing grid on top of the one `.moved li` already defines.
+ *
+ * The lesson is that a class name is not decoration - several of them carry a
+ * layout, and picking one that looks plausible is not the same as picking the one
+ * the stylesheet means. These pin the structures where that matters.
+ */
+
+/** The "moved" section for a board that has one. */
+function movedSection() {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const start = html.indexOf('class="moved"');
+  ok(start > 0, 'the demo board has an item with a path, so the section is present');
+  return html.slice(start, html.indexOf('</ul>', start));
+}
+
+test('A moved row carries no class that brings its own layout', () => {
+  const section = movedSection();
+  const row = /<li[^>]*>/.exec(section)[0];
+
+  notOk(/item/.test(row), '.item is a three-column grid and would fight .moved li');
+  notOk(/class="[^"]*mv/.test(row), '.mv is the 26px move button and would collapse the row');
+  ok(/<li id="iss-/.test(row), 'and the row keeps an id, so it can be scrolled to');
+});
+
+test('A moved row is chip, then text, then the action lines', () => {
+  // .moved li is a two-column grid: the chip sizes column one, everything else
+  // sits in column two. Reordering these silently breaks the alignment.
+  const section = movedSection();
+  ok(/<li id="iss-[^"]*"><span class="chip /.test(section), 'chip comes first');
+  ok(section.indexOf('class="mv-t"') > section.indexOf('class="chip'), 'then the text');
+  ok(section.indexOf('class="mv-a"') > section.indexOf('class="mv-t"'), 'then the actions');
+});
+
+test('Each moved row names its action, owner and due date', () => {
+  ok(/→ A-\d+ [^<·]+ · /.test(movedSection()),
+    'so the room can see who picked it up and by when');
+});
+
+test('The issue toolbar uses the small button style throughout', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const bar = html.slice(html.indexOf('is-tools'), html.indexOf('</div>', html.indexOf('is-tools')));
+
+  ok(/class="mv" type="button" data-act="moveIssue"/.test(bar), 'move buttons are .mv (26px)');
+  notOk(/class="icon"/.test(bar), 'not .icon, which is the 32px date-nav chevron');
+  ok(/is-tools edit-only/.test(html), 'and the whole toolbar hides when read-only');
+});
+
+test('Move buttons are disabled at the ends rather than doing nothing', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  ok(/data-v="-1"[^>]*disabled/.test(html), 'the top row cannot move up');
+  ok(/data-v="1"[^>]*disabled/.test(html), 'the bottom row cannot move down');
+});
+
+test('Dueness is measured against today, not the meeting being viewed', () => {
+  // Navigating to another week must not change whether something is overdue.
+  const thisWeek = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const nextWeek = render({
+    view: 'tab', tab: 't1', steps: { t1: 3 }, dates: { t1: '2027-01-04' }
+  });
+
+  const overdueIn = (html) => (html.match(/\d+d overdue/g) || []).length;
+  eq(overdueIn(nextWeek), overdueIn(thisWeek),
+    'the same work is overdue whichever week you are looking at');
 });
 
 group('Escaping');
