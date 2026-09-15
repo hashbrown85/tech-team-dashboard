@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Technical Operations &amp; Innovation Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Michroma&family=Saira+Condensed:wght@500;600;700&family=Saira+Semi+Condensed:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/theme.css">
+<style>
+  /* Only what the extracted stylesheet does not already cover. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .boot {
+    padding: 40px 24px; font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+    max-width: 44em;
+  }
+  .boot code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+</style>
+</head>
+<body>
+
+<div id="root">
+  <div class="boot">
+    <h1>Loading the board…</h1>
+    <p>
+      If this message stays, the page could not load its JavaScript modules.
+      Serve the folder over <code>http://</code> rather than opening the file
+      directly — browsers block modules on <code>file://</code>. From the project
+      folder: <code>npx serve</code> or <code>python -m http.server</code>.
+    </p>
+    <p>Any real error will be in the browser console.</p>
+  </div>
+</div>
+
+<script type="module">
+  import { start } from './src/main.js';
+  try {
+    start();
+  } catch (err) {
+    console.error(err);
+    document.getElementById('root').innerHTML =
+      '<div class="boot"><h1>Could not start</h1><p>' +
+      String(err && err.message ? err.message : err) +
+      '</p><p>See the browser console for the full error.</p></div>';
+  }
+</script>
+
+</body>
+</html>
