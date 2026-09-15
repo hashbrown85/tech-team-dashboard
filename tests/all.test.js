@@ -17,6 +17,8 @@ import './actions.test.js';
 import './meetings.test.js';
 import './cascade.test.js';
 import './store.test.js';
+import './views.test.js';
+import './flow.test.js';
 
 export const summary = await report(
   typeof document === 'undefined' ? null : document.getElementById('results')
