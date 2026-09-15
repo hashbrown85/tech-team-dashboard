@@ -58,7 +58,14 @@ export function renderMeetingSettings(snap, ui, env, tab) {
     '<label class="lbl">Runs on<select class="fld" data-edit="tabWeekday"' + dis(env) + '>' + dayOpts + '</select></label>' +
     '<label class="lbl">Length (minutes)<input class="fld" type="number" min="5" max="480" value="' +
     esc(Number(tab.lengthMin) || 30) + '" data-edit="tabLength"' + dis(env) + '></label>' +
-    '</div></section>';
+    '</div>' +
+    // Off by default. A running clock is a commitment to pace, and that is the
+    // group's decision to make rather than something the tool imposes on them.
+    '<label class="lg-o"><input type="checkbox" data-edit="tabTimer"' +
+    (tab.showTimer ? ' checked' : '') + dis(env) + '> Show the agenda clock</label>' +
+    '<p class="sm muted">Adds a running timer and a time budget on each segment. ' +
+    'Leave it off unless the group wants to work to time.</p>' +
+    '</section>';
 
   const grid = people.length
     ? '<div class="tbl-scroll"><table class="tbl"><thead><tr><th>Person</th>' +

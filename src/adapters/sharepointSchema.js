@@ -77,7 +77,9 @@ export const SCHEMA = {
       lengthMin: { col: 'LengthMin', kind: 'number' },
       members: { col: 'MembersJson', kind: 'json' },
       support: { col: 'SupportJson', kind: 'json' },
-      optional: { col: 'OptionalJson', kind: 'json' }
+      optional: { col: 'OptionalJson', kind: 'json' },
+      // Off unless switched on, so existing meetings need no migration.
+      showTimer: { col: 'ShowTimer', kind: 'flag' }
     }
   },
 

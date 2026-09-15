@@ -341,6 +341,7 @@ export function createHandlers(app) {
     tabKind: function (el) { patchTab({ kind: el.value }); },
     tabWeekday: function (el) { patchTab({ weekday: Number(el.value) }, true); },
     tabLength: function (el) { patchTab({ lengthMin: Number(el.value) || 30 }, true); },
+    tabTimer: function (el) { patchTab({ showTimer: !!el.checked }, true); },
 
     tabRole: function (el) {
       const t = currentTab();
