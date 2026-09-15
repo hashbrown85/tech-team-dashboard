@@ -133,14 +133,21 @@ export function createStore(adapter, hooks) {
   /**
    * Apply operations locally, then send them. On refusal, reload to get back in step.
    *
+   * `silent` skips the redraw. It is for writes that only record what the user has
+   * already typed into a field: the screen is correct before the write starts, so
+   * redrawing changes nothing visible and actively does harm — it throws away focus,
+   * the caret position, and whether a disclosure panel was open. A redraw is for
+   * changes the user cannot already see.
+   *
    * @param {Op[]} ops
    * @param {string} col - for permission reporting
+   * @param {boolean} [silent]
    */
-  function commit(ops, col) {
+  function commit(ops, col, silent) {
     if (!ops.length) return Promise.resolve();
 
     ops.forEach(function (op) { applyToSnapshot(snap, op); });
-    changed();
+    if (!silent) changed();
 
     const send = ops.length === 1
       ? sendOne(ops[0])
@@ -206,12 +213,24 @@ export function createStore(adapter, hooks) {
 
     /* --- writes --- */
 
-    set: function (col, id, data) {
-      return commit([{ op: 'set', col: col, id: id, data: data }], col);
+    /**
+     * @param {string} col
+     * @param {string} id
+     * @param {any} data
+     * @param {{silent?: boolean}} [opts] - silent: the screen is already correct
+     */
+    set: function (col, id, data, opts) {
+      return commit([{ op: 'set', col: col, id: id, data: data }], col, opts && opts.silent);
     },
 
-    update: function (col, id, patch) {
-      return commit([{ op: 'update', col: col, id: id, patch: patch }], col);
+    /**
+     * @param {string} col
+     * @param {string} id
+     * @param {any} patch
+     * @param {{silent?: boolean}} [opts]
+     */
+    update: function (col, id, patch, opts) {
+      return commit([{ op: 'update', col: col, id: id, patch: patch }], col, opts && opts.silent);
     },
 
     remove: function (col, id) {

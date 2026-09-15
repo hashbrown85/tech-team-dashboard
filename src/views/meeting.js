@@ -299,7 +299,7 @@ function stageProjects(snap, ui, env, tab, d) {
             '</div>' +
             '<div class="seg-tgl" role="group" aria-label="Status for ' + esc(p.name) + '">' + buttons + '</div>' +
             (p.note ? '<p class="why">' + esc(p.note) + '</p>' : '') +
-            (seeDetails ? projectDetailsPanel(snap, env, p) : '') +
+            (seeDetails ? projectDetailsPanel(snap, ui, env, p) : '') +
             '</div>';
         }).join('')
       : '<p class="none">No current projects.</p>';
@@ -327,9 +327,14 @@ function stageProjects(snap, ui, env, tab, d) {
  * the panel is absent because there is nothing to draw, not because the browser
  * decided to hide it. That is the difference between hiding and protecting.
  */
-function projectDetailsPanel(snap, env, p) {
+function projectDetailsPanel(snap, ui, env, p) {
   const d = byId(snap.projectDetails, p.id) || {};
-  return '<details class="dtl"><summary class="lbl">Project details</summary>' +
+  // Whether this was open is remembered, because a render can happen at any moment -
+  // the background poll alone would otherwise shut the panel every minute while
+  // somebody was still typing in it.
+  const isOpen = !!(ui.openDetails && ui.openDetails[p.id]);
+  return '<details class="dtl" data-details="' + esc(p.id) + '"' + (isOpen ? ' open' : '') +
+    '><summary class="lbl">Project details</summary>' +
     '<div class="sgrid">' +
     '<label class="lbl">Estimated value' +
     '<input class="fld" type="number" data-edit="pdValue" data-id="' + esc(p.id) + '" value="' +

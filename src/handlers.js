@@ -318,14 +318,17 @@ export function createHandlers(app) {
 
     actionDue: function (el) {
       const doc = changeDue(byId(store.snapshot().actions, el.dataset.id), el.value);
-      if (doc) store.set('actions', el.dataset.id, doc).then(render);
+      // Silent so the date field keeps focus while it is being edited. The due
+      // label beside it catches up on the next render.
+      if (doc) store.set('actions', el.dataset.id, doc, { silent: true });
     },
 
     meetingNote: function (el) {
       const t = currentTab();
       if (!t) return;
       const d = currentDate(t);
-      store.set('meetings', documentId(t.id, d), setNote(store.snapshot(), t.id, d, el.value));
+      store.set('meetings', documentId(t.id, d), setNote(store.snapshot(), t.id, d, el.value),
+        { silent: true });
     },
 
     /* --- project details --- */
@@ -399,14 +402,21 @@ export function createHandlers(app) {
   function patchDetails(el, patch) {
     const id = el.dataset.id;
     const existing = byId(store.snapshot().projectDetails || [], id);
-    if (existing) store.update('projectDetails', id, patch);
-    else store.set('projectDetails', id, patch);
+    // Silent: the figure is already on screen - the user just typed it. Redrawing
+    // would close the panel they are still working in.
+    if (existing) store.update('projectDetails', id, patch, { silent: true });
+    else store.set('projectDetails', id, patch, { silent: true });
   }
 
+  /**
+   * @param {any} patch
+   * @param {boolean} [rerender] - true when the change affects more than the field
+   *   itself, e.g. the weekday changes every date on the screen.
+   */
   function patchTab(patch, rerender) {
     const t = currentTab();
     if (!t) return;
-    const p = store.update('tabs', t.id, patch);
+    const p = store.update('tabs', t.id, patch, { silent: !rerender });
     if (rerender) p.then(render);
   }
 

@@ -32,7 +32,8 @@ function defaults() {
     tlGroup: 'meeting', // timeline grouping
     follow: false,      // showing the copyable follow-up text
     sumShow: false,     // showing the meeting summary preview
-    open: null          // which inline form is open
+    open: null,         // which inline form is open
+    openDetails: {}     // project ids whose details panel is expanded
     // Who you are is NOT remembered here any more - it comes from the sign-in.
   };
 }
@@ -62,7 +63,7 @@ export function loadUi() {
     const saved = JSON.parse(raw);
     const merged = Object.assign(base, saved);
     // These must be objects; anything else would break lookups.
-    ['dates', 'steps', 'timers'].forEach(function (k) {
+    ['dates', 'steps', 'timers', 'openDetails'].forEach(function (k) {
       if (!merged[k] || typeof merged[k] !== 'object') merged[k] = {};
     });
     return merged;

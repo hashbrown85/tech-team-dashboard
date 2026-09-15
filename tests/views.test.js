@@ -261,6 +261,84 @@ test('Dueness is measured against today, not the meeting being viewed', () => {
     'the same work is overdue whichever week you are looking at');
 });
 
+group('The Project Details panel stays where you left it');
+
+/*
+ * Reported as "the project details close after entering information into each box".
+ * Two causes, and the second is worse than the reported symptom: every field edit
+ * triggered a full redraw, AND the background poll redraws every sixty seconds, so
+ * the panel would shut by itself while somebody was still typing in it.
+ */
+
+function projectsStep(uiOverrides) {
+  return render(Object.assign({ view: 'tab', tab: 't1', steps: { t1: 2 } }, uiOverrides || {}));
+}
+
+test('It is closed until opened', () => {
+  notOk(/data-details="pr1" open/.test(projectsStep()), 'not open by default');
+});
+
+test('Once opened, a redraw leaves it open', () => {
+  // A render is not a reset. The user has not asked for anything to close.
+  ok(/data-details="pr1" open/.test(projectsStep({ openDetails: { pr1: true } })));
+});
+
+test('Only the panel that was opened is open', () => {
+  const html = projectsStep({ openDetails: { pr1: true } });
+  eq((html.match(/ open>/g) || []).length, 1, 'opening one does not open them all');
+});
+
+test('Each panel is identifiable, so its state can be recorded', () => {
+  ok(/data-details="pr1"/.test(projectsStep()), 'carries the project id');
+});
+
+group('Edits that only echo typing do not redraw');
+
+test('Writing a project figure is silent', async () => {
+  // The screen is already correct - the user typed it. Redrawing would throw away
+  // their focus, their caret, and the panel they are working in.
+  const { createStore } = await import('../src/store.js');
+  const { createMemoryAdapter } = await import('../src/adapters/memoryAdapter.js');
+  const { createHandlers } = await import('../src/handlers.js');
+
+  const adapter = createMemoryAdapter({ seed: demoBoard() });
+  let redraws = 0;
+  const store = createStore(adapter, { onChange: function () { redraws++; } });
+  await store.load();
+  redraws = 0;
+
+  const ui = Object.assign(loadUi(), { view: 'tab', tab: 't1' });
+  const H = createHandlers({ store: store, ui: ui, render: function () { redraws++; }, today: today });
+
+  H.edits.pdValue(/** @type {any} */ ({ dataset: { id: 'pr1' }, value: '250000' }));
+  await new Promise(function (r) { setTimeout(r, 20); });
+
+  eq(redraws, 0, 'no redraw at all');
+  eq(store.snapshot().projectDetails.find(function (d) { return d.id === 'pr1'; }).estValue,
+    250000, 'but the figure was still saved');
+});
+
+test('A change with consequences beyond the field still redraws', async () => {
+  // Changing a meeting's weekday moves every date on the screen, so the screen is
+  // NOT already correct and a redraw is exactly right.
+  const { createStore } = await import('../src/store.js');
+  const { createMemoryAdapter } = await import('../src/adapters/memoryAdapter.js');
+  const { createHandlers } = await import('../src/handlers.js');
+
+  const adapter = createMemoryAdapter({ seed: demoBoard() });
+  const store = createStore(adapter, {});
+  await store.load();
+
+  let redraws = 0;
+  const ui = Object.assign(loadUi(), { view: 'tab', tab: 't1', settings: true });
+  const H = createHandlers({ store: store, ui: ui, render: function () { redraws++; }, today: today });
+
+  H.edits.tabWeekday(/** @type {any} */ ({ value: '3' }));
+  await new Promise(function (r) { setTimeout(r, 20); });
+
+  ok(redraws > 0, 'the dates on screen have to catch up');
+});
+
 group('Escaping');
 
 test('Board content is escaped, so a stray character cannot break the page', function () {

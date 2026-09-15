@@ -167,6 +167,18 @@ export async function start(options) {
     if (fn) fn(new FormData(form), form);
   });
 
+  // A <details> panel opening or closing. The `toggle` event does not bubble, so
+  // this listens in the capture phase. Nothing is redrawn - we are only recording
+  // what the user did so the next render can put it back the way they left it.
+  root.addEventListener('toggle', function (e) {
+    const el = /** @type {HTMLElement} */ (e.target);
+    if (!el || !el.getAttribute || !el.hasAttribute('data-details')) return;
+    const id = el.getAttribute('data-details');
+    if (/** @type {HTMLDetailsElement} */ (el).open) ui.openDetails[id] = true;
+    else delete ui.openDetails[id];
+    saveUi(ui);
+  }, true);
+
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && ui.open) {
       ui.open = null;
