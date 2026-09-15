@@ -355,19 +355,33 @@ function projectDetailsPanel(snap, ui, env, p) {
  *
  * It sits here rather than at the start of the meeting on purpose: this is the
  * moment the group is about to agree NEW actions, so it is the moment to see what
- * is already owed. Everything still open that was due by this meeting.
+ * is already owed.
+ *
+ * ## What "already owed" measures against
+ *
+ * Today, not the meeting date — with one exception. The meeting date is usually in
+ * the FUTURE (the next occurrence of that weekday), so measuring against it would
+ * sweep in work that is not due yet: on a Tuesday, with the meeting on Monday, an
+ * action due Friday is three days away and nobody owes it yet. That was a real bug.
+ *
+ * The exception is looking back at a PAST meeting, where "already owed" should mean
+ * what was owed at the time, not what is owed now. So the cut-off is whichever of
+ * the two is earlier.
  *
  * Deliberately quiet — it is context for the conversation that follows, not another
  * list to work through. It renders nothing at all when there is nothing outstanding.
  */
 function dueSinceLastMeeting(snap, env, tab, d) {
+  // Date strings are YYYY-MM-DD, so comparing them as text gives the earlier one.
+  const asOf = d < env.today ? d : env.today;
+
   const due = snap.actions.filter(function (a) {
-    return a.tab === tab.id && isOpen(a) && a.due && a.due <= d;
+    return a.tab === tab.id && isOpen(a) && a.due && a.due <= asOf;
   }).sort(function (a, b) { return (a.due || '') < (b.due || '') ? -1 : 1; });
 
   if (!due.length) return '';
 
-  return '<div class="duechk"><div class="dc-h">Already owed · due by this meeting</div>' +
+  return '<div class="duechk"><div class="dc-h">Already owed</div>' +
     '<ul class="alist">' + due.map(function (a) {
       return '<li class="arow"><span class="aid">' + actionLabel(a) + '</span>' +
         '<span class="atext">' + esc(a.text) + '</span>' +

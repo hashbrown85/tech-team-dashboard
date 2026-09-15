@@ -16,7 +16,7 @@ import { group, test, ok, notOk, eq } from './harness.js';
 import { renderApp } from '../src/views/render.js';
 import { demoBoard } from '../src/demo-data.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
-import { today } from '../src/lib/dates.js';
+import { today, addDays } from '../src/lib/dates.js';
 import { loadUi } from '../src/ui.js';
 
 const MODES = { content: 'live', settings: 'live' };
@@ -123,6 +123,63 @@ test('It sits at the top of Issues, not in Wins & Losses', () => {
   notOk(wins.indexOf('duechk') >= 0, 'gone from Wins & Losses');
   ok(issues.indexOf('duechk') >= 0, 'present in Issues');
   ok(issues.indexOf('duechk') < issues.indexOf('class="issue'), 'above the queue');
+});
+
+test('Work that is not due yet is not "already owed"', () => {
+  // The reported bug: on a Tuesday, with the meeting on Monday, an action due
+  // Friday was listed as already owed. It had been measured against the MEETING
+  // date - which is normally in the future - rather than against today.
+  const snap = demoBoard();
+  snap.actions.push({
+    id: 'future', num: 99, tab: 't1', text: 'not due for three days',
+    owner: 'Alex Morgan', support: '', due: addDays(today(), 3),
+    status: 'open', parent: null, meeting: today()
+  });
+
+  const html = renderApp(snap, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 3 }
+  }), { today: today(), modes: MODES });
+
+  const box = html.slice(html.indexOf('duechk'), html.indexOf('dc-tip'));
+  notOk(box.indexOf('not due for three days') >= 0, 'three days away is not owed yet');
+});
+
+test('Work due today IS already owed', () => {
+  const snap = demoBoard();
+  snap.actions.push({
+    id: 'duetoday', num: 98, tab: 't1', text: 'owed today',
+    owner: 'Alex Morgan', support: '', due: today(),
+    status: 'open', parent: null, meeting: today()
+  });
+
+  const html = renderApp(snap, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 3 }
+  }), { today: today(), modes: MODES });
+
+  const box = html.slice(html.indexOf('duechk'), html.indexOf('dc-tip'));
+  ok(box.indexOf('owed today') >= 0, 'the day it is due, it is owed');
+});
+
+test('Looking back at a past meeting shows what was owed THEN', () => {
+  // The one case where the meeting date is the right cut-off: reviewing a meeting
+  // that has already happened, "already owed" means owed at the time.
+  const snap = demoBoard();
+  const lastWeek = addDays(today(), -7);
+  snap.actions.push({
+    id: 'sincethen', num: 97, tab: 't1', text: 'became due after that meeting',
+    owner: 'Alex Morgan', support: '', due: addDays(today(), -1),
+    status: 'open', parent: null, meeting: lastWeek
+  });
+
+  const html = renderApp(snap, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 3 }, dates: { t1: lastWeek }
+  }), { today: today(), modes: MODES });
+
+  const box = html.indexOf('duechk') >= 0
+    ? html.slice(html.indexOf('duechk'), html.indexOf('dc-tip'))
+    : '';
+  notOk(box.indexOf('became due after that meeting') >= 0,
+    'it was not owed yet at that meeting, so it does not belong in its list');
 });
 
 test('It is absent entirely when nothing is outstanding', () => {
