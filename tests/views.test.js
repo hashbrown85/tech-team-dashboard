@@ -339,6 +339,110 @@ test('A change with consequences beyond the field still redraws', async () => {
   ok(redraws > 0, 'the dates on screen have to catch up');
 });
 
+group('The timeline gives the stylesheet the structure it expects');
+
+/*
+ * Reported as "timeline view is fucked - all the buttons are non-functional and the
+ * only way out is a weird button at the top".
+ *
+ * The cause was mine: .tl is ONE grid of rows, four columns wide, and .tl-in is
+ * position:absolute inside the axis column. The first version invented week columns
+ * each holding a list, so every .tl-in became absolutely positioned and they stacked
+ * on top of one another - only the topmost thing was clickable, and the page
+ * overflowed sideways far enough to push the sidebar out of reach.
+ *
+ * These pin the shape rather than the styling: four header cells, then exactly four
+ * children per lane, in order.
+ */
+
+function timeline(uiOverrides) {
+  return render(Object.assign({ view: 'timeline' }, uiOverrides || {}));
+}
+
+/** The contents of the .tl grid. */
+function grid(html) {
+  const start = html.indexOf('<div class="tl">');
+  ok(start > 0, 'the grid is present');
+  return html.slice(start, html.indexOf('</section>', start));
+}
+
+test('The header contributes exactly four cells', () => {
+  const g = grid(timeline());
+  eq((g.match(/class="ax/g) || []).length, 4,
+    'label, overdue, axis and later - one per column');
+});
+
+test('Every lane contributes exactly four children, in order', () => {
+  const g = grid(timeline());
+  const labels = (g.match(/class="tl-lab"/g) || []).length;
+
+  ok(labels > 0, 'the demo board has dated work, so there are lanes');
+  eq((g.match(/<div class="tl-over">/g) || []).length, labels, 'one overdue cell per lane');
+  eq((g.match(/<div class="tl-later"/g) || []).length, labels, 'one later cell per lane');
+  eq((g.match(/class="tl-in"/g) || []).length, labels + 1, 'one axis per lane, plus the header');
+});
+
+test('Items are buttons on the axis, not stacked absolute blocks', () => {
+  // The bug: list items carrying .tl-in, which is position:absolute, so they all
+  // landed on top of each other and only one could be clicked.
+  const g = grid(timeline());
+
+  ok(/class="dot /.test(g), 'items render as dots');
+  ok(/data-act="focusAction"/.test(g), 'and are clickable');
+  notOk(/<li class="tl-in/.test(g), 'no list item carries the absolute-positioned class');
+});
+
+test('Dots due on the same day are staggered rather than overlapping', () => {
+  const snap = demoBoard();
+  const due = snap.actions[1].due;
+  snap.actions.forEach(function (a) { if (a.status !== 'done') a.due = due; });
+
+  const html = renderApp(snap, Object.assign({}, base, { view: 'timeline' }),
+    { today: today(), modes: MODES });
+  const tops = (html.match(/top:(\d+)px/g) || []);
+
+  ok(new Set(tops).size > 1, 'they do not all sit at the same height: ' + tops.join(','));
+});
+
+test('An empty timeline still renders the frame rather than collapsing', () => {
+  const snap = demoBoard();
+  snap.actions = [];
+  snap.projects = [];
+
+  const html = renderApp(snap, Object.assign({}, base, { view: 'timeline' }),
+    { today: today(), modes: MODES });
+
+  ok(html.indexOf('tl-empty') >= 0, 'it says there is nothing dated');
+  ok(html.indexOf('class="side"') >= 0, 'and the sidebar is still there');
+});
+
+test('The sidebar is reachable from the timeline', () => {
+  // "the only way out is a weird button at the top" - the nav must be present.
+  const html = timeline();
+  ok(html.indexOf('class="side"') >= 0, 'sidebar');
+  ok(html.indexOf('data-act="go" data-v="overview"') >= 0, 'with a way back to the overview');
+});
+
+group('Issue severity');
+
+test('The dropdown offers all three severities', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 }, open: 'issue' });
+  const select = html.slice(html.indexOf('name="sev"'), html.indexOf('</select>', html.indexOf('name="sev"')));
+
+  ok(select.indexOf('>Urgent<') >= 0, 'Urgent');
+  ok(select.indexOf('>Important<') >= 0, 'Important');
+  ok(select.indexOf('>Off Track Project<') >= 0, 'Off Track Project');
+  eq((select.match(/<option/g) || []).length, 3, 'and only those three');
+});
+
+test('An off-track project is labelled the same way in the queue', () => {
+  // The chip on the card and the dropdown option must say the same thing, or the
+  // two disagree about what the board calls it.
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  ok(html.indexOf('Off Track Project') >= 0);
+  notOk(html.indexOf('Off-track project') >= 0, 'the old hardcoded wording is gone');
+});
+
 group('Escaping');
 
 test('Board content is escaped, so a stray character cannot break the page', function () {

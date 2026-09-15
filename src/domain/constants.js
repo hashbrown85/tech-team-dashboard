@@ -40,12 +40,21 @@ export const STATUS_LABELS = {
  */
 export const SEVERITY_LABELS = {
   stopper: 'Urgent',
-  offtrack: 'Project Off-Track',
-  risk: 'Important'
+  risk: 'Important',
+  offtrack: 'Off Track Project'
 };
 
-/** The severities a person can actually pick when raising an issue. */
-export const SEVERITIES = ['stopper', 'risk'];
+/**
+ * The severities offered when raising an issue, in the order they appear.
+ *
+ * 'offtrack' is applied automatically to a project the moment its status is set to
+ * off track, which is the usual way it arises — but it is also selectable, because
+ * a project can be in trouble without anyone having changed its status yet, and
+ * being told "you cannot describe it that way" helps nobody.
+ *
+ * The dropdown is built from this list, so adding a severity here is all it takes.
+ */
+export const SEVERITIES = ['stopper', 'risk', 'offtrack'];
 
 /* ---------- meetings ---------- */
 

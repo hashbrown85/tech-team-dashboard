@@ -23,7 +23,7 @@ import {
 } from '../domain/queries.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
-  MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, STATUS_LABELS, STATUSES,
+  MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
   ACTIVE_STATUSES, segmentsFor
 } from '../domain/constants.js';
 import {
@@ -400,7 +400,7 @@ function stageIssues(snap, ui, env, tab, d) {
       '<div class="is-h">' +
       '<span class="rank">' + (idx + 1) + '</span>' +
       '<span class="chip ' + esc(it.sev) + '">' +
-      (isProject ? 'Off-track project' : SEVERITY_LABELS[it.sev]) + '</span>' +
+      SEVERITY_LABELS[isProject ? 'offtrack' : it.sev] + '</span>' +
       // `edit-only` hides the whole toolbar when the board is read-only, so these
       // do not each need disabling. The move buttons ARE disabled at the ends of
       // the list, which is clearer than a button that silently does nothing.
@@ -432,7 +432,7 @@ function stageIssues(snap, ui, env, tab, d) {
         const acts = actsOf(snap, it.o.id).filter(isOpen);
         return '<li id="iss-' + esc(it.o.id) + '">' +
           '<span class="chip ' + esc(it.sev) + '">' +
-          (it.type === 'p' ? 'Off-track project' : SEVERITY_LABELS[it.sev]) + '</span>' +
+          SEVERITY_LABELS[it.type === 'p' ? 'offtrack' : it.sev] + '</span>' +
           '<span class="mv-t">' + esc(it.o.text || it.o.name) + '</span>' +
           '<span class="mv-a">' + acts.map(function (a) {
             return '→ ' + actionLabel(a) + ' ' + esc(a.owner || 'No owner') +
@@ -454,8 +454,7 @@ function stageIssues(snap, ui, env, tab, d) {
     ? '<form class="add" data-form="issue">' +
       '<input class="fld" name="text" type="text" placeholder="What has no path yet" required>' +
       '<select class="fld" name="sev" aria-label="How urgent">' +
-      '<option value="stopper">Urgent — show-stopper</option>' +
-      '<option value="risk">Important</option></select>' +
+      severityOptions() + '</select>' +
       '<select class="fld" name="who" aria-label="Raised by">' + peopleOptions(snap, tab) + '</select>' +
       '<button class="btn" type="submit">Add</button>' +
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
@@ -586,6 +585,19 @@ function renderRail(snap, ui, env, tab, step, d) {
 }
 
 /* ---------- shared bits ---------- */
+
+/**
+ * The severity choices, built from SEVERITIES so the list and the labels cannot
+ * drift apart.
+ *
+ * @param {string} [selected]
+ */
+function severityOptions(selected) {
+  return SEVERITIES.map(function (key) {
+    return '<option value="' + key + '"' +
+      (selected === key ? ' selected' : '') + '>' + SEVERITY_LABELS[key] + '</option>';
+  }).join('');
+}
 
 /** Options of people, those in this meeting first. */
 function peopleOptions(snap, tab, selectedName) {
