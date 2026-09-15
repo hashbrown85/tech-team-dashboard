@@ -10,8 +10,8 @@
 
 import { group, test, eq, ok, notOk } from './harness.js';
 import { createStore, applyToSnapshot } from '../src/store.js';
-import { createMemoryAdapter } from '../src/data/memoryAdapter.js';
-import { blankSnapshot, memoryKeyFor, areaOf, describeWriteFailure } from '../src/data/DataStore.js';
+import { createMemoryAdapter } from '../src/adapters/memoryAdapter.js';
+import { blankSnapshot, memoryKeyFor, areaOf, describeWriteFailure } from '../src/adapters/DataStore.js';
 import { deleteProject } from '../src/domain/cascade.js';
 
 const MEETING = '2026-09-14';

@@ -37,11 +37,11 @@ import {
   areaOf,
   describeWriteFailure,
   KEYED_COLLECTIONS
-} from './data/DataStore.js';
+} from './adapters/DataStore.js';
 
 /**
- * @typedef {import('./data/DataStore.js').Snapshot} Snapshot
- * @typedef {import('./data/DataStore.js').Op} Op
+ * @typedef {import('./adapters/DataStore.js').Snapshot} Snapshot
+ * @typedef {import('./adapters/DataStore.js').Op} Op
  */
 
 /** How long between background reloads while the window sits idle. */
