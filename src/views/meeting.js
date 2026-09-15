@@ -54,6 +54,9 @@ export function renderMeeting(snap, ui, env, tab) {
   const length = Number(tab.lengthMin) || 30;
   const step = stepOf(ui, tab.id);
   const segs = segmentsFor(tab);
+  // Off unless a meeting deliberately turns it on. A clock is a commitment to
+  // pace, and that is a decision for the group rather than a default.
+  const showTimer = !!tab.showTimer;
 
   /* --- who's here --- */
 
@@ -110,18 +113,24 @@ export function renderMeeting(snap, ui, env, tab) {
       '<span class="st-n">' + (i + 1) + '</span>' +
       '<span class="st-t">' + esc(s.short) + '</span>' +
       '<span class="st-y">' + esc(s.tiny) + '</span>' +
-      '<span class="st-b">' + minutes(length * s.f) +
-      (counts[i] ? ' · <b>' + counts[i] + '</b>' : '') + '</span>' +
-      '<i class="st-p" id="stp-' + i + '"></i></button>';
+      (showTimer
+        ? '<span class="st-b">' + minutes(length * s.f) +
+          (counts[i] ? ' · <b>' + counts[i] + '</b>' : '') + '</span>' +
+          '<i class="st-p" id="stp-' + i + '"></i>'
+        : '') +
+      '</button>';
   }).join('');
 
   const stepper = '<div class="stepper">' +
     '<div class="steps" role="tablist" aria-label="Meeting segments">' + steps + '</div>' +
-    '<div class="tmr" id="tmr"><span class="t-el" id="t-el">0:00</span>' +
-    '<span class="t-of">/ ' + clock(length * 60) + '</span>' +
-    '<button class="ib go" type="button" data-act="timerToggle" id="t-btn" aria-label="Start meeting clock">▶</button>' +
-    '<button class="ib" type="button" data-act="timerReset" aria-label="Reset meeting clock">↺</button>' +
-    '</div></div><div class="t-hint" id="t-hint"></div>';
+    (showTimer
+      ? '<div class="tmr" id="tmr"><span class="t-el" id="t-el">0:00</span>' +
+        '<span class="t-of">/ ' + clock(length * 60) + '</span>' +
+        '<button class="ib go" type="button" data-act="timerToggle" id="t-btn" aria-label="Start meeting clock">▶</button>' +
+        '<button class="ib" type="button" data-act="timerReset" aria-label="Reset meeting clock">↺</button>' +
+        '</div>'
+      : '') +
+    '</div>' + (showTimer ? '<div class="t-hint" id="t-hint"></div>' : '');
 
   return head + stepper + '<div class="mgrid">' +
     '<section class="panel stage" aria-live="polite">' +
@@ -166,22 +175,6 @@ function personBlock(snap, id, inner) {
 function stageWins(snap, ui, env, tab, d, ents) {
   const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
 
-  // Actions that came due since the last meeting: the natural way into the segment.
-  const due = snap.actions.filter(function (a) {
-    return a.tab === tab.id && isOpen(a) && a.due && a.due <= d;
-  }).sort(function (a, b) { return (a.due || '') < (b.due || '') ? -1 : 1; });
-
-  const dueCheck = due.length
-    ? '<div class="duechk"><div class="dc-h">Due since the last meeting</div>' +
-      '<ul class="alist">' + due.map(function (a) {
-        return '<li class="arow"><span class="aid">' + actionLabel(a) + '</span>' +
-          '<span class="atext">' + esc(a.text) + '</span>' +
-          '<span class="adue ' + dueClass(a, env.today) + '">' + dueLabel(a, env.today) + '</span>' +
-          '<span class="own">' + esc(a.owner || 'No owner') + '</span></li>';
-      }).join('') + '</ul>' +
-      '<p class="dc-tip">Close what is done as you go round — tick it in Action items.</p></div>'
-    : '';
-
   const rows = reporting.map(function (id) {
     const mine = ents.filter(function (e) { return e.personId === id && (e.kind === 'win' || e.kind === 'loss'); });
     const list = mine.length
@@ -212,7 +205,7 @@ function stageWins(snap, ui, env, tab, d, ents) {
     return personBlock(snap, id, list + form);
   }).join('');
 
-  return dueCheck + (rows || '<p class="none">Add people to this meeting in Settings first.</p>');
+  return rows || '<p class="none">Add people to this meeting in Settings first.</p>';
 }
 
 /* --- 1: New Opportunities, or the Tech Directors business review --- */
@@ -347,6 +340,34 @@ function projectDetails(snap, env, p) {
 
 /* --- 3: Issues --- */
 
+/**
+ * Outstanding commitments, shown at the top of the Issues segment.
+ *
+ * It sits here rather than at the start of the meeting on purpose: this is the
+ * moment the group is about to agree NEW actions, so it is the moment to see what
+ * is already owed. Everything still open that was due by this meeting.
+ *
+ * Deliberately quiet — it is context for the conversation that follows, not another
+ * list to work through. It renders nothing at all when there is nothing outstanding.
+ */
+function dueSinceLastMeeting(snap, env, tab, d) {
+  const due = snap.actions.filter(function (a) {
+    return a.tab === tab.id && isOpen(a) && a.due && a.due <= d;
+  }).sort(function (a, b) { return (a.due || '') < (b.due || '') ? -1 : 1; });
+
+  if (!due.length) return '';
+
+  return '<div class="duechk"><div class="dc-h">Already owed · due by this meeting</div>' +
+    '<ul class="alist">' + due.map(function (a) {
+      return '<li class="arow"><span class="aid">' + actionLabel(a) + '</span>' +
+        '<span class="atext">' + esc(a.text) + '</span>' +
+        '<span class="adue ' + dueClass(a, env.today) + '">' + dueLabel(a, env.today) + '</span>' +
+        '<span class="own">' + esc(a.owner || 'No owner') + '</span></li>';
+    }).join('') + '</ul>' +
+    '<p class="dc-tip">Close anything already done before agreeing more — tick it in the rail.</p></div>';
+}
+
+
 function stageIssues(snap, ui, env, tab, d) {
   const queue = issueItems(snap, tab.id);
   const moved = actionedItems(snap, tab.id);
@@ -430,7 +451,8 @@ function stageIssues(snap, ui, env, tab, d) {
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="issue"' + dis(env) + '>+ Raise an issue</button>';
 
-  return (cards || '<p class="none">Nothing without a path. That is the goal.</p>') +
+  return dueSinceLastMeeting(snap, env, tab, d) +
+    (cards || '<p class="none">Nothing without a path. That is the goal.</p>') +
     movedBlock + resolvedBlock + addForm;
 }
 

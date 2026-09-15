@@ -112,6 +112,84 @@ test('Read-only in one area leaves the other alone', function () {
   ok(html.indexOf('View only') < 0, 'content is still editable');
 });
 
+group('Where the due-since-last-meeting block lives');
+
+test('It sits at the top of Issues, not in Wins & Losses', () => {
+  // It is a list of outstanding commitments, so it belongs immediately before the
+  // group agrees new ones - not at the start of the meeting.
+  const wins = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  const issues = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+
+  notOk(wins.indexOf('duechk') >= 0, 'gone from Wins & Losses');
+  ok(issues.indexOf('duechk') >= 0, 'present in Issues');
+  ok(issues.indexOf('duechk') < issues.indexOf('class="issue'), 'above the queue');
+});
+
+test('It is absent entirely when nothing is outstanding', () => {
+  const clean = demoBoard();
+  clean.actions = clean.actions.filter(function (a) { return a.status === 'done'; });
+  const html = renderApp(clean, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 3 }
+  }), { today: today(), modes: MODES });
+
+  notOk(html.indexOf('duechk') >= 0, 'no empty panel taking up space');
+});
+
+group('The agenda clock is off unless a meeting asks for it');
+
+/** The demo board with the clock switched on for the first meeting. */
+function withClock() {
+  const snap = demoBoard();
+  snap.tabs.find(function (t) { return t.id === 't1'; }).showTimer = true;
+  return snap;
+}
+
+function meetingHtml(snap) {
+  return renderApp(snap, Object.assign({}, base, { view: 'tab', tab: 't1', steps: { t1: 3 } }),
+    { today: today(), modes: MODES });
+}
+
+test('By default there is no clock, no hint and no step badge', () => {
+  // Deliberate: rolling this out should not start by timing people.
+  const html = meetingHtml(demoBoard());
+  notOk(html.indexOf('class="tmr"') >= 0, 'no timer');
+  notOk(html.indexOf('t-hint') >= 0, 'no pacing hint');
+  notOk(html.indexOf('st-b') >= 0, 'no per-step time budget or count');
+});
+
+test('Switching it on for a meeting brings all of it back', () => {
+  const html = meetingHtml(withClock());
+  ok(html.indexOf('class="tmr"') >= 0, 'timer');
+  ok(html.indexOf('t-hint') >= 0, 'pacing hint');
+  ok(html.indexOf('st-b') >= 0, 'per-step budget');
+  ok(html.indexOf('data-act="timerToggle"') >= 0, 'start/pause');
+  ok(html.indexOf('data-act="timerReset"') >= 0, 'reset');
+});
+
+test('It is per meeting, so one can have a clock and another not', () => {
+  const snap = withClock();
+  const t1 = renderApp(snap, Object.assign({}, base, { view: 'tab', tab: 't1' }),
+    { today: today(), modes: MODES });
+  const t2 = renderApp(snap, Object.assign({}, base, { view: 'tab', tab: 't2' }),
+    { today: today(), modes: MODES });
+
+  ok(t1.indexOf('class="tmr"') >= 0, 'the meeting that asked for it has one');
+  notOk(t2.indexOf('class="tmr"') >= 0, 'the one that did not, does not');
+});
+
+test('The setting is on the meeting settings screen and reflects its state', () => {
+  const off = renderApp(demoBoard(), Object.assign({}, base, {
+    view: 'tab', tab: 't1', settings: true
+  }), { today: today(), modes: MODES });
+  const on = renderApp(withClock(), Object.assign({}, base, {
+    view: 'tab', tab: 't1', settings: true
+  }), { today: today(), modes: MODES });
+
+  ok(off.indexOf('data-edit="tabTimer"') >= 0, 'the checkbox is there');
+  notOk(/data-edit="tabTimer" checked/.test(off), 'unticked by default');
+  ok(/data-edit="tabTimer" checked/.test(on), 'ticked once switched on');
+});
+
 group('Markup the stylesheet dictates');
 
 /*
