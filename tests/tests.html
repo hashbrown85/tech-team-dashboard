@@ -66,8 +66,9 @@
 <p class="setup" id="setup">
   <strong>Nothing showing?</strong> This page has to be served over <code>http://</code> —
   browsers block JavaScript modules opened directly as a file. From the project folder run
-  <code>npx serve</code> (or <code>python -m http.server</code>) and then open
-  <code>localhost:3000/tests/tests.html</code> — check the port your server prints.
+  <code>python tools/serve.py</code> and open <code>localhost:8000/tests/tests.html</code>.
+  Use that rather than <code>python -m http.server</code>: the plain server lets the browser
+  cache modules, so you can end up testing the previous version of the code.
 </p>
 
 <div id="results"></div>
