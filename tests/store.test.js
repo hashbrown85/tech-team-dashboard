@@ -59,13 +59,13 @@ test('Two quick edits to the same record BOTH survive', async () => {
   // fast clicks look like.
   const { store, adapter } = await ready();
 
-  const first = store.mutate('projects', 'pr1', (p) => { p.estValue = 50000; });
-  const second = store.mutate('projects', 'pr1', (p) => { p.winPct = 60; });
+  const first = store.mutate('projects', 'pr1', (p) => { p.note = 'first edit'; });
+  const second = store.mutate('projects', 'pr1', (p) => { p.rank = 60; });
   await Promise.all([first, second]);
 
   const stored = adapter._peek().projects.find((p) => p.id === 'pr1');
-  eq(stored.estValue, 50000, 'the first edit must not be clobbered');
-  eq(stored.winPct, 60, 'and the second must land too');
+  eq(stored.note, 'first edit', 'the first edit must not be clobbered');
+  eq(stored.rank, 60, 'and the second must land too');
   eq(stored.name, 'a project', 'with the rest of the record intact');
 });
 
@@ -73,13 +73,13 @@ test('Three edits in a row all survive', async () => {
   const { store, adapter } = await ready();
 
   await Promise.all([
-    store.mutate('projects', 'pr1', (p) => { p.estValue = 1; }),
-    store.mutate('projects', 'pr1', (p) => { p.winPct = 2; }),
-    store.mutate('projects', 'pr1', (p) => { p.winReason = 'three'; })
+    store.mutate('projects', 'pr1', (p) => { p.rank = 1; }),
+    store.mutate('projects', 'pr1', (p) => { p.due = '2026-10-01'; }),
+    store.mutate('projects', 'pr1', (p) => { p.note = 'three'; })
   ]);
 
   const stored = adapter._peek().projects.find((p) => p.id === 'pr1');
-  eq([stored.estValue, stored.winPct, stored.winReason], [1, 2, 'three']);
+  eq([stored.rank, stored.due, stored.note], [1, '2026-10-01', 'three']);
 });
 
 test('A write shows up locally before the adapter has finished', async () => {
@@ -127,11 +127,11 @@ test('It starts empty and connecting, then goes live', async () => {
   const store = createStore(adapter, {});
 
   eq(store.snapshot().projects, [], 'nothing before the first load');
-  eq(store.modes(), { content: 'connecting', settings: 'connecting' });
+  eq(store.modes(), { content: 'connecting', settings: 'connecting', details: 'connecting' });
 
   await store.load();
 
-  eq(store.modes(), { content: 'live', settings: 'live' });
+  eq(store.modes(), { content: 'live', settings: 'live', details: 'live' });
   eq(store.snapshot().projects.length, 1);
 });
 
@@ -150,7 +150,7 @@ test('A failed load leaves the board read-only and says so', async () => {
   await store.load().catch(() => { threw = true; });
 
   ok(threw, 'the caller learns it failed');
-  eq(store.modes(), { content: 'readonly', settings: 'readonly' });
+  eq(store.modes(), { content: 'readonly', settings: 'readonly', details: 'readonly' });
   ok(messages[0].indexOf('load the board') > 0);
 });
 
@@ -207,6 +207,24 @@ test('canWrite reflects what we have learned', async () => {
   notOk(store.canWrite('projects'), 'content is read-only now');
   notOk(store.canWrite('issues'), 'and so is the rest of the content area');
   ok(store.canWrite('people'), 'but settings is untouched');
+});
+
+test('Being refused project details leaves the rest of the board writable', async () => {
+  // Somebody may be allowed to SEE the figures but not change them. That must cost
+  // them nothing else - it is its own permission area precisely so a refusal here
+  // cannot turn the whole board read-only.
+  const { store, messages } = await ready({
+    failWrites: (op) => (op.col === 'projectDetails' ? { code: 'denied' } : null)
+  });
+
+  await store.set('projectDetails', 'pr1', { estValue: 1 });
+
+  eq(store.modes().details, 'readonly');
+  eq(store.modes().content, 'live', 'the week-to-week work is unaffected');
+  eq(store.modes().settings, 'live');
+  notOk(store.canWrite('projectDetails'));
+  ok(store.canWrite('projects'), 'and projects themselves are still editable');
+  ok(messages.some((m) => m.indexOf('not change them') >= 0));
 });
 
 test('Rate limiting is reported without going read-only', async () => {

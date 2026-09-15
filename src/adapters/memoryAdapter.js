@@ -21,6 +21,7 @@ import {
   KEYED_COLLECTIONS
 } from './DataStore.js';
 import { uid } from '../lib/seq.js';
+import { conform } from './sharepointSchema.js';
 
 /**
  * @typedef {import('./DataStore.js').Snapshot} Snapshot
@@ -55,9 +56,9 @@ export function createMemoryAdapter(options) {
       if (op.op === 'remove') {
         delete data[col][key];
       } else if (op.op === 'set') {
-        data[col][key] = clone(op.data);
+        data[col][key] = conform(col, clone(op.data));
       } else {
-        data[col][key] = Object.assign({}, data[col][key], clone(op.patch));
+        data[col][key] = conform(col, Object.assign({}, data[col][key], clone(op.patch)));
       }
       return;
     }
@@ -70,12 +71,20 @@ export function createMemoryAdapter(options) {
     } else if (op.op === 'set') {
       // Honour the id we were given — undo depends on it. A document body should
       // never carry its own id; strip one if it somehow does.
-      const doc = clone(op.data);
+      //
+      // The document also goes through the schema, so this adapter stores exactly
+      // what SharePoint would and no more. Anything the schema does not know about
+      // is dropped here rather than working locally and vanishing in production.
+      const doc = conform(col, clone(op.data));
       delete doc.id;
       const record = Object.assign({ id: op.id }, doc);
       if (i >= 0) arr[i] = record; else arr.push(record);
     } else if (op.op === 'update') {
-      if (i >= 0) Object.assign(arr[i], clone(op.patch));
+      if (i >= 0) {
+        const merged = conform(col, Object.assign({}, arr[i], clone(op.patch)));
+        delete merged.id;
+        arr[i] = Object.assign({ id: op.id }, merged);
+      }
     }
   }
 

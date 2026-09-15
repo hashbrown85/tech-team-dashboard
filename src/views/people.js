@@ -2,10 +2,10 @@
 /**
  * The roster, and the two managed pick-lists.
  *
- * Note the "Project details" checkboxes here are what gate the value and confidence
- * fields in a meeting — and they are a display preference, not a control. Anyone can
- * see those numbers by picking a different name from the "I am" dropdown. If they
- * genuinely need protecting, that has to happen in the data store.
+ * There is no "who can see project value" column any more. That used to be a
+ * per-person, per-area checkbox enforced in the browser, which hid the numbers
+ * without protecting them. It is now decided by the permissions on the
+ * BoardProjectDetails list, so the answer lives in SharePoint rather than here.
  *
  * From board.html:1189-1222.
  */
@@ -47,12 +47,6 @@ export function renderPeople(snap, ui, env) {
         '" title="' + role + ' in ' + esc(t.name) + '">' + esc(t.name) + '</span>';
     }).join('') || '<span class="muted sm">No meetings</span>';
 
-    const detailBoxes = snap.tabs.map(function (t) {
-      const on = Array.isArray(p.detailAreas) && p.detailAreas.indexOf(t.id) >= 0;
-      return '<label class="lg-o"><input type="checkbox" data-edit="personArea" data-id="' + esc(p.id) +
-        '" data-v="' + esc(t.id) + '"' + (on ? ' checked' : '') + dis(env) + '> ' + esc(t.name) + '</label>';
-    }).join('');
-
     return '<tr>' +
       '<td><input class="fld" type="text" value="' + esc(p.name) +
       '" data-edit="personName" data-id="' + esc(p.id) + '" aria-label="Name"' + dis(env) + '></td>' +
@@ -61,15 +55,14 @@ export function renderPeople(snap, ui, env) {
       '<td><input class="fld" type="text" value="' + esc(p.home || '') +
       '" data-edit="personHome" data-id="' + esc(p.id) + '" aria-label="Area"' + dis(env) + '></td>' +
       '<td><div class="mchips">' + memberships + '</div></td>' +
-      '<td><div class="legend">' + (detailBoxes || '<span class="muted sm">No meetings yet</span>') + '</div></td>' +
       '<td>' + (readonly ? '' : '<button class="x" type="button" data-act="delPerson" data-id="' + esc(p.id) +
         '" aria-label="Remove ' + esc(p.name) + '">×</button>') + '</td></tr>';
   }).join('');
 
   const table = '<div class="tbl-scroll"><table class="tbl">' +
     '<thead><tr><th>Name</th><th>Title</th><th>Area</th><th>In meetings</th>' +
-    '<th>Project details access</th><th></th></tr></thead>' +
-    '<tbody>' + (rows || '<tr><td colspan="6"><p class="none">Nobody on the roster yet.</p></td></tr>') +
+    '<th></th></tr></thead>' +
+    '<tbody>' + (rows || '<tr><td colspan="5"><p class="none">Nobody on the roster yet.</p></td></tr>') +
     '</tbody></table></div>';
 
   const addForm = ui.open === 'person'
@@ -81,7 +74,7 @@ export function renderPeople(snap, ui, env) {
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="person"' + dis(env) + '>+ Person</button>';
 
-  return pageHeader('People', 'Who is in which meeting, and who can see project value') +
+  return pageHeader('People', 'Who is in which meeting') +
     table + addForm +
     managedList(snap, ui, env, 'chemistries', 'Chemistries', 'chem') +
     managedList(snap, ui, env, 'resources', 'Potential resources', 'resource');

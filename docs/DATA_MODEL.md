@@ -7,8 +7,9 @@ file anywhere — the shape of the data is whatever the code happens to write.
 that record has to change too, and nothing will warn you. This is the closest thing
 to a contract that exists.
 
-There are **eight collections**, listed in `COLS` (board.html:1729), plus a ninth
-(`counters`) that is written directly and never subscribed to.
+There are **nine collections**, listed in `COLLECTIONS`
+(`src/adapters/DataStore.js`), plus `counters`, which is written directly and never
+loaded with the rest.
 
 A "collection" is a bag of documents. Each document has an `id`. Links between
 collections are plain id strings — there is nothing enforcing that the thing on the
@@ -28,11 +29,14 @@ absent (not null) when unset, because the code uses `delete` to unset them.
 | `name` | string | **Used as an identifier elsewhere.** See `actions.owner`. |
 | `title` | string | Job title, display only |
 | `home` | string | Which area they belong to, display only |
-| `detailAreas` | string[] *optional* | Tab ids where this person may see Project Details |
+| `upn` | string *optional* | Work account, matched against the sign-in |
 
-`detailAreas` is the only permission-ish field in the data. It is checked by
-`canSeeDetails` (board.html:516) against `ui.iam` — which the user picks from a
-dropdown themselves. **It is not a security control**, it is a display preference.
+`upn` is how the board knows who you are: the signed-in account's username is
+matched against it, case-insensitively. Somebody with no match still sees the
+board; they are simply not a person record yet.
+
+There is no longer a `detailAreas` field. Who may see project value is decided by
+SharePoint permissions on the `projectDetails` list, not by a field here.
 
 ## `tabs` — a recurring meeting
 
@@ -49,6 +53,7 @@ is a meeting that recurs weekly.
 | `members` | string[] | Person ids — "Reporting" |
 | `support` | string[] | Person ids — "Supporting" |
 | `optional` | string[] | Person ids — "Optional" |
+| `showTimer` | boolean *optional* | Show the agenda clock. Absent means off. |
 
 The three role arrays are mutually exclusive by convention, not by enforcement. A
 person in none of them is "Not in meeting" (`ROLES`, board.html:483).
@@ -56,6 +61,10 @@ person in none of them is "Not in meeting" (`ROLES`, board.html:483).
 Defaults are applied on load, not on write (board.html:1739): missing role arrays
 become `[]`, `weekday` becomes 1, `lengthMin` becomes 30, `kind` becomes `'internal'`.
 **So a tab document in the store may legitimately be missing these fields.**
+
+`showTimer` is off unless a meeting deliberately turns it on. When off, the agenda
+clock, the pacing hint and the per-segment badges are all absent — the group chooses
+to work to time rather than having it imposed.
 
 `id === 'techdir'` swaps two agenda segments (board.html:474-477). It is hardcoded.
 
@@ -98,11 +107,8 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 | `statusMeeting` | date string *optional* | Bookkeeping for the meeting summary |
 | `doneMeeting` | date string *optional* | Set while status is done/cancelled |
 | `rank` | number *optional* | Queue position **while off-track only** |
-| `estValue` | number *optional* | Project Details |
-| `winPct` | number *optional* | Project Details |
-| `winReason` | string *optional* | Project Details |
-| `resources` | string[] *optional* | Project Details; values come from `settings/resources` |
-| `chemistries` | string[] *optional* | Project Details; values come from `settings/chemistries` |
+
+The value and confidence fields are **not** here. They live in `projectDetails`.
 
 **Status values** (`PST` board.html:479, labels in `PSTL` board.html:616):
 
@@ -111,7 +117,27 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 `ACTIVE` (board.html:480) counts `new`, `on`, `off`, `hold` as active. The transition
 rules are non-obvious and live in BUSINESS_RULES.md.
 
-The four Project Details fields are the sensitive ones. See the note under `people`.
+## `projectDetails` — the sensitive half of a project
+
+One record per project, keyed by **the project's own id**. Separate from `projects`
+because it lives on its own SharePoint list with its own permissions, so somebody
+without access never receives these figures at all.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | the project's id |
+| `estValue` | number *optional* | |
+| `winPct` | number *optional* | |
+| `winReason` | string *optional* | |
+| `resources` | string[] *optional* | values from `settings/resources` |
+| `chemistries` | string[] *optional* | values from `settings/chemistries` |
+
+**Access is all-or-nothing.** SharePoint permissions are per list, so a person can
+read every project's value or none. The per-area granularity the old `detailAreas`
+field gave could not survive being a real control, and was retired with it.
+
+Deleting a project deletes its details, and deleting a meeting deletes them for
+every project under it — otherwise the figures would outlive what they described.
 
 ## `issues` — things with no path yet
 

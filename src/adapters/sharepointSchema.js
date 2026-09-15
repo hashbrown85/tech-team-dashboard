@@ -23,7 +23,7 @@
  * internal names — you would need the older SharePoint REST API to find out.
  * Single words keep internal and display names identical.
  *
- * **Arrays are JSON in a text column.** members, detailAreas, resources and the
+ * **Arrays are JSON in a text column.** members, resources, chemistries and the
  * rest. Justified in DATA_MODEL.md: every place in the app reads or writes the
  * whole array at once, and nothing ever queries "which tabs contain person X"
  * from the store. Junction lists would triple the writes and buy nothing.
@@ -61,9 +61,10 @@ export const SCHEMA = {
       name: { col: 'PersonName', kind: 'text' },
       title: { col: 'JobTitle', kind: 'text' },
       home: { col: 'HomeArea', kind: 'text' },
-      detailAreas: { col: 'DetailAreasJson', kind: 'json' },
-      // Set by the SSO work in Phase 2: match the signed-in user to a person.
+      // Matches the signed-in user to a person. See src/identity.js.
       upn: { col: 'Upn', kind: 'text' }
+      // detailAreas is gone: who may see project value is now decided by the
+      // permissions on BoardProjectDetails, not by a field on the person.
     }
   },
 
@@ -117,7 +118,31 @@ export const SCHEMA = {
       statusMeeting: { col: 'StatusMeeting', kind: 'date' },
       prevStatus: { col: 'PrevStatus', kind: 'text' },
       doneMeeting: { col: 'DoneMeeting', kind: 'date' },
-      rank: { col: 'Rank', kind: 'number' },
+      rank: { col: 'Rank', kind: 'number' }
+      // The value and confidence fields are NOT here. They live in
+      // projectDetails, on their own list with its own permissions, so somebody
+      // without access never receives them at all. See below.
+    }
+  },
+
+  projectDetails: {
+    /*
+     * The sensitive half of a project, split out so SharePoint can decide who
+     * reads it. One record per project, keyed by the project's own id.
+     *
+     * This is the difference between hiding the numbers and protecting them. A
+     * client-side check only stops the browser drawing them - the data has still
+     * arrived and is one network-tab away. Because these are on their own list,
+     * Graph returns 403 and they never leave the server.
+     *
+     * The consequence, stated plainly: access is all-or-nothing. SharePoint
+     * permissions are per list, so a person can read project value or cannot.
+     * The old per-area granularity (people.detailAreas) could not survive that
+     * and has been retired.
+     */
+    list: 'BoardProjectDetails',
+    indexes: [],
+    fields: {
       estValue: { col: 'EstValue', kind: 'number' },
       winPct: { col: 'WinPct', kind: 'number' },
       winReason: { col: 'WinReason', kind: 'note' },
@@ -286,6 +311,24 @@ export function fromFields(col, fields) {
   }
 
   return doc;
+}
+
+/**
+ * A document with only the fields the schema knows about.
+ *
+ * SharePoint cannot store a column that does not exist, so the Graph adapter drops
+ * anything unknown. The in-memory adapter uses this so it drops them too: a test
+ * double that accepts more than the real thing lets a field work locally and vanish
+ * silently in production, which is the worst way to find out.
+ *
+ * @param {string} col
+ * @param {any} doc
+ * @returns {any}
+ */
+export function conform(col, doc) {
+  const out = fromFields(col, toFields(col, '__id__', doc));
+  delete out.id;
+  return out;
 }
 
 /** Every column a list needs, for the provisioning script. */

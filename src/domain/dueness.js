@@ -120,20 +120,3 @@ export function stats(snap, tid, today) {
     }).length
   };
 }
-
-/**
- * May this person see a project's value and win percentage in this meeting?
- *
- * BE CLEAR ABOUT WHAT THIS IS: a display preference, not a security control. The
- * person id it checks comes from a dropdown the viewer picks themselves, so anyone
- * can select another name and see the numbers. Closing that properly needs the data
- * behind separate permissions, not a client-side check. board.html:516.
- *
- * @param {Snapshot} snap
- * @param {string} personId
- * @param {string} tabId
- */
-export function canSeeDetails(snap, personId, tabId) {
-  const p = snap.people.find(function (x) { return x.id === personId; });
-  return !!(p && Array.isArray(p.detailAreas) && p.detailAreas.indexOf(tabId) >= 0);
-}

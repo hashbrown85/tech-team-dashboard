@@ -134,6 +134,27 @@ function detachActions(snap, parentId) {
 }
 
 /**
+ * The writes that remove a project's sensitive details, and the undo that restores
+ * them.
+ *
+ * Easy to forget, and the consequence of forgetting is the worst kind: the value
+ * and confidence figures would outlive the project they described, sitting in a
+ * list nobody is looking at any more.
+ *
+ * @param {Snapshot} snap
+ * @param {string} projectId
+ * @returns {{writes: Op[], undo: Op[]}}
+ */
+function removeDetailsFor(snap, projectId) {
+  const details = byId(snap.projectDetails || [], projectId);
+  if (!details) return { writes: [], undo: [] };
+  return {
+    writes: [{ op: /** @type {'remove'} */ ('remove'), col: 'projectDetails', id: projectId }],
+    undo: [{ op: /** @type {'set'} */ ('set'), col: 'projectDetails', id: projectId, data: docOf(details) }]
+  };
+}
+
+/**
  * Delete a project. Its actions survive, detached. board.html:1395-1404.
  *
  * @param {Snapshot} snap
@@ -145,9 +166,12 @@ export function deleteProject(snap, id) {
   if (!p) return nothing();
 
   const actions = detachActions(snap, id);
+  const details = removeDetailsFor(snap, id);
   return {
-    writes: [{ op: 'remove', col: 'projects', id: id }].concat(actions.writes),
-    undo: [{ op: 'set', col: 'projects', id: id, data: docOf(p) }].concat(actions.undo),
+    writes: [{ op: 'remove', col: 'projects', id: id }]
+      .concat(details.writes).concat(actions.writes),
+    undo: [{ op: 'set', col: 'projects', id: id, data: docOf(p) }]
+      .concat(details.undo).concat(actions.undo),
     message: 'Project removed. Its action items stay in the list.'
   };
 }
@@ -254,6 +278,14 @@ export function deleteTab(snap, tid) {
       .forEach(function (x) {
         writes.push({ op: 'remove', col: col, id: x.id });
         undo.push({ op: 'set', col: col, id: x.id, data: docOf(x) });
+
+        // A project's value and confidence go with it, or they would outlive the
+        // meeting entirely.
+        if (col === 'projects') {
+          const d = removeDetailsFor(snap, x.id);
+          d.writes.forEach(function (w) { writes.push(w); });
+          d.undo.forEach(function (w) { undo.push(w); });
+        }
       });
   });
 

@@ -157,19 +157,29 @@ const settingsLists = ['people', 'tabs', 'settings']
   .concat([COUNTER_LIST]);
 const contentLists = ['entries', 'projects', 'issues', 'actions', 'meetings']
   .map(function (c) { return SCHEMA[c].list; });
+const restrictedLists = [SCHEMA.projectDetails.list];
 
 say('Write-Host ""');
 say('Write-Host "Done." -ForegroundColor Cyan');
 say('Write-Host ""');
 say('Write-Host "PERMISSIONS - still to do by hand, deliberately." -ForegroundColor Yellow');
-say('Write-Host "The app discovers what it may write by being refused, so these two"');
-say('Write-Host "groups are what make the read-only behaviour work:"');
+say(String.raw`Write-Host "The app discovers what it may write by being refused, so these three"`);
+say(String.raw`Write-Host "groups are what make the read-only behaviour work:"`);
 say('Write-Host ""');
 say('Write-Host "  Owner-only (everyone else Read):" -ForegroundColor White');
 settingsLists.forEach(function (l) { say('Write-Host "    ' + l + '"'); });
 say('Write-Host ""');
 say('Write-Host "  Team can Contribute:" -ForegroundColor White');
 contentLists.forEach(function (l) { say('Write-Host "    ' + l + '"'); });
+say('Write-Host ""');
+say('Write-Host "  RESTRICTED - only people who may see project value:" -ForegroundColor Red');
+restrictedLists.forEach(function (l) { say('Write-Host "    ' + l + '"'); });
+say('Write-Host ""');
+say('Write-Host "  This last one is the whole point of splitting those fields out."');
+say('Write-Host "  Anyone who can read this list sees every project value on the board -"');
+say('Write-Host "  access is per list, so it is all-or-nothing. Anyone who cannot read it"');
+say('Write-Host "  never receives the figures at all, rather than being shown a page that"');
+say('Write-Host "  politely does not draw them."');
 say('Write-Host ""');
 say('Write-Host "Break inheritance on each list, then set the two groups. Doing this"');
 say('Write-Host "by hand is on purpose: a script that rearranges permissions is not"');

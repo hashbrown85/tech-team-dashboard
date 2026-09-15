@@ -330,9 +330,9 @@ export function createHandlers(app) {
 
     /* --- project details --- */
 
-    pdValue: function (el) { patchProject(el, { estValue: numberOrNull(el.value) }); },
-    pdWin: function (el) { patchProject(el, { winPct: numberOrNull(el.value) }); },
-    pdReason: function (el) { patchProject(el, { winReason: el.value }); },
+    pdValue: function (el) { patchDetails(el, { estValue: numberOrNull(el.value) }); },
+    pdWin: function (el) { patchDetails(el, { winPct: numberOrNull(el.value) }); },
+    pdReason: function (el) { patchDetails(el, { winReason: el.value }); },
 
     /* --- meeting settings --- */
 
@@ -383,28 +383,24 @@ export function createHandlers(app) {
     },
 
     personTitle: function (el) { store.update('people', el.dataset.id, { title: el.value }); },
-    personHome: function (el) { store.update('people', el.dataset.id, { home: el.value }); },
-
-    personArea: function (el) {
-      const snap = store.snapshot();
-      const p = byId(snap.people, el.dataset.id);
-      if (!p) return;
-      const areas = Array.isArray(p.detailAreas) ? p.detailAreas.slice() : [];
-      const tabId = el.dataset.v;
-      const at = areas.indexOf(tabId);
-      if (el.checked && at < 0) areas.push(tabId);
-      if (!el.checked && at >= 0) areas.splice(at, 1);
-      store.update('people', p.id, { detailAreas: areas }).then(render);
-      render();
-    }
+    personHome: function (el) { store.update('people', el.dataset.id, { home: el.value }); }
   };
 
   function numberOrNull(v) {
     return v === '' || v == null ? null : Number(v);
   }
 
-  function patchProject(el, patch) {
-    store.update('projects', el.dataset.id, patch);
+  /**
+   * Write one of the sensitive project fields.
+   *
+   * These live in their own collection, on their own permissioned list, keyed by
+   * the project's id. The record may not exist yet - the first edit creates it.
+   */
+  function patchDetails(el, patch) {
+    const id = el.dataset.id;
+    const existing = byId(store.snapshot().projectDetails || [], id);
+    if (existing) store.update('projectDetails', id, patch);
+    else store.set('projectDetails', id, patch);
   }
 
   function patchTab(patch, rerender) {
@@ -545,8 +541,7 @@ export function createHandlers(app) {
       store.set('people', store.newId(), {
         name: name,
         title: String(fd.get('title') || '').trim(),
-        home: String(fd.get('home') || '').trim(),
-        detailAreas: []
+        home: String(fd.get('home') || '').trim()
       }).then(render);
       render();
     },

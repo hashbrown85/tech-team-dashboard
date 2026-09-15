@@ -43,6 +43,10 @@ function board() {
       { id: 'e2', tab: 't1', meeting: MEETING, personId: 'p1', kind: 'opp', text: 'an opp', why: 'hard', projectId: 'pr2' },
       { id: 'e3', tab: 't2', meeting: MEETING, personId: 'p1', kind: 'win', text: 'elsewhere' }
     ],
+    projectDetails: [
+      { id: 'pr1', estValue: 250000, winPct: 70, winReason: 'sensitive' },
+      { id: 'pr3', estValue: 10000, winPct: 20, winReason: 'also sensitive' }
+    ],
     projects: [
       { id: 'pr1', tab: 't1', personId: 'p1', name: 'live project', status: 'off', rank: 1000 },
       { id: 'pr2', tab: 't1', personId: 'p1', name: 'an opp', status: 'new', start: '2026-09-21', fromOpp: 'e2' },
@@ -103,7 +107,7 @@ function normalise(snap) {
   const meetings = {};
   Object.keys(snap.meetings).sort().forEach(function (k) { meetings[k] = snap.meetings[k]; });
   const out = { meetings: meetings, settings: snap.settings };
-  ['people', 'tabs', 'entries', 'projects', 'issues', 'actions'].forEach(function (col) {
+  ['people', 'tabs', 'entries', 'projects', 'projectDetails', 'issues', 'actions'].forEach(function (col) {
     out[col] = snap[col].slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; });
   });
   return JSON.parse(JSON.stringify(out));
@@ -227,6 +231,43 @@ test('An opportunity whose project has been worked on leaves the project alone',
 });
 
 /* ---------- people ---------- */
+
+group('Sensitive project details go with their project');
+
+test('Deleting a project removes its value and confidence too', () => {
+  // Otherwise the figures outlive the project they described, sitting in a list
+  // nobody is looking at any more.
+  const snap = board();
+  const c = deleteProject(snap, 'pr1');
+  apply(snap, c.writes);
+
+  eq(snap.projectDetails.map(function (d) { return d.id; }), ['pr3'], 'pr1 details gone');
+  ok(c.writes.some(function (w) { return w.col === 'projectDetails' && w.id === 'pr1'; }));
+});
+
+test('And undo brings them back', () => {
+  roundTrip(deleteProject, 'pr1');
+});
+
+test('Deleting a meeting removes details for its projects, and only those', () => {
+  const snap = board();
+  const c = deleteTab(snap, 't1');
+  apply(snap, c.writes);
+
+  // pr1 belongs to t1 and goes; pr3 belongs to t2 and must not be touched.
+  eq(snap.projectDetails.map(function (d) { return d.id; }), ['pr3'],
+    'another meeting keeps its own figures');
+});
+
+test('And undo restores those too', () => {
+  roundTrip(deleteTab, 't1');
+});
+
+test('A project with no details recorded deletes cleanly', () => {
+  const snap = board();
+  const c = deleteProject(snap, 'pr2');
+  eq(c.writes.filter(function (w) { return w.col === 'projectDetails'; }), []);
+});
 
 group('Removing a person');
 

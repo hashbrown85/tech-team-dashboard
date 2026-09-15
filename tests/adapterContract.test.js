@@ -250,11 +250,13 @@ ADAPTERS.forEach(function (impl) {
 
   test('[' + impl.name + '] A number of zero survives as zero', async () => {
     const a = impl.make();
-    await a.set('projects', 'pr1', { tab: 't1', name: 'x', status: 'on', winPct: 0, rank: 0 });
+    await a.set('projects', 'pr1', { tab: 't1', name: 'x', status: 'on', rank: 0 });
+    await a.set('projectDetails', 'pr1', { estValue: 0, winPct: 0 });
 
-    const p = (await a.load()).projects[0];
-    eq(p.winPct, 0, 'zero is a real value, not absence');
-    eq(p.rank, 0);
+    const snap = await a.load();
+    eq(snap.projects[0].rank, 0, 'zero is a real value, not absence');
+    eq(snap.projectDetails[0].winPct, 0);
+    eq(snap.projectDetails[0].estValue, 0);
   });
 
   test('[' + impl.name + '] The autoResolved flag round-trips as a boolean', async () => {
@@ -280,6 +282,7 @@ ADAPTERS.forEach(function (impl) {
     eq(snap.projects.length, original.projects.length, 'projects');
     eq(snap.issues.length, original.issues.length, 'issues');
     eq(snap.actions.length, original.actions.length, 'actions');
+    eq(snap.projectDetails.length, original.projectDetails.length, 'project details');
     eq(Object.keys(snap.meetings).length, Object.keys(original.meetings).length, 'meeting records');
     eq(Object.keys(snap.settings).length, Object.keys(original.settings).length, 'settings');
 
@@ -300,7 +303,7 @@ ADAPTERS.forEach(function (impl) {
     const store = createStore(a, {});
     await store.load();
 
-    eq(store.modes(), { content: 'live', settings: 'live' });
+    eq(store.modes(), { content: 'live', settings: 'live', details: 'live' });
     ok(store.snapshot().projects.length > 0);
   });
 
@@ -311,14 +314,14 @@ ADAPTERS.forEach(function (impl) {
     await store.load();
 
     await Promise.all([
-      store.mutate('projects', 'pr1', function (p) { p.estValue = 12345; }),
-      store.mutate('projects', 'pr1', function (p) { p.winPct = 42; })
+      store.mutate('projects', 'pr1', function (p) { p.note = 'first'; }),
+      store.mutate('projects', 'pr1', function (p) { p.rank = 42; })
     ]);
 
     const fresh = await a.load();
     const p = fresh.projects.find(function (x) { return x.id === 'pr1'; });
-    eq(p.estValue, 12345, 'the first edit survived');
-    eq(p.winPct, 42, 'and so did the second');
+    eq(p.note, 'first', 'the first edit survived');
+    eq(p.rank, 42, 'and so did the second');
   });
 
   test('[' + impl.name + '] A delete cascade and its undo both work', async () => {

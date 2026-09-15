@@ -39,7 +39,8 @@ import {
   blankSnapshot,
   memoryKeyFor,
   COLLECTIONS,
-  KEYED_COLLECTIONS
+  KEYED_COLLECTIONS,
+  OPTIONAL_COLLECTIONS
 } from './DataStore.js';
 import {
   SCHEMA, KEY_COLUMN, toFields, fromFields,
@@ -169,10 +170,31 @@ export function createGraphAdapter(config) {
    */
   async function load() {
     const snap = blankSnapshot();
+    /** Collections this person was refused. Not an error — see below. */
+    const denied = [];
 
     await Promise.all(COLLECTIONS.map(async function (col) {
       const listName = listNameFor(col);
-      const rows = await readAll(listName);
+
+      let rows;
+      try {
+        rows = await readAll(listName);
+      } catch (err) {
+        // Being refused ONE list can be perfectly normal: most of the team
+        // cannot read project values, and that must not stop the board loading.
+        // The collection comes back empty, so the panel is simply not there -
+        // because the numbers never arrived, not because the browser chose not
+        // to draw them. Any other failure, or a refusal anywhere else, is real.
+        const refused = /** @type {any} */ (err).status === 403 ||
+          /** @type {any} */ (err).code === 'denied';
+        if (refused && OPTIONAL_COLLECTIONS.indexOf(col) >= 0) {
+          denied.push(col);
+          itemIds[col] = new Map();
+          return;
+        }
+        throw err;
+      }
+
       const map = new Map();
 
       if (KEYED_COLLECTIONS.indexOf(col) >= 0) {
@@ -195,6 +217,10 @@ export function createGraphAdapter(config) {
 
       itemIds[col] = map;
     }));
+
+    // Let the app know what it did not get, so it can say so rather than
+    // silently showing a board with pieces missing.
+    if (denied.length) snap.denied = denied;
 
     return snap;
   }

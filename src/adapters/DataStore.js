@@ -68,8 +68,18 @@
 
 /** The collections the app loads and subscribes to. board.html:1729. */
 export const COLLECTIONS = [
-  'people', 'tabs', 'entries', 'projects', 'issues', 'actions', 'meetings', 'settings'
+  'people', 'tabs', 'entries', 'projects', 'projectDetails',
+  'issues', 'actions', 'meetings', 'settings'
 ];
+
+/**
+ * Collections a person may legitimately be refused.
+ *
+ * A 403 on one of these yields an empty collection rather than failing the whole
+ * load — being denied project values is a normal state for most of the team, not
+ * an error. A 403 anywhere else is a real problem and still fails.
+ */
+export const OPTIONAL_COLLECTIONS = ['projectDetails'];
 
 /** The two collections held as keyed objects rather than arrays. */
 export const KEYED_COLLECTIONS = ['meetings', 'settings'];
@@ -84,6 +94,7 @@ export function blankSnapshot() {
     tabs: [],
     entries: [],
     projects: [],
+    projectDetails: [],
     issues: [],
     actions: [],
     meetings: {},
@@ -112,17 +123,24 @@ export function memoryKeyFor(col, id) {
 /**
  * Which permission area a collection belongs to.
  *
- * The board has two: the roster, meetings list and settings are the owner's to
- * change, and everything else is the team's. A store enforces this however it can —
- * SharePoint does it with list permissions, which map onto this split exactly.
+ * Three of them, and each maps onto a group of SharePoint lists:
  *
- * board.html:631.
+ *   settings - the roster, the meetings list, the pick-lists. The owner's to change.
+ *   details  - project value and confidence. Its own area precisely so that being
+ *              refused a write here cannot turn the REST of the board read-only:
+ *              somebody who may read those figures but not edit them should lose
+ *              nothing else.
+ *   content  - everything the team works on week to week.
+ *
+ * board.html:631, extended.
  *
  * @param {string} col
- * @returns {'settings'|'content'}
+ * @returns {'settings'|'content'|'details'}
  */
 export function areaOf(col) {
-  return col === 'people' || col === 'tabs' || col === 'settings' ? 'settings' : 'content';
+  if (col === 'people' || col === 'tabs' || col === 'settings') return 'settings';
+  if (col === 'projectDetails') return 'details';
+  return 'content';
 }
 
 /**
@@ -137,20 +155,19 @@ export function areaOf(col) {
  *
  * @param {string} col
  * @param {{code?: string} | null} err
- * @returns {{area: 'settings'|'content', readonly: boolean, message: string}}
+ * @returns {{area: 'settings'|'content'|'details', readonly: boolean, message: string}}
  */
 export function describeWriteFailure(col, err) {
   const area = areaOf(col);
   const code = (err && err.code) || '';
 
   if (code === 'denied') {
-    return {
-      area: area,
-      readonly: true,
-      message: area === 'settings'
-        ? 'Only the board owner can change settings.'
-        : 'You have view-only access here.'
-    };
+    const message = area === 'settings'
+      ? 'Only the board owner can change settings.'
+      : area === 'details'
+        ? 'You can see these figures but not change them.'
+        : 'You have view-only access here.';
+    return { area: area, readonly: true, message: message };
   }
   if (code === 'rate_limit') {
     return { area: area, readonly: false, message: 'Too many changes at once — try again in a moment.' };

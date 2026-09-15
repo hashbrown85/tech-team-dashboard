@@ -97,21 +97,39 @@ test('The sidebar reports who you are rather than asking', () => {
   ok(html.indexOf('Signed in as') >= 0, 'it is a statement now');
 });
 
-test('Project Details follows the signed-in person, not a self-declared one', () => {
+test('Project Details appears only when the data actually arrived', () => {
+  // The gate is no longer a check in the browser. The sensitive fields live on
+  // their own permissioned list, so somebody without access simply receives an
+  // empty collection and there is nothing to draw. That is the difference between
+  // hiding the numbers and protecting them.
+  const withData = demoBoard();
+  const withoutData = demoBoard();
+  withoutData.projectDetails = [];   // what a refused load looks like
+
+  const shown = renderApp(withData,
+    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
+    { today: today(), modes: MODES, identity: identify(withData, null) });
+
+  ok(shown.indexOf('data-edit="pdValue"') >= 0, 'the panel is there when the data is');
+  ok(shown.indexOf('180000') >= 0, 'and shows the figure');
+
+  const hidden = renderApp(withoutData,
+    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
+    { today: today(), modes: MODES, identity: identify(withoutData, null) });
+
+  notOk(hidden.indexOf('180000') >= 0, 'and the figure is nowhere in the page');
+});
+
+test('A refused collection leaves the rest of the board working', () => {
   const snap = demoBoard();
-  // p1 has detailAreas including t1 in the demo board.
-  snap.people[0].upn = 'alex.morgan@example.com';
+  snap.projectDetails = [];
+  snap.denied = ['projectDetails'];
 
-  const withAccess = renderApp(snap,
-    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
-    { today: today(), modes: MODES, identity: identify(snap, { username: 'alex.morgan@example.com' }) });
+  const html = renderApp(snap, Object.assign({}, loadUi(), { view: 'overview' }),
+    { today: today(), modes: MODES, identity: identify(snap, null) });
 
-  const without = renderApp(snap,
-    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
-    { today: today(), modes: MODES, identity: identify(snap, { username: 'stranger@example.com' }) });
-
-  ok(withAccess.indexOf('data-edit="pdValue"') >= 0, 'shown to somebody with access');
-  notOk(without.indexOf('data-edit="pdValue"') >= 0, 'not to somebody without');
+  ok(html.length > 3000, 'the board still renders');
+  ok(html.indexOf('Northern Area') >= 0, 'with everything the person may see');
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

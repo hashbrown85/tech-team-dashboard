@@ -278,6 +278,72 @@ test('Status codes map onto the vocabulary the store understands', async () => {
   }
 });
 
+/* -------------------------------------------- being refused a single list */
+
+group('Graph: refused one list');
+
+test('A 403 on project details empties that collection and loads everything else', async () => {
+  // The whole point of splitting the sensitive fields out. Most of the team cannot
+  // read project values, and that is a normal state - not a broken board.
+  const { adapter } = make({
+    intercept: function (req) {
+      return req.url.indexOf(SCHEMA.projectDetails.list) >= 0
+        ? { status: 403, body: { error: { message: 'no' } } }
+        : null;
+    }
+  });
+
+  const snap = await adapter.load();
+  eq(snap.projectDetails, [], 'nothing arrived');
+  eq(snap.denied, ['projectDetails'], 'and the app is told why');
+  ok(Array.isArray(snap.projects), 'the rest of the board loaded normally');
+});
+
+test('The numbers are genuinely absent, not merely unrendered', async () => {
+  // This is the assertion that proves it is a control rather than a hide: the
+  // values never reach the browser at all.
+  const seed = {};
+  seed[SCHEMA.projectDetails.list] = [
+    toFields('projectDetails', 'pr1', { estValue: 999999, winPct: 80 })
+  ];
+  const { adapter } = make({
+    seed: seed,
+    intercept: function (req) {
+      return req.url.indexOf(SCHEMA.projectDetails.list) >= 0 ? { status: 403, body: {} } : null;
+    }
+  });
+
+  const snap = await adapter.load();
+  notOk(JSON.stringify(snap).indexOf('999999') >= 0, 'the figure is nowhere in what we received');
+});
+
+test('A refusal on any OTHER list still fails the load', async () => {
+  // Being denied the roster is not a normal state; it means something is wrong
+  // and quietly showing an empty board would be worse than failing.
+  const { adapter } = make({
+    intercept: function (req) {
+      return req.url.indexOf(SCHEMA.people.list) >= 0 ? { status: 403, body: {} } : null;
+    }
+  });
+
+  let code = null;
+  await adapter.load().catch(function (e) { code = e.code; });
+  eq(code, 'denied');
+});
+
+test('A non-403 failure on project details still fails the load', async () => {
+  // Tolerating a refusal must not turn into swallowing every error.
+  const { adapter } = make({
+    intercept: function (req) {
+      return req.url.indexOf(SCHEMA.projectDetails.list) >= 0 ? { status: 500, body: {} } : null;
+    }
+  });
+
+  let failed = false;
+  await adapter.load().catch(function () { failed = true; });
+  ok(failed, 'a server error is not a permission decision');
+});
+
 /* --------------------------------------------------------- the counter */
 
 group('Graph: the action counter');
@@ -456,13 +522,14 @@ test('No column is a Yes/No field', () => {
 
 test('Field mapping round-trips every collection', () => {
   const samples = {
-    people: { name: 'A', title: 'B', home: 'C', detailAreas: ['t1'] },
+    people: { name: 'A', title: 'B', home: 'C', upn: 'a@example.com' },
     tabs: { name: 'N', kind: 'area', weekday: 3, lengthMin: 45,
             members: ['p1'], support: [], optional: ['p2'] },
     entries: { tab: 't1', meeting: '2026-09-14', personId: 'p1', kind: 'loss',
                text: 'x', why: 'y', change: 'z' },
-    projects: { tab: 't1', personId: 'p1', name: 'P', status: 'off', rank: 1000,
-                estValue: 1000, winPct: 0, resources: ['Rheometer'], chemistries: [] },
+    projects: { tab: 't1', personId: 'p1', name: 'P', status: 'off', rank: 1000 },
+    projectDetails: { estValue: 1000, winPct: 0, winReason: 'R',
+                      resources: ['Rheometer'], chemistries: [] },
     issues: { tab: 't1', personId: 'p1', text: 'x', sev: 'stopper', status: 'resolved',
               meeting: '2026-09-14', rank: 0.5, autoResolved: true },
     actions: { num: 7, tab: 't1', text: 'x', owner: 'O', support: 'S', due: '2026-09-21',

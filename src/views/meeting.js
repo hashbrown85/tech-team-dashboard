@@ -21,7 +21,7 @@ import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
   personName, person, attendeeIds, isOpen
 } from '../domain/queries.js';
-import { dueClass, dueLabel, isOverdue, canSeeDetails } from '../domain/dueness.js';
+import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, STATUS_LABELS, STATUSES,
   ACTIVE_STATUSES, segmentsFor
@@ -268,7 +268,10 @@ function businessReview(snap, tab) {
 
 function stageProjects(snap, ui, env, tab, d) {
   const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
-  const seeDetails = canSeeDetails(snap, env.identity && env.identity.personId, tab.id);
+  // Whether the panel appears is now simply whether the data arrived. If this
+  // person cannot read project values, the collection came back empty and there
+  // is nothing to render - see OPTIONAL_COLLECTIONS in DataStore.js.
+  const seeDetails = Array.isArray(snap.projectDetails);
 
   const rows = reporting.map(function (id) {
     const mine = snap.projects.filter(function (p) {
@@ -296,7 +299,7 @@ function stageProjects(snap, ui, env, tab, d) {
             '</div>' +
             '<div class="seg-tgl" role="group" aria-label="Status for ' + esc(p.name) + '">' + buttons + '</div>' +
             (p.note ? '<p class="why">' + esc(p.note) + '</p>' : '') +
-            (seeDetails ? projectDetails(snap, env, p) : '') +
+            (seeDetails ? projectDetailsPanel(snap, env, p) : '') +
             '</div>';
         }).join('')
       : '<p class="none">No current projects.</p>';
@@ -319,23 +322,25 @@ function stageProjects(snap, ui, env, tab, d) {
 /**
  * The value and confidence panel.
  *
- * Only rendered when `canSeeDetails` says so — which, to be clear, is a display
- * preference and not a control: the identity it checks comes from a dropdown the
- * viewer sets themselves. See dueness.js.
+ * Rendered only when the data actually arrived. These fields live on their own
+ * permissioned SharePoint list, so somebody without access never receives them —
+ * the panel is absent because there is nothing to draw, not because the browser
+ * decided to hide it. That is the difference between hiding and protecting.
  */
-function projectDetails(snap, env, p) {
+function projectDetailsPanel(snap, env, p) {
+  const d = byId(snap.projectDetails, p.id) || {};
   return '<details class="dtl"><summary class="lbl">Project details</summary>' +
     '<div class="sgrid">' +
     '<label class="lbl">Estimated value' +
     '<input class="fld" type="number" data-edit="pdValue" data-id="' + esc(p.id) + '" value="' +
-    esc(p.estValue == null ? '' : p.estValue) + '"' + dis(env) + '></label>' +
+    esc(d.estValue == null ? '' : d.estValue) + '"' + dis(env) + '></label>' +
     '<label class="lbl">Confidence %' +
     '<input class="fld" type="number" min="0" max="100" data-edit="pdWin" data-id="' + esc(p.id) + '" value="' +
-    esc(p.winPct == null ? '' : p.winPct) + '"' + dis(env) + '></label>' +
+    esc(d.winPct == null ? '' : d.winPct) + '"' + dis(env) + '></label>' +
     '</div>' +
     '<label class="lbl">Why we win' +
     '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) + '"' + dis(env) + '>' +
-    esc(p.winReason || '') + '</textarea></label></details>';
+    esc(d.winReason || '') + '</textarea></label></details>';
 }
 
 /* --- 3: Issues --- */

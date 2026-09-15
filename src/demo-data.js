@@ -25,10 +25,10 @@ export function demoBoard() {
 
   return {
     people: [
-      { id: 'p1', name: 'Alex Morgan', title: 'Area Technical Lead', home: 'Northern', detailAreas: ['t1', 'techdir'] },
+      { id: 'p1', name: 'Alex Morgan', title: 'Area Technical Lead', home: 'Northern' },
       { id: 'p2', name: 'Priya Raman', title: 'Applications Chemist', home: 'Northern' },
       { id: 'p3', name: 'Sam Okafor', title: 'Process Engineer', home: 'Southern' },
-      { id: 'p4', name: 'Dana Whitfield', title: 'Technical Director', home: 'National', detailAreas: ['t1', 't2', 'techdir'] },
+      { id: 'p4', name: 'Dana Whitfield', title: 'Technical Director', home: 'National' },
       { id: 'p5', name: 'Ravi Chandra', title: 'Lab Technician', home: 'Southern' }
     ],
 
@@ -62,8 +62,7 @@ export function demoBoard() {
 
     projects: [
       { id: 'pr1', tab: 't1', personId: 'p1', name: 'Coating additive trial', status: 'on',
-        due: addDays(thisMonday, 24), added: lastMonday,
-        estValue: 180000, winPct: 65, winReason: 'Only supplier with the low-VOC data package' },
+        due: addDays(thisMonday, 24), added: lastMonday },
       { id: 'pr2', tab: 't1', personId: 'p2', name: 'Sealant reformulation', status: 'off',
         due: addDays(thisMonday, 10), added: addDays(lastMonday, -14),
         prevStatus: 'on', statusMeeting: thisMonday, rank: 1000,
@@ -78,6 +77,15 @@ export function demoBoard() {
         due: addDays(thisMonday, 17), added: lastMonday },
       { id: 'pr6', tab: 'techdir', personId: 'p4', name: 'Shared test-method library', status: 'on',
         due: addDays(thisMonday, 60), added: addDays(lastMonday, -28) }
+    ],
+
+    // The sensitive half of a project, on its own permissioned list. Invented
+    // figures, like everything else here.
+    projectDetails: [
+      { id: 'pr1', estValue: 180000, winPct: 65,
+        winReason: 'Only supplier with the low-VOC data package',
+        resources: ['Rheometer'], chemistries: ['Acrylic'] },
+      { id: 'pr5', estValue: 90000, winPct: 40, winReason: '', resources: [], chemistries: [] }
     ],
 
     issues: [

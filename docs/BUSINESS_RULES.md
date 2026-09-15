@@ -230,11 +230,12 @@ someone rates a meeting or writes a note.
 
 Be honest about these — three of them look like controls and aren't:
 
-- **Project Details visibility is cosmetic.** `canSeeDetails` (board.html:516) checks
-  `people.detailAreas` against `ui.iam` — a dropdown the user picks themselves
-  (board.html:1691), stored in their own sessionStorage. Anyone can select another
-  name and read `estValue`, `winPct` and `winReason`. Real sign-in fixes the casual
-  case; only a separately-permissioned store fixes it properly.
+- ~~**Project Details visibility is cosmetic.**~~ **Fixed.** Those fields now live in
+  `projectDetails`, on their own permissioned SharePoint list. Somebody without
+  access receives an empty collection, so the figures are absent from the page
+  rather than merely undrawn. Identity comes from the Microsoft sign-in rather than
+  a dropdown. The cost: access is all-or-nothing, since SharePoint permissions are
+  per list.
 - **`contentMode` / `settingsMode` are set by the backend rejecting a write**
   (`writeFail`, board.html:632-641), not by asking permission up front. The UI goes
   read-only *after* the first refusal.

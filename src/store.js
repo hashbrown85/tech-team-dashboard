@@ -99,8 +99,9 @@ export function applyToSnapshot(snap, op) {
 export function createStore(adapter, hooks) {
   const on = hooks || {};
   let snap = blankSnapshot();
-  let contentMode = 'connecting';
-  let settingsMode = 'connecting';
+  // One mode per permission area, so a refusal in one cannot silently disable
+  // another. See areaOf() in DataStore.js.
+  let modes = { content: 'connecting', settings: 'connecting', details: 'connecting' };
   /** @type {(() => void) | null} */
   let lastUndo = null;
   /** @type {(() => void) | null} */
@@ -113,8 +114,7 @@ export function createStore(adapter, hooks) {
   }
 
   function setMode(area, mode) {
-    if (area === 'settings') settingsMode = mode;
-    else contentMode = mode;
+    modes[area] = mode;
     if (on.onStatus) on.onStatus(mode);
   }
 
@@ -164,13 +164,15 @@ export function createStore(adapter, hooks) {
     return adapter.load(filter).then(function (fresh) {
       loading = false;
       snap = fresh || blankSnapshot();
-      if (contentMode === 'connecting') setMode('content', 'live');
-      if (settingsMode === 'connecting') setMode('settings', 'live');
+      Object.keys(modes).forEach(function (area) {
+        if (modes[area] === 'connecting') setMode(area, 'live');
+      });
       changed();
     }, function (err) {
       loading = false;
-      if (contentMode === 'connecting') setMode('content', 'readonly');
-      if (settingsMode === 'connecting') setMode('settings', 'readonly');
+      Object.keys(modes).forEach(function (area) {
+        if (modes[area] === 'connecting') setMode(area, 'readonly');
+      });
       if (on.onMessage) on.onMessage('Couldn’t load the board. Try reloading.');
       changed();
       throw err;
@@ -185,12 +187,12 @@ export function createStore(adapter, hooks) {
 
     /** 'connecting' | 'live' | 'readonly' for each permission area. */
     modes: function () {
-      return { content: contentMode, settings: settingsMode };
+      return Object.assign({}, modes);
     },
 
     /** Can this collection be written to, as far as we know? */
     canWrite: function (col) {
-      return (areaOf(col) === 'settings' ? settingsMode : contentMode) !== 'readonly';
+      return modes[areaOf(col)] !== 'readonly';
     },
 
     capabilities: function () {
