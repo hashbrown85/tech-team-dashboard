@@ -84,6 +84,37 @@ export function kpi(cls, n, label, sub, act, v) {
 }
 
 /**
+ * Who you are, in the sidebar.
+ *
+ * This used to be a dropdown you picked yourself, which meant the board believed
+ * whatever it was told. It now reports what the sign-in says, so it is a statement
+ * rather than a question.
+ *
+ * Two cases get a note rather than just a name: somebody not yet on the roster
+ * needs to know why the board does not recognise them, and a demo board needs to be
+ * impossible to mistake for the real one.
+ *
+ * @param {any} env
+ */
+export function whoAmI(env) {
+  const who = env.identity;
+  if (!who) return '';
+
+  const name = '<div class="lbl">Signed in as</div>' +
+    '<div class="iam-name">' + esc(who.displayName) + '</div>';
+
+  if (who.kind === 'demo') {
+    return '<div class="iam demo">' + name +
+      '<div class="iam-note">Demo data — not the real board</div></div>';
+  }
+  if (who.kind === 'unknown-user') {
+    return '<div class="iam warn">' + name +
+      '<div class="iam-note">You are not on the roster yet</div></div>';
+  }
+  return '<div class="iam">' + name + '</div>';
+}
+
+/**
  * The sidebar, plus the narrow-screen dropdown that replaces it below 860px.
  *
  * Each meeting in the list shows one number, chosen by urgency: overdue actions if
@@ -134,11 +165,6 @@ export function renderSide(snap, ui, env) {
       (ui.person === p.name ? ' selected' : '') + '>' + esc(p.name) + '</option>';
   }).join('');
 
-  const iamSel = '<option value="">(pick your name)</option>' + names.map(function (p) {
-    return '<option value="' + esc(p.id) + '"' +
-      (ui.iam === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>';
-  }).join('');
-
   const addTabBtn = env.modes.settings === 'live'
     ? '<button type="button" class="ng-add" data-act="addTab" aria-label="Add a meeting" title="Add a meeting">+</button>'
     : '';
@@ -155,9 +181,7 @@ export function renderSide(snap, ui, env) {
       s.over ? '<span class="cnt">' + s.over + '</span>' : '<span class="cnt n">' + s.open + '</span>') +
     item('timeline', 'Timeline') + item('people', 'People') +
     '</nav>' +
-    '<div class="side-foot">' +
-    '<label class="lbl" for="f-iam">I am</label>' +
-    '<select class="fld" id="f-iam" data-edit="iam">' + iamSel + '</select>' +
+    '<div class="side-foot">' + whoAmI(env) +
     '<label class="lbl" for="f-person">Show items for</label>' +
     '<select class="fld" id="f-person" data-edit="personFilter">' + personSel + '</select>' +
     connPill(env.modes, env.areaReadonly) + '</div></aside>';

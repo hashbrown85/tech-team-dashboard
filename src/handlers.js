@@ -272,7 +272,6 @@ export function createHandlers(app) {
   /* ----------------------------------------------------------------- edits */
 
   const edits = {
-    iam: function (el) { ui.iam = el.value || null; render(); },
     personFilter: function (el) { ui.person = el.value; render(); },
     regTab: function (el) { ui.regTab = el.value; ui.projFilter = 'all'; render(); },
 

@@ -24,6 +24,7 @@ import { today as todayString } from './lib/dates.js';
 import { segmentsFor } from './domain/constants.js';
 import { byId } from './lib/seq.js';
 import { demoBoard } from './demo-data.js';
+import { identify } from './identity.js';
 
 /**
  * Work out which backing store to use, and sign in if it needs one.
@@ -32,11 +33,12 @@ import { demoBoard } from './demo-data.js';
  * the ids are missing, it says exactly which ones rather than failing obscurely.
  *
  * @param {HTMLElement} root
- * @returns {Promise<any>} an adapter
+ * @returns {Promise<{adapter: any, account: any}>}
  */
 async function chooseAdapter(root) {
   if (CONFIG.mode !== 'sharepoint') {
-    return createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 });
+    // No sign-in in demo mode, so no account: identify() falls back to demo.
+    return { adapter: createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 }), account: null };
   }
 
   if (!isConfigured()) {
@@ -51,10 +53,10 @@ async function chooseAdapter(root) {
   }
 
   const session = await signIn();
-  return createGraphAdapter({
-    siteId: CONFIG.siteId,
-    getToken: session.getToken
-  });
+  return {
+    adapter: createGraphAdapter({ siteId: CONFIG.siteId, getToken: session.getToken }),
+    account: session.account
+  };
 }
 
 /**
@@ -70,8 +72,15 @@ export async function start(options) {
   if (!root) throw new Error('No #root element to render into.');
 
   let adapter;
+  let account = null;
   try {
-    adapter = opts.adapter || await chooseAdapter(root);
+    if (opts.adapter) {
+      adapter = opts.adapter;
+    } else {
+      const chosen = await chooseAdapter(root);
+      adapter = chosen.adapter;
+      account = chosen.account;
+    }
   } catch (err) {
     // chooseAdapter has already explained a configuration problem on screen.
     if (String(err && err.message).indexOf('missing configuration') >= 0) throw err;
@@ -98,6 +107,8 @@ export async function start(options) {
   });
 
   let drawing = false;
+  // Once somebody chooses who to show items for, stop overriding it.
+  let personFilterTouched = false;
 
   function draw() {
     // Handlers often change ui state and then also await a store write that fires
@@ -105,9 +116,19 @@ export async function start(options) {
     if (drawing) return;
     drawing = true;
     try {
-      root.innerHTML = renderApp(store.snapshot(), ui, {
+      const snap = store.snapshot();
+      const identity = identify(snap, account);
+
+      // Open on your own work rather than everyone's - but only until the person
+      // filter is touched, after which their choice stands.
+      if (!personFilterTouched && identity.person && ui.person === 'all') {
+        ui.person = identity.person.name;
+      }
+
+      root.innerHTML = renderApp(snap, ui, {
         today: todayString(),
-        modes: store.modes()
+        modes: store.modes(),
+        identity: identity
       });
       saveUi(ui);
       tickTimer();
@@ -131,7 +152,9 @@ export async function start(options) {
   root.addEventListener('change', function (e) {
     const el = /** @type {HTMLElement} */ (e.target).closest('[data-edit]');
     if (!el) return;
-    const fn = handlers.edits[el.getAttribute('data-edit')];
+    const what = el.getAttribute('data-edit');
+    if (what === 'personFilter') personFilterTouched = true;
+    const fn = handlers.edits[what];
     if (fn) fn(el);
   });
 

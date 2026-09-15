@@ -24,6 +24,7 @@ const MODULES = [
   '../src/store.js',
   '../src/ui.js',
   '../src/demo-data.js',
+  '../src/identity.js',
   '../src/handlers.js',
   // library
   '../src/lib/dates.js',

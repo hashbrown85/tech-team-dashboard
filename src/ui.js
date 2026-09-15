@@ -32,8 +32,8 @@ function defaults() {
     tlGroup: 'meeting', // timeline grouping
     follow: false,      // showing the copyable follow-up text
     sumShow: false,     // showing the meeting summary preview
-    open: null,         // which inline form is open
-    iam: null           // who you are, for Project Details visibility
+    open: null          // which inline form is open
+    // Who you are is NOT remembered here any more - it comes from the sign-in.
   };
 }
 

@@ -268,7 +268,7 @@ function businessReview(snap, tab) {
 
 function stageProjects(snap, ui, env, tab, d) {
   const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
-  const seeDetails = canSeeDetails(snap, ui.iam, tab.id);
+  const seeDetails = canSeeDetails(snap, env.identity && env.identity.personId, tab.id);
 
   const rows = reporting.map(function (id) {
     const mine = snap.projects.filter(function (p) {

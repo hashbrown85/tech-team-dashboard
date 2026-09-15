@@ -18,6 +18,7 @@ import './actions.test.js';
 import './meetings.test.js';
 import './cascade.test.js';
 import './store.test.js';
+import './identity.test.js';
 import './views.test.js';
 import './flow.test.js';
 import './adapterContract.test.js';
