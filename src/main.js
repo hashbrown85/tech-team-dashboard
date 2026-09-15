@@ -13,6 +13,9 @@
 
 import { createStore } from './store.js';
 import { createMemoryAdapter } from './adapters/memoryAdapter.js';
+import { createGraphAdapter } from './adapters/graphAdapter.js';
+import { signIn, explainAuthFailure } from './adapters/auth.js';
+import { CONFIG, isConfigured, missingConfig } from './config.js';
 import { loadUi, saveUi, stepOf } from './ui.js';
 import { renderApp } from './views/render.js';
 import { createHandlers } from './handlers.js';
@@ -23,18 +26,63 @@ import { byId } from './lib/seq.js';
 import { demoBoard } from './demo-data.js';
 
 /**
+ * Work out which backing store to use, and sign in if it needs one.
+ *
+ * Three outcomes, and the middle one matters: if the app is set to 'sharepoint' but
+ * the ids are missing, it says exactly which ones rather than failing obscurely.
+ *
+ * @param {HTMLElement} root
+ * @returns {Promise<any>} an adapter
+ */
+async function chooseAdapter(root) {
+  if (CONFIG.mode !== 'sharepoint') {
+    return createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 });
+  }
+
+  if (!isConfigured()) {
+    root.innerHTML =
+      '<div class="boot"><h1>Nearly there</h1>' +
+      '<p>The board is set to use SharePoint, but these are still blank in ' +
+      '<code>src/config.js</code>:</p><ul><li>' +
+      missingConfig().map(function (m) { return m.replace(/[<>&]/g, ''); }).join('</li><li>') +
+      '</li></ul><p>Set <code>mode</code> back to <code>demo</code> to use the ' +
+      'sample board in the meantime.</p></div>';
+    throw new Error('SharePoint mode is missing configuration.');
+  }
+
+  const session = await signIn();
+  return createGraphAdapter({
+    siteId: CONFIG.siteId,
+    getToken: session.getToken
+  });
+}
+
+/**
  * Start the app.
  *
  * @param {object} [options]
- * @param {any} [options.adapter] - defaults to an in-memory demo board
+ * @param {any} [options.adapter] - overrides the configured one; used by tests
  * @param {HTMLElement} [options.root]
  */
-export function start(options) {
+export async function start(options) {
   const opts = options || {};
   const root = opts.root || document.getElementById('root');
   if (!root) throw new Error('No #root element to render into.');
 
-  const adapter = opts.adapter || createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 });
+  let adapter;
+  try {
+    adapter = opts.adapter || await chooseAdapter(root);
+  } catch (err) {
+    // chooseAdapter has already explained a configuration problem on screen.
+    if (String(err && err.message).indexOf('missing configuration') >= 0) throw err;
+    root.innerHTML =
+      '<div class="boot"><h1>Could not sign in</h1><p>' +
+      explainAuthFailure(err).replace(/[<>]/g, '') +
+      '</p><p>Set <code>mode</code> to <code>demo</code> in ' +
+      '<code>src/config.js</code> to use the sample board while this is sorted out.</p></div>';
+    throw err;
+  }
+
   const ui = loadUi();
 
   const store = createStore(adapter, {

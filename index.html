@@ -34,17 +34,28 @@
   </div>
 </div>
 
+<!--
+  MSAL, for signing in with a company account. Only needed once src/config.js is
+  switched to SharePoint mode; harmless in demo mode, and the app says so clearly if
+  the corporate network blocks the CDN.
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/msal/3.28.1/msal-browser.min.js"></script>
+
 <script type="module">
   import { start } from './src/main.js';
-  try {
-    start();
-  } catch (err) {
+  start().catch(function (err) {
     console.error(err);
-    document.getElementById('root').innerHTML =
-      '<div class="boot"><h1>Could not start</h1><p>' +
-      String(err && err.message ? err.message : err) +
-      '</p><p>See the browser console for the full error.</p></div>';
-  }
+    // start() paints its own explanation for the failures it understands. This is
+    // the fallback for everything else.
+    const root = document.getElementById('root');
+    if (root && root.querySelector('.boot h1')) return;
+    if (root) {
+      root.innerHTML =
+        '<div class="boot"><h1>Could not start</h1><p>' +
+        String(err && err.message ? err.message : err) +
+        '</p><p>See the browser console for the full error.</p></div>';
+    }
+  });
 </script>
 
 </body>
