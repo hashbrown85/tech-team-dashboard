@@ -9,6 +9,7 @@
 
 import { report } from './harness.js';
 
+import './modules.test.js';
 import './dates.test.js';
 import './queries.test.js';
 import './projects.test.js';
@@ -19,6 +20,8 @@ import './cascade.test.js';
 import './store.test.js';
 import './views.test.js';
 import './flow.test.js';
+import './adapterContract.test.js';
+import './graphAdapter.test.js';
 
 export const summary = await report(
   typeof document === 'undefined' ? null : document.getElementById('results')
