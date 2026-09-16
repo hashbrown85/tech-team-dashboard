@@ -47,6 +47,14 @@ function board() {
       { id: 'pr1', estValue: 250000, winPct: 70, winReason: 'sensitive' },
       { id: 'pr3', estValue: 10000, winPct: 20, winReason: 'also sensitive' }
     ],
+    projectNotes: [
+      { id: 'n1', projectId: 'pr1', authorId: 'p1', text: 'first note',
+        created: '2026-09-10T09:00:00.000Z' },
+      { id: 'n2', projectId: 'pr1', authorId: 'p2', text: 'second note',
+        created: '2026-09-12T09:00:00.000Z' },
+      { id: 'n3', projectId: 'pr2', authorId: 'p1', text: 'a note elsewhere',
+        created: '2026-09-12T09:00:00.000Z' }
+    ],
     projects: [
       { id: 'pr1', tab: 't1', personId: 'p1', name: 'live project', status: 'off', rank: 1000 },
       { id: 'pr2', tab: 't1', personId: 'p1', name: 'an opp', status: 'new', start: '2026-09-21', fromOpp: 'e2' },
@@ -107,7 +115,8 @@ function normalise(snap) {
   const meetings = {};
   Object.keys(snap.meetings).sort().forEach(function (k) { meetings[k] = snap.meetings[k]; });
   const out = { meetings: meetings, settings: snap.settings };
-  ['people', 'tabs', 'entries', 'projects', 'projectDetails', 'issues', 'actions'].forEach(function (col) {
+  ['people', 'tabs', 'entries', 'projects', 'projectDetails', 'projectNotes',
+   'issues', 'actions'].forEach(function (col) {
     out[col] = snap[col].slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; });
   });
   return JSON.parse(JSON.stringify(out));
@@ -267,6 +276,37 @@ test('A project with no details recorded deletes cleanly', () => {
   const snap = board();
   const c = deleteProject(snap, 'pr2');
   eq(c.writes.filter(function (w) { return w.col === 'projectDetails'; }), []);
+});
+
+
+test('Deleting a project removes its notes too', () => {
+  // Otherwise a page of commentary survives with nothing left to describe.
+  const snap = board();
+  const c = deleteProject(snap, 'pr1');
+  apply(snap, c.writes);
+
+  eq(snap.projectNotes.filter(function (n) { return n.projectId === 'pr1'; }), [],
+    'pr1 notes gone');
+  ok(snap.projectNotes.some(function (n) { return n.projectId === 'pr2'; }),
+    'another project keeps its own');
+});
+
+test('Undo brings the notes back', () => {
+  roundTrip(deleteProject, 'pr1');
+});
+
+test('Deleting a meeting removes notes for every project under it', () => {
+  const snap = board();
+  const c = deleteTab(snap, 't1');
+  apply(snap, c.writes);
+
+  eq(snap.projectNotes.filter(function (n) {
+    return n.projectId === 'pr1' || n.projectId === 'pr2';
+  }), [], 'both t1 projects had notes, and both went');
+});
+
+test('And undo restores those as well', () => {
+  roundTrip(deleteTab, 't1');
 });
 
 group('Removing a person');

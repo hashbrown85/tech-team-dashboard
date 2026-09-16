@@ -68,7 +68,7 @@
 
 /** The collections the app loads and subscribes to. board.html:1729. */
 export const COLLECTIONS = [
-  'people', 'tabs', 'entries', 'projects', 'projectDetails',
+  'people', 'tabs', 'entries', 'projects', 'projectDetails', 'projectNotes',
   'issues', 'actions', 'meetings', 'settings'
 ];
 
@@ -95,6 +95,7 @@ export function blankSnapshot() {
     entries: [],
     projects: [],
     projectDetails: [],
+    projectNotes: [],
     issues: [],
     actions: [],
     meetings: {},

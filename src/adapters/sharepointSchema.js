@@ -43,12 +43,13 @@ export const KEY_COLUMN = 'Title';
  *   note   - multi-line text; same handling, different column type
  *   number - a number; absent stays absent rather than becoming 0
  *   date   - a 'YYYY-MM-DD' string, stored as text so no timezone can shift it
+ *   dtime  - an ISO 8601 instant, also text, for the same reason
  *   json   - an array or object, stored as JSON in a multi-line text column
  *   flag   - a boolean, stored as the number 1 or 0 (see above)
  */
 
 /**
- * @typedef {{col: string, kind: 'text'|'note'|'number'|'date'|'json'|'flag'}} FieldSpec
+ * @typedef {{col: string, kind: 'text'|'note'|'number'|'date'|'dtime'|'json'|'flag'}} FieldSpec
  * @typedef {{list: string, indexes: string[], fields: Record<string, FieldSpec>}} ListSpec
  */
 
@@ -109,6 +110,10 @@ export const SCHEMA = {
       tab: { col: 'Tab', kind: 'text' },
       personId: { col: 'PersonId', kind: 'text' },
       name: { col: 'ProjectName', kind: 'text' },
+      // Visible to everyone who can see the project. The money stays restricted.
+      customer: { col: 'Customer', kind: 'text' },
+      // What this project is actually for, in the owner's words.
+      mission: { col: 'Mission', kind: 'note' },
       status: { col: 'Status', kind: 'text' },
       due: { col: 'DueDate', kind: 'date' },
       start: { col: 'StartDate', kind: 'date' },
@@ -148,6 +153,33 @@ export const SCHEMA = {
       winReason: { col: 'WinReason', kind: 'note' },
       resources: { col: 'ResourcesJson', kind: 'json' },
       chemistries: { col: 'ChemistriesJson', kind: 'json' }
+    }
+  },
+
+  projectNotes: {
+    /*
+     * Timestamped notes on a project - the running commentary that the weekly
+     * meeting record cannot hold, because entries belong to one meeting and these
+     * belong to the project for its whole life.
+     *
+     * Ordinary team content, NOT restricted: these are working notes, not
+     * commercial figures. Anything that should not be widely read belongs in
+     * projectDetails instead.
+     *
+     * `authorId` is who wrote it, and the app only offers edit and remove to that
+     * person. Be clear that this is a courtesy rather than a control: SharePoint
+     * cannot express per-item authorship without item-level permissions, so anyone
+     * with Contribute could still edit the list directly. It stops people
+     * accidentally rewriting each other's notes, which is what it is for.
+     */
+    list: 'BoardProjectNotes',
+    indexes: ['ProjectId'],
+    fields: {
+      projectId: { col: 'ProjectId', kind: 'text' },
+      text: { col: 'Body', kind: 'note' },
+      authorId: { col: 'AuthorId', kind: 'text' },
+      created: { col: 'CreatedAt', kind: 'dtime' },
+      edited: { col: 'EditedAt', kind: 'dtime' }
     }
   },
 
@@ -347,15 +379,17 @@ export function columnsFor(col) {
 /**
  * Which SharePoint field type each kind needs.
  *
- * Dates are deliberately Text: the app stores 'YYYY-MM-DD' strings and compares
- * them as text. A real DateTime column would round-trip through a timezone and
- * could come back a day out, which would file an entry against the wrong meeting.
+ * Dates and timestamps are deliberately Text: the app stores 'YYYY-MM-DD' strings
+ * and ISO instants, and compares both as text. A real DateTime column would
+ * round-trip through a timezone and could come back a day out, which would file an
+ * entry against the wrong meeting or a note on the wrong afternoon.
  */
 export const SP_FIELD_TYPE = {
   text: 'Text',
   note: 'Note',
   number: 'Number',
   date: 'Text',
+  dtime: 'Text',
   json: 'Note',
   flag: 'Number'
 };

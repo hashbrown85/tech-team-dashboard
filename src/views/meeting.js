@@ -338,6 +338,7 @@ function projectRow(snap, ui, env, p, seeDetails) {
   const selected = ui.proj === p.id;
 
   const meta =
+    (p.customer ? '<b>' + esc(p.customer) + '</b> \u00b7 ' : '') +
     (p.status === 'new'
       ? '<span class="chip new">New</span> ' +
         (p.fromOpp

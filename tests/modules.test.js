@@ -38,6 +38,7 @@ const MODULES = [
   '../src/domain/issues.js',
   '../src/domain/actions.js',
   '../src/domain/meetings.js',
+  '../src/domain/notes.js',
   '../src/domain/cascade.js',
   // adapters
   '../src/adapters/DataStore.js',

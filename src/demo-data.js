@@ -62,8 +62,13 @@ export function demoBoard() {
 
     projects: [
       { id: 'pr1', tab: 't1', personId: 'p1', name: 'Coating additive trial', status: 'on',
+        customer: 'Meridian Coatings',
+        mission: 'Prove the low-VOC additive holds adhesion spec on their line, so they '
+          + 'can move off the incumbent before their reformulation deadline.',
         due: addDays(thisMonday, 24), added: lastMonday },
       { id: 'pr2', tab: 't1', personId: 'p2', name: 'Sealant reformulation', status: 'off',
+        customer: 'Halden Industrial',
+        mission: 'Reformulate to pass freeze-thaw without losing cure speed.',
         due: addDays(thisMonday, 10), added: addDays(lastMonday, -14),
         prevStatus: 'on', statusMeeting: thisMonday, rank: 1000,
         note: 'Second pilot batch failed the freeze-thaw cycle' },
@@ -74,6 +79,7 @@ export function demoBoard() {
         status: 'new', due: '', start: addDays(thisMonday, 7), fromOpp: 'e3',
         note: 'Needs a fortnight of lab time we have not booked' },
       { id: 'pr5', tab: 't2', personId: 'p3', name: 'Line 3 throughput uplift', status: 'on',
+        customer: 'Internal',
         due: addDays(thisMonday, 17), added: lastMonday },
       { id: 'pr6', tab: 'techdir', personId: 'p4', name: 'Shared test-method library', status: 'on',
         due: addDays(thisMonday, 60), added: addDays(lastMonday, -28) }
@@ -86,6 +92,24 @@ export function demoBoard() {
         winReason: 'Only supplier with the low-VOC data package',
         resources: ['Rheometer'], chemistries: ['Acrylic'] },
       { id: 'pr5', estValue: 90000, winPct: 40, winReason: '', resources: [], chemistries: [] }
+    ],
+
+    // Timestamped commentary that belongs to the project, not to one meeting.
+    projectNotes: [
+      { id: 'n1', projectId: 'pr2', authorId: 'p2',
+        text: 'Second pilot batch cracked in the freeze-thaw cycle. Suspect the '
+          + 'plasticiser ratio.',
+        created: isoDaysAgo(9) },
+      { id: 'n2', projectId: 'pr2', authorId: 'p1',
+        text: 'Halden can hold the deadline two more weeks if we show them a revised '
+          + 'cure profile.',
+        created: isoDaysAgo(4) },
+      { id: 'n3', projectId: 'pr2', authorId: 'p2',
+        text: 'Third batch mixing Thursday. Will bring the data to the meeting.',
+        created: isoDaysAgo(1), edited: isoDaysAgo(1) },
+      { id: 'n4', projectId: 'pr1', authorId: 'p1',
+        text: 'Adhesion results back and comfortably inside spec.',
+        created: isoDaysAgo(6) }
     ],
 
     issues: [
@@ -136,6 +160,11 @@ export function demoBoard() {
       resources: { items: ['Pilot reactor', 'Rheometer', 'Weathering cabinet', 'External lab'] }
     }
   };
+}
+
+/** An ISO timestamp a whole number of days ago, so the demo always looks current. */
+function isoDaysAgo(n) {
+  return new Date(Date.now() - n * 86400000).toISOString();
 }
 
 /** The Monday of the week containing `d`. */

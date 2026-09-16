@@ -97,6 +97,77 @@ export function nextOn(s, wd) {
   return toStr(d);
 }
 
+/* ---------- moments in time ---------- */
+
+/*
+ * Everything above deals in whole days, because that is what the board runs on:
+ * meetings, due dates, which week something belongs to. Notes are the exception -
+ * two notes on the same afternoon need to be tellable apart - so they carry a full
+ * timestamp.
+ *
+ * Stored as an ISO 8601 string in UTC ('2026-09-16T14:32:05.000Z'), which sorts
+ * correctly as text and is unambiguous about which instant it means. Display
+ * converts to whatever the reader's machine thinks local time is.
+ */
+
+/**
+ * Right now, as an ISO timestamp.
+ *
+ * A function rather than a value so tests can say when "now" is, the same reason
+ * `today()` is a function.
+ *
+ * @returns {string}
+ */
+export function nowIso() {
+  return new Date().toISOString();
+}
+
+/**
+ * A timestamp in words, relative for anything recent and absolute once it is not.
+ *
+ * 'just now', '20 minutes ago', '3 hours ago', then 'Mon, Sep 14, 2:32pm'. Recent
+ * things are easier to place relatively; older things are easier to place by date.
+ *
+ * @param {string} iso
+ * @param {string} [fromIso] - the reference moment, defaulting to now
+ * @returns {string}
+ */
+export function fmtWhen(iso, fromIso) {
+  if (!iso) return '';
+  const then = new Date(iso);
+  if (isNaN(Number(then))) return '';
+
+  const now = fromIso ? new Date(fromIso) : new Date();
+  const seconds = Math.round((Number(now) - Number(then)) / 1000);
+
+  if (seconds < 0) return fmtStamp(then);          // clock skew; show the date
+  if (seconds < 90) return 'just now';
+  if (seconds < 3600) return Math.round(seconds / 60) + ' minutes ago';
+  if (seconds < 86400) {
+    const hours = Math.round(seconds / 3600);
+    return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+  }
+  return fmtStamp(then);
+}
+
+/**
+ * A timestamp as a date and a time: 'Mon, Sep 14, 2:32pm'.
+ * @param {Date | string} when
+ * @returns {string}
+ */
+export function fmtStamp(when) {
+  const d = typeof when === 'string' ? new Date(when) : when;
+  if (isNaN(Number(d))) return '';
+
+  let hour = d.getHours();
+  const suffix = hour >= 12 ? 'pm' : 'am';
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+
+  return DOW[d.getDay()] + ', ' + MON[d.getMonth()] + ' ' + d.getDate() +
+    ', ' + hour + ':' + pad(d.getMinutes()) + suffix;
+}
+
 /* ---------- display formatting ---------- */
 
 /** 'Sep 14' @param {string} s */

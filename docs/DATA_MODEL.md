@@ -7,7 +7,7 @@ file anywhere — the shape of the data is whatever the code happens to write.
 that record has to change too, and nothing will warn you. This is the closest thing
 to a contract that exists.
 
-There are **nine collections**, listed in `COLLECTIONS`
+There are **ten collections**, listed in `COLLECTIONS`
 (`src/adapters/DataStore.js`), plus `counters`, which is written directly and never
 loaded with the rest.
 
@@ -97,6 +97,8 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 | `tab` | string | → `tabs.id` |
 | `personId` | string | → `people.id`, the owner |
 | `name` | string | |
+| `customer` | string *optional* | Visible to everyone who can see the project |
+| `mission` | string *optional* | Free text: what this project is for |
 | `status` | see below | |
 | `due` | date string *optional* | |
 | `start` | date string *optional* | Hidden from Current Projects until this date |
@@ -138,6 +140,33 @@ field gave could not survive being a real control, and was retired with it.
 
 Deleting a project deletes its details, and deleting a meeting deletes them for
 every project under it — otherwise the figures would outlive what they described.
+
+## `projectNotes` — commentary that belongs to the project
+
+One record per note. Unlike `entries`, which belong to a single meeting, these
+belong to the project for its whole life.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | string | `uid()` |
+| `projectId` | string | → `projects.id` |
+| `text` | string | |
+| `authorId` | string | → `people.id`, from the sign-in |
+| `created` | ISO timestamp | **The first time-of-day stamp in the system** |
+| `edited` | ISO timestamp *optional* | Set when the text is changed |
+
+Timestamps are ISO 8601 in UTC, stored as text for the same reason dates are: a
+real DateTime column round-trips through a timezone and can come back wrong.
+
+**Only the author may edit or remove a note, and that is enforced in the browser
+only.** SharePoint cannot express per-item authorship without item-level
+permissions, so anyone with Contribute could still edit the list directly. It stops
+people accidentally rewriting each other's notes; it is not a guarantee that a note
+is unaltered.
+
+Once a project is `done` or `cancelled` its notes lock — they stay as the record of
+how it went, but nothing can be added or changed. Deleting a project deletes its
+notes, and deleting a meeting deletes them for every project under it.
 
 ## `issues` — things with no path yet
 

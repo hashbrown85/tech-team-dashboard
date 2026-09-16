@@ -272,6 +272,41 @@ ADAPTERS.forEach(function (impl) {
       'and is absent rather than false when unset');
   });
 
+
+  test('[' + impl.name + '] Project notes round-trip, timestamps and all', async () => {
+    const a = impl.make();
+    await a.set('projectNotes', 'n1', {
+      projectId: 'pr1', text: 'Samples shipped', authorId: 'p1',
+      created: '2026-09-16T14:32:05.000Z'
+    });
+    await a.set('projectNotes', 'n2', {
+      projectId: 'pr1', text: 'Corrected', authorId: 'p1',
+      created: '2026-09-16T14:32:05.000Z', edited: '2026-09-16T16:00:00.000Z'
+    });
+
+    const snap = await a.load();
+    const n1 = snap.projectNotes.find(function (n) { return n.id === 'n1'; });
+    const n2 = snap.projectNotes.find(function (n) { return n.id === 'n2'; });
+
+    eq(n1.created, '2026-09-16T14:32:05.000Z', 'the instant survives exactly');
+    notOk('edited' in n1, 'an unedited note has no edited stamp');
+    eq(n2.edited, '2026-09-16T16:00:00.000Z');
+    eq(n1.authorId, 'p1');
+  });
+
+  test('[' + impl.name + '] A project carries its customer and mission', async () => {
+    const a = impl.make();
+    await a.set('projects', 'pr1', {
+      tab: 't1', personId: 'p1', name: 'A project', status: 'on',
+      customer: 'Meridian Coatings',
+      mission: 'Two lines.\nSecond line.'
+    });
+
+    const p = (await a.load()).projects[0];
+    eq(p.customer, 'Meridian Coatings');
+    eq(p.mission, 'Two lines.\nSecond line.', 'multi-line text survives');
+  });
+
   test('[' + impl.name + '] A whole demo board round-trips intact', async () => {
     const original = demoBoard();
     const a = impl.make(original);
@@ -283,6 +318,7 @@ ADAPTERS.forEach(function (impl) {
     eq(snap.issues.length, original.issues.length, 'issues');
     eq(snap.actions.length, original.actions.length, 'actions');
     eq(snap.projectDetails.length, original.projectDetails.length, 'project details');
+    eq(snap.projectNotes.length, original.projectNotes.length, 'project notes');
     eq(Object.keys(snap.meetings).length, Object.keys(original.meetings).length, 'meeting records');
     eq(Object.keys(snap.settings).length, Object.keys(original.settings).length, 'settings');
 

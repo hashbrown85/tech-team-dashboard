@@ -28,6 +28,7 @@ import {
   SCHEMA, KEY_COLUMN, columnsFor, SP_FIELD_TYPE,
   COUNTER_LIST, COUNTER_KEY, COUNTER_COLUMN
 } from '../src/adapters/sharepointSchema.js';
+import { areaOf } from '../src/adapters/DataStore.js';
 
 const L = [];
 const say = (s) => L.push(s === undefined ? '' : s);
@@ -152,12 +153,29 @@ say('');
 
 /* ------------------------------------------------------------ permissions */
 
-const settingsLists = ['people', 'tabs', 'settings']
-  .map(function (c) { return SCHEMA[c].list; })
-  .concat([COUNTER_LIST]);
-const contentLists = ['entries', 'projects', 'issues', 'actions', 'meetings']
-  .map(function (c) { return SCHEMA[c].list; });
-const restrictedLists = [SCHEMA.projectDetails.list];
+/*
+ * Which lists go in which permission group, worked out from areaOf() rather than
+ * listed here by hand.
+ *
+ * This matters more than it looks. When projectDetails was added, the script
+ * happily created the list and then named it in NO group, so the most sensitive
+ * list on the site came with no instruction to protect it. Deriving the groups
+ * means a new collection cannot be silently left out: it lands in a group because
+ * of what areaOf says about it, and if that is wrong the check below complains.
+ */
+const byArea = { settings: [], content: [], details: [] };
+Object.keys(SCHEMA).forEach(function (col) {
+  byArea[areaOf(col)].push(SCHEMA[col].list);
+});
+
+const settingsLists = byArea.settings.concat([COUNTER_LIST]);
+const contentLists = byArea.content;
+const restrictedLists = byArea.details;
+
+const grouped = settingsLists.length + contentLists.length + restrictedLists.length;
+if (grouped !== Object.keys(SCHEMA).length + 1) {
+  throw new Error('Some lists would be created with no permissions guidance.');
+}
 
 say('Write-Host ""');
 say('Write-Host "Done." -ForegroundColor Cyan');

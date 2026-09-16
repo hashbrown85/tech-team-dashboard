@@ -18,6 +18,7 @@ import {
   SCHEMA, KEY_COLUMN, COUNTER_LIST, COUNTER_COLUMN, COUNTER_KEY,
   toFields, fromFields, columnsFor, SP_FIELD_TYPE
 } from '../src/adapters/sharepointSchema.js';
+import { areaOf } from '../src/adapters/DataStore.js';
 
 const SITE = 'contoso.sharepoint.com,site-guid,web-guid';
 
@@ -481,6 +482,27 @@ test('A refused write turns the right area read-only', async () => {
 /* ---------------------------------------------------------- the schema */
 
 group('The SharePoint schema');
+
+
+test('Every list the provisioning script creates is named in a permissions group', () => {
+  // This gap has already happened once: projectDetails - the sensitive list - was
+  // created by the script and then mentioned in no group at all, so nobody was told
+  // to protect it. The groups are derived from areaOf() now, and this asserts that
+  // every schema collection really does land in one.
+  const areas = Object.keys(SCHEMA).map(function (col) { return areaOf(col); });
+  const unknown = areas.filter(function (a) {
+    return ['settings', 'content', 'details'].indexOf(a) < 0;
+  });
+
+  eq(unknown, [], 'every collection belongs to a known permission area');
+  eq(areas.length, Object.keys(SCHEMA).length, 'and every collection has one');
+});
+
+test('Working notes are team content, not restricted and not owner-only', () => {
+  // They are commentary, not commercial figures. Anything that should not be
+  // widely read belongs in projectDetails instead.
+  eq(areaOf('projectNotes'), 'content');
+});
 
 test('Every column name is a single word', () => {
   // A column called "Estimated Value" gets an internal name like

@@ -155,6 +155,30 @@ function removeDetailsFor(snap, projectId) {
 }
 
 /**
+ * The writes that remove a project's notes, and the undo that restores them.
+ *
+ * Notes belong to the project for its whole life, so they go when it does -
+ * otherwise a page of commentary survives with nothing left to describe.
+ *
+ * @param {Snapshot} snap
+ * @param {string} projectId
+ * @returns {{writes: Op[], undo: Op[]}}
+ */
+function removeNotesFor(snap, projectId) {
+  const notes = (snap.projectNotes || []).filter(function (n) {
+    return n.projectId === projectId;
+  });
+  return {
+    writes: notes.map(function (n) {
+      return { op: /** @type {'remove'} */ ('remove'), col: 'projectNotes', id: n.id };
+    }),
+    undo: notes.map(function (n) {
+      return { op: /** @type {'set'} */ ('set'), col: 'projectNotes', id: n.id, data: docOf(n) };
+    })
+  };
+}
+
+/**
  * Delete a project. Its actions survive, detached. board.html:1395-1404.
  *
  * @param {Snapshot} snap
@@ -167,11 +191,12 @@ export function deleteProject(snap, id) {
 
   const actions = detachActions(snap, id);
   const details = removeDetailsFor(snap, id);
+  const notes = removeNotesFor(snap, id);
   return {
     writes: [{ op: 'remove', col: 'projects', id: id }]
-      .concat(details.writes).concat(actions.writes),
+      .concat(details.writes).concat(notes.writes).concat(actions.writes),
     undo: [{ op: 'set', col: 'projects', id: id, data: docOf(p) }]
-      .concat(details.undo).concat(actions.undo),
+      .concat(details.undo).concat(notes.undo).concat(actions.undo),
     message: 'Project removed. Its action items stay in the list.'
   };
 }
@@ -279,12 +304,13 @@ export function deleteTab(snap, tid) {
         writes.push({ op: 'remove', col: col, id: x.id });
         undo.push({ op: 'set', col: col, id: x.id, data: docOf(x) });
 
-        // A project's value and confidence go with it, or they would outlive the
-        // meeting entirely.
+        // A project's value, confidence and notes go with it, or they would
+        // outlive the meeting entirely.
         if (col === 'projects') {
-          const d = removeDetailsFor(snap, x.id);
-          d.writes.forEach(function (w) { writes.push(w); });
-          d.undo.forEach(function (w) { undo.push(w); });
+          [removeDetailsFor(snap, x.id), removeNotesFor(snap, x.id)].forEach(function (r) {
+            r.writes.forEach(function (w) { writes.push(w); });
+            r.undo.forEach(function (w) { undo.push(w); });
+          });
         }
       });
   });
