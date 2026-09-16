@@ -19,7 +19,7 @@ import { fmt, fmtDay, fmtLong, rel, nextOn, addDays } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen
+  personName, person, attendeeIds, isOpen, detailsArrived
 } from '../domain/queries.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
@@ -284,7 +284,7 @@ function stageProjects(snap, ui, env, tab, d) {
   // Whether the panel appears is now simply whether the data arrived. If this
   // person cannot read project values, the collection came back empty and there
   // is nothing to render - see OPTIONAL_COLLECTIONS in DataStore.js.
-  const seeDetails = Array.isArray(snap.projectDetails);
+  const seeDetails = detailsArrived(snap);
 
   const rows = reporting.map(function (id) {
     const mine = snap.projects.filter(function (p) {
@@ -335,7 +335,7 @@ function stageProjects(snap, ui, env, tab, d) {
  */
 function projectRow(snap, ui, env, p, seeDetails) {
   const open = openActsFor(snap, p.id);
-  const selected = ui.proj === p.id;
+  const selected = ui.railProj === p.id;
 
   const meta =
     (p.customer ? '<b>' + esc(p.customer) + '</b> \u00b7 ' : '') +
@@ -361,11 +361,14 @@ function projectRow(snap, ui, env, p, seeDetails) {
 
   return '<li class="proj ps-' + esc(p.status) + (selected ? ' sel' : '') +
     '" id="proj-' + esc(p.id) + '">' +
-    '<button type="button" class="pname" data-act="selectProject" data-id="' + esc(p.id) +
-    '" aria-pressed="' + selected + '" title="' +
-    (selected ? 'Show all actions' : 'Show only this project’s actions') + '">' +
-    '<span class="it-t">' + esc(p.name) + '</span>' +
-    '<span class="meta">' + meta + '</span></button>' +
+    '<div class="pname">' +
+    '<button type="button" class="it-t pname-open" data-act="openProject" data-id="' +
+    esc(p.id) + '" title="Open this project">' + esc(p.name) + '</button>' +
+    '<span class="meta">' + meta + ' · ' +
+    '<button type="button" class="linkbtn pfilter" data-act="selectProject" data-id="' +
+    esc(p.id) + '" aria-pressed="' + selected + '">' +
+    (selected ? 'Show all actions' : 'Filter actions') + '</button>' +
+    '</span></div>' +
     '<button class="x edit-only" type="button" data-act="delProject" data-id="' + esc(p.id) +
     '" aria-label="Remove project"' + dis(env) + '>×</button>' +
     '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' + status + '</div>' +
@@ -609,7 +612,7 @@ function sparkline(points) {
 /* ---------- the rail ---------- */
 
 function renderRail(snap, ui, env, tab, step, d) {
-  const selected = ui.proj ? byId(snap.projects, ui.proj) : null;
+  const selected = ui.railProj ? byId(snap.projects, ui.railProj) : null;
 
   const quick = ui.open === 'rail'
     ? actionForm(snap, ui, env, tab, { d: d })

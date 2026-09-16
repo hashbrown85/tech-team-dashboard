@@ -103,7 +103,11 @@ export async function start(options) {
     store: store,
     ui: ui,
     render: draw,
-    today: todayString
+    today: todayString,
+    // Resolved on demand rather than captured, because the roster can change under
+    // a long-running session - somebody added to People should be recognised without
+    // a reload. Notes record an author, so this has to be the sign-in's answer.
+    identity: function () { return identify(store.snapshot(), account); }
   });
 
   let drawing = false;

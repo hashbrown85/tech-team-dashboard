@@ -1,0 +1,336 @@
+// @ts-check
+/**
+ * One project, on its own page.
+ *
+ * The board was built around a meeting - how it flows, segment by segment. This is
+ * the same data looked at the other way round: everything about one project in one
+ * place, for the weeks between meetings when nobody is running an agenda.
+ *
+ * ## Built on what the stylesheet already provides
+ *
+ * `.kpis` for the numbers strip, `.rp` rows for labelled fields, `.stat` for the
+ * status control, `.alist`/`.arow` for actions. Only the notes needed anything new,
+ * and that lives with the other page-specific rules in index.html.
+ *
+ * Two shapes here are dictated by the stylesheet rather than chosen, and breaking
+ * either silently wrecks the layout:
+ *
+ * - `.rp` is `grid-template-columns:170px minmax(0,1fr)`, so a row is EXACTLY two
+ *   children: `.rp-h` then `.rp-b`. That is what `row()` guarantees.
+ * - `.arow` is a four-column grid, so an action row is EXACTLY four children. The
+ *   action register emits seven and lets them wrap; this page keeps to four.
+ *
+ * ## What is deliberately not here
+ *
+ * No percent-complete: it invites false precision and nobody maintains it honestly.
+ * The open and closed action counts say more and keep themselves current. No
+ * sub-tasks either - actions already do that job, and a second hierarchy would
+ * compete with the one people already use.
+ */
+
+import { esc } from '../lib/dom.js';
+import { fmt, fmtDay, diffDays, fmtWhen, rel } from '../lib/dates.js';
+import { byId } from '../lib/seq.js';
+import { isOpen, actsOf, personName, detailsArrived } from '../domain/queries.js';
+import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
+import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
+import { actionLabel } from '../domain/actions.js';
+import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
+import { pageHeader, kpi } from './shell.js';
+
+/**
+ * @typedef {import('../domain/queries.js').Snapshot} Snapshot
+ */
+
+function dis(env) {
+  return env.areaReadonly ? ' disabled' : '';
+}
+
+/** Money in full, grouped: 180000 -> "$180,000". */
+export function money(n) {
+  if (n == null || n === '' || isNaN(Number(n))) return '—';
+  return '$' + Math.round(Number(n)).toLocaleString('en-US');
+}
+
+/**
+ * Money abbreviated, for the KPI strip: 180000 -> "$180k", 1250000 -> "$1.2M".
+ *
+ * `.kpi .n` is 30px monospace in a quarter-width column, so a fully written out
+ * figure overflows it. The exact number is one row further down the page.
+ */
+export function moneyShort(n) {
+  if (n == null || n === '' || isNaN(Number(n))) return '—';
+  const v = Math.round(Number(n));
+  const a = Math.abs(v);
+  if (a >= 1000000) return '$' + (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (a >= 1000) return '$' + Math.round(v / 1000) + 'k';
+  return '$' + v;
+}
+
+/**
+ * @param {Snapshot} snap
+ * @param {any} ui
+ * @param {any} env
+ * @param {any} p - the project
+ */
+export function renderProject(snap, ui, env, p) {
+  const today = env.today;
+  const tab = byId(snap.tabs, p.tab);
+  const details = byId(snap.projectDetails, p.id);
+
+  // The commercial block appears only when the details collection actually arrived.
+  // For somebody without access to that list it is absent because the numbers were
+  // never sent, not because the browser chose not to draw them. See detailsArrived().
+  const canSeeCommercial = detailsArrived(snap);
+
+  const acts = actsOf(snap, p.id);
+  const open = acts.filter(isOpen);
+  const overdue = open.filter(function (a) { return isOverdue(a, today); });
+
+  const weighted = details && details.estValue != null && details.winPct != null
+    ? Number(details.estValue) * (Number(details.winPct) / 100)
+    : null;
+
+  /* ------------------------------------------------------------------ header */
+
+  const sub = (p.customer ? '<b>' + esc(p.customer) + '</b> · ' : '') +
+    esc(personName(snap, p.personId)) +
+    (tab ? ' · ' + esc(tab.name) : '');
+
+  const back = tab
+    ? '<button class="btn ghost sm" type="button" data-act="go" data-v="tab" data-id="' +
+      esc(tab.id) + '">‹ ' + esc(tab.name) + '</button>'
+    : '<button class="btn ghost sm" type="button" data-act="go" data-v="overview">' +
+      '‹ Overview</button>';
+
+  const head = pageHeader(esc(p.name), sub,
+    back +
+    '<button class="btn ghost sm" type="button" data-act="copyProject" data-id="' +
+    esc(p.id) + '">Copy summary</button>',
+    'Project');
+
+  /* ---------------------------------------------------- the numbers up front */
+
+  // How long it has sat where it is. A project marked on track and untouched for
+  // three months is telling you something, and nothing else in the board says it.
+  const since = p.statusMeeting || p.added || p.start;
+  const daysInStatus = since ? Math.max(diffDays(since, today), 0) : null;
+
+  const nextDue = open
+    .filter(function (a) { return a.due; })
+    .map(function (a) { return a.due; })
+    .sort()[0];
+
+  const numbers = '<section class="kpis" aria-label="At a glance">' +
+    kpi('', open.length, 'Open actions',
+      acts.length ? (acts.length - open.length) + ' closed' : 'none yet') +
+    kpi(overdue.length ? 'crit' : 'good', overdue.length, 'Overdue',
+      overdue.length ? 'past their date' : 'nothing late') +
+    kpi(daysInStatus != null && daysInStatus > 60 ? 'warn' : '',
+      daysInStatus == null ? '—' : daysInStatus, 'Days in status',
+      STATUS_LABELS[p.status] || p.status) +
+    (canSeeCommercial
+      ? kpi('', weighted == null ? '—' : moneyShort(weighted), 'Weighted value',
+          'value × confidence')
+      : kpi('', nextDue ? fmt(nextDue) : '—', 'Next due', 'the soonest action')) +
+    '</section>';
+
+  /* --------------------------------------------------- status, dates, origin */
+
+  const statusButtons = STATUSES.map(function (v) {
+    return '<button type="button" data-act="projStatus" data-id="' + esc(p.id) +
+      '" data-v="' + v + '" aria-pressed="' + (p.status === v) + '"' + dis(env) + '>' +
+      STATUS_LABELS[v] + '</button>';
+  }).join('');
+
+  // Where it came from. Nothing else in the board answers this months later.
+  let origin = p.added ? 'Added ' + fmtDay(p.added) : '';
+  if (p.fromOpp) {
+    const entry = byId(snap.entries, p.fromOpp);
+    origin = 'Raised as an opportunity' +
+      (entry && entry.meeting ? ' on ' + fmtDay(entry.meeting) : '') +
+      (entry && entry.personId ? ' by ' + esc(personName(snap, entry.personId)) : '');
+  }
+
+  const statusPanel = '<section class="panel">' +
+    '<div class="pan-h"><h2>Status</h2><span class="sub">' +
+    (daysInStatus == null
+      ? 'set in this meeting'
+      : daysInStatus + ' days as ' + (STATUS_LABELS[p.status] || p.status).toLowerCase()) +
+    '</span></div>' +
+    row('Status',
+      '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' +
+      statusButtons + '</div>' +
+      (p.status === 'off' && !open.length
+        ? '<p class="why"><b class="warnt">Off track with no action yet</b> — it is ' +
+          'sitting in the Issues queue until somebody owns a next step.</p>'
+        : '')) +
+    row('Customer',
+      '<input class="fld" type="text" value="' + esc(p.customer || '') +
+      '" data-edit="projCustomer" data-id="' + esc(p.id) +
+      '" placeholder="Who it is for" aria-label="Customer"' + dis(env) + '>') +
+    row('Due',
+      '<input class="fld" type="date" value="' + esc(p.due || '') +
+      '" data-edit="projDue" data-id="' + esc(p.id) + '" aria-label="Due date"' +
+      dis(env) + '>' +
+      (p.due ? '<span class="why">' + rel(p.due, today) + '</span>' : '')) +
+    (p.start ? row('Starts', '<span class="why">' + fmtDay(p.start) + '</span>') : '') +
+    (origin ? row('Origin', '<span class="why">' + origin + '</span>') : '') +
+    '</section>';
+
+  /* ----------------------------------------------------------------- mission */
+
+  const mission = '<section class="panel"><div class="pan-h"><h2>Mission</h2>' +
+    '<span class="sub">What this project is for</span></div>' +
+    '<textarea class="fld" rows="3" data-edit="projMission" data-id="' + esc(p.id) +
+    '" placeholder="Why this project exists, in a sentence or two."' + dis(env) + '>' +
+    esc(p.mission || '') + '</textarea></section>';
+
+  /* -------------------------------------------------------------- commercial */
+
+  const commercial = canSeeCommercial
+    ? '<section class="panel"><div class="pan-h"><h2>Commercial</h2>' +
+      '<span class="sub">Restricted — not everyone sees this</span></div>' +
+      row('Estimated value',
+        '<input class="fld pnum" type="number" step="1000" value="' +
+        esc(details && details.estValue != null ? details.estValue : '') +
+        '" data-edit="pdValue" data-id="' + esc(p.id) + '" aria-label="Estimated value"' +
+        dis(env) + '><span class="why">Dollars per year</span>') +
+      row('Confidence',
+        '<input class="fld pnum" type="number" min="0" max="100" value="' +
+        esc(details && details.winPct != null ? details.winPct : '') +
+        '" data-edit="pdWin" data-id="' + esc(p.id) + '" aria-label="Confidence percent"' +
+        dis(env) + '><span class="why">Per cent' +
+        (weighted != null ? ' · weighted ' + money(weighted) : '') + '</span>') +
+      row('Why we win',
+        '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
+        '" placeholder="What makes this ours to lose."' + dis(env) + '>' +
+        esc((details && details.winReason) || '') + '</textarea>') +
+      (details && details.chemistries && details.chemistries.length
+        ? row('Chemistries', chips(details.chemistries)) : '') +
+      (details && details.resources && details.resources.length
+        ? row('Resources', chips(details.resources)) : '') +
+      '</section>'
+    : '';
+
+  /* ----------------------------------------------------------------- actions */
+
+  const closed = acts.filter(function (a) { return !isOpen(a); });
+
+  const actionsPanel = '<section class="panel"><div class="pan-h"><h2>Actions</h2>' +
+    '<span class="sub">' + open.length + ' open' +
+    (closed.length ? ', ' + closed.length + ' closed' : '') + '</span>' +
+    '<div class="r"><button class="btn ghost sm" type="button" data-act="showProjActions" ' +
+    'data-id="' + esc(p.id) + '">Open in register</button></div></div>' +
+    (open.length
+      ? actionRows(open, today, env)
+      : '<p class="none">Nothing open on this project.</p>') +
+    (closed.length
+      ? '<details class="dtl"' +
+        (ui.openDetails && ui.openDetails['closed-' + p.id] ? ' open' : '') +
+        ' data-details="closed-' + esc(p.id) + '">' +
+        '<summary class="lbl">' + closed.length + ' closed</summary>' +
+        actionRows(closed, today, env) + '</details>'
+      : '') +
+    '</section>';
+
+  return head + numbers + statusPanel + mission + commercial + actionsPanel +
+    renderNotes(snap, ui, env, p);
+}
+
+/** One labelled row. Exactly two children, because `.rp` is a two-column grid. */
+function row(label, body) {
+  return '<div class="rp"><div class="rp-h"><b>' + label + '</b></div>' +
+    '<div class="rp-b">' + body + '</div></div>';
+}
+
+function chips(values) {
+  return '<div class="mchips">' + values.map(function (v) {
+    return '<span class="pchip">' + esc(v) + '</span>';
+  }).join('') + '</div>';
+}
+
+/**
+ * Action rows. Exactly four children each, because `.arow` is a four-column grid.
+ *
+ * `dueClass` already returns 'done' for a closed action, and `.arow.done .atext` is
+ * what strikes the text through - there is no separate class to add.
+ */
+function actionRows(list, today, env) {
+  return '<ul class="alist">' + list.map(function (a) {
+    return '<li class="arow ' + dueClass(a, today) + '" id="row-' + esc(a.id) + '">' +
+      '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' +
+      esc(a.id) + '"' + (isOpen(a) ? '' : ' checked') + dis(env) +
+      '><span class="aid">' + actionLabel(a) + '</span></label>' +
+      '<span class="atext">' + esc(a.text) + '</span>' +
+      '<span class="own">' + esc(a.owner || 'No owner') + '</span>' +
+      '<span class="adue ' + dueClass(a, today) + '">' + dueLabel(a, today) + '</span>' +
+      '</li>';
+  }).join('') + '</ul>';
+}
+
+/**
+ * The notes panel: the project's running commentary.
+ *
+ * Locked once the project is done or cancelled - the notes stay as the record of how
+ * it went, but nothing more can be added or changed. Edit and remove are offered only
+ * to a note's author, which stops people rewriting each other's words; it is a
+ * courtesy rather than a control, for the reason set out in src/domain/notes.js.
+ */
+function renderNotes(snap, ui, env, p) {
+  const me = (env.identity && env.identity.personId) || null;
+  const live = notesOpen(p);
+  const notes = notesFor(snap, p.id);
+
+  let addForm;
+  if (!live) {
+    addForm = '<p class="why">This project is ' +
+      (STATUS_LABELS[p.status] || p.status).toLowerCase() +
+      '. Its notes are kept as the record of how it went and can no longer be changed.</p>';
+  } else if (env.areaReadonly) {
+    addForm = '';
+  } else {
+    addForm = '<form class="add pnote-add" data-form="note" data-id="' + esc(p.id) + '">' +
+      '<textarea class="fld" name="text" rows="2" required ' +
+      'placeholder="What happened, what changed, what you heard."></textarea>' +
+      '<div class="acts-r"><button class="btn sm" type="submit">Add note</button></div></form>';
+  }
+
+  const list = notes.length
+    ? '<ul class="notes">' + notes.map(function (n) {
+        return ui.open === 'note:' + n.id
+          ? noteEditor(n)
+          : noteRow(snap, n, canEditNote(n, me, p));
+      }).join('') + '</ul>'
+    : '<p class="none">No notes yet.</p>';
+
+  return '<section class="panel"><div class="pan-h"><h2>Notes</h2>' +
+    '<span class="sub">' +
+    (notes.length ? notes.length + ' so far' : 'kept for the life of the project') +
+    '</span></div>' + addForm + list + '</section>';
+}
+
+function noteRow(snap, n, mine) {
+  return '<li class="note">' +
+    '<div class="note-h">' +
+    '<b>' + esc(personName(snap, n.authorId) || 'Someone') + '</b>' +
+    '<span class="note-t" title="' + esc(n.created || '') + '">' + fmtWhen(n.created) +
+    (n.edited ? ' · edited' : '') + '</span>' +
+    (mine
+      ? '<span class="note-tools">' +
+        '<button class="linkbtn" type="button" data-act="editNote" data-id="' +
+        esc(n.id) + '">Edit</button>' +
+        '<button class="linkbtn" type="button" data-act="delNote" data-id="' +
+        esc(n.id) + '">Remove</button></span>'
+      : '') +
+    '</div><p class="note-b">' + esc(n.text) + '</p></li>';
+}
+
+function noteEditor(n) {
+  return '<li class="note editing"><form data-form="noteEdit" data-id="' + esc(n.id) + '">' +
+    '<textarea class="fld" name="text" rows="3" required>' + esc(n.text) + '</textarea>' +
+    '<div class="note-tools">' +
+    '<button class="btn sm" type="submit">Save</button>' +
+    '<button class="btn ghost sm" type="button" data-act="closeForm">Cancel</button>' +
+    '</div></form></li>';
+}

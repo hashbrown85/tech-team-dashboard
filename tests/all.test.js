@@ -17,6 +17,7 @@ import './issues.test.js';
 import './actions.test.js';
 import './meetings.test.js';
 import './notes.test.js';
+import './project.test.js';
 import './cascade.test.js';
 import './store.test.js';
 import './identity.test.js';

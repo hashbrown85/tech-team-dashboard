@@ -16,6 +16,7 @@ import { renderActions } from './actions.js';
 import { renderTimeline } from './timeline.js';
 import { renderPeople } from './people.js';
 import { renderMeetingSettings } from './settings.js';
+import { renderProject } from './project.js';
 import { byId } from '../lib/seq.js';
 
 /**
@@ -62,6 +63,11 @@ export function renderApp(snap, ui, env) {
     } else {
       main = renderMeeting(snap, ui, full, tab);
     }
+  } else if (ui.view === 'project') {
+    const p = byId(snap.projects, ui.project);
+    // The project was deleted, or a remembered id no longer exists. Falling back to
+    // the overview is better than an empty page with no way out.
+    main = p ? renderProject(snap, ui, full, p) : renderOverview(snap, ui, full);
   } else if (ui.view === 'actions') {
     main = renderActions(snap, ui, full);
   } else if (ui.view === 'timeline') {

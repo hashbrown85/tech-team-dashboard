@@ -15,10 +15,13 @@
  */
 
 import { byId, byName } from './lib/seq.js';
-import { addDays } from './lib/dates.js';
+import { addDays, nowIso } from './lib/dates.js';
 import { toast, flash, focusFirst } from './lib/dom.js';
-import { issueItems } from './domain/queries.js';
-import { statusChange, newProject, newOpportunity } from './domain/projects.js';
+import { newNote, editNote, canEditNote } from './domain/notes.js';
+import { issueItems, detailsArrived } from './domain/queries.js';
+import {
+  statusChange, newProject, newOpportunity, projectSummary
+} from './domain/projects.js';
 import {
   newIssue, resolveIssue, reopenIssue, reorderQueue
 } from './domain/issues.js';
@@ -26,7 +29,7 @@ import {
   newAction, toggleDone, changeDue, parseParentRef, wouldGainPath, actionLabel
 } from './domain/actions.js';
 import {
-  deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab
+  deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab, deleteNote
 } from './domain/cascade.js';
 import {
   meetingDate, toggleRating, setNote, documentId, meetingSummary
@@ -45,6 +48,19 @@ export function createHandlers(app) {
   const store = app.store;
   const ui = app.ui;
   const render = app.render;
+
+  /**
+   * Who is using the board, as a person id, or null.
+   *
+   * Notes record an author, so this has to come from the sign-in rather than from
+   * anything the page could be told. Somebody not on the roster has no id: they can
+   * still write a note, but cannot come back and edit it, because two such people
+   * cannot be told apart.
+   */
+  function myPersonId() {
+    const who = app.identity ? app.identity() : null;
+    return (who && who.personId) || null;
+  }
 
   /** The meeting currently on screen, or null. */
   function currentTab() {
@@ -87,7 +103,7 @@ export function createHandlers(app) {
       if (!t) return;
       ui.steps[t.id] = Number(v);
       ui.open = null;
-      ui.proj = null;
+      ui.railProj = null;
       render();
     },
 
@@ -124,11 +140,44 @@ export function createHandlers(app) {
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
     toggleSummary: function () { ui.sumShow = !ui.sumShow; render(); },
 
+    openProject: function (el, id) {
+      ui.project = id;
+      goView('project');
+    },
+
+    copyProject: function (el, id) {
+      const snap = store.snapshot();
+      const p = byId(snap.projects, id);
+      if (!p) return;
+      // Only include the commercial figures when this reader actually received
+      // them - otherwise the copy button would hand out what the page withheld.
+      copyText(projectSummary(snap, p, app.today(), detailsArrived(snap)),
+        'Project summary copied.');
+    },
+
+    /* --- project notes --- */
+
+    editNote: function (el, id) {
+      ui.open = 'note:' + id;
+      render();
+      focusFirst();
+    },
+
+    delNote: function (el, id) {
+      const snap = store.snapshot();
+      const note = byId(snap.projectNotes, id);
+      if (!note) return;
+      // The view only offers Remove to the author, but the click handler is reachable
+      // by anything that can dispatch an event, so the rule is checked here too.
+      if (!canEditNote(note, myPersonId(), byId(snap.projects, note.projectId))) return;
+      cascade(deleteNote(snap, id));
+    },
+
     selectProject: function (el, id) {
-      ui.proj = ui.proj === id ? null : id;
+      ui.railProj = ui.railProj === id ? null : id;
       render();
     },
-    clearProject: function () { ui.proj = null; render(); },
+    clearProject: function () { ui.railProj = null; render(); },
 
     showActions: function (el, id, v) {
       ui.filter = v || 'open';
@@ -168,9 +217,13 @@ export function createHandlers(app) {
 
     projStatus: function (el, id, v) {
       const snap = store.snapshot();
-      const t = currentTab();
-      if (!t) return;
       const p = byId(snap.projects, id);
+      if (!p) return;
+      // The project's OWN meeting, not whichever one is on screen. On the project
+      // page there is no meeting on screen at all, and a status change still has to
+      // be stamped with the right one.
+      const t = byId(snap.tabs, p.tab) || currentTab();
+      if (!t) return;
       const doc = statusChange(snap, p, v, t.id, currentDate(t));
       if (!doc) return;
       store.set('projects', id, doc).then(render);
@@ -331,6 +384,22 @@ export function createHandlers(app) {
         { silent: true });
     },
 
+    /* --- project fields, from the project page --- */
+
+    projMission: function (el) {
+      // Silent, like every other free-text field: a redraw mid-sentence would take
+      // the caret with it. See the note on actionDue.
+      store.update('projects', el.dataset.id, { mission: el.value }, { silent: true });
+    },
+
+    projCustomer: function (el) {
+      store.update('projects', el.dataset.id, { customer: el.value }, { silent: true });
+    },
+
+    projDue: function (el) {
+      store.update('projects', el.dataset.id, { due: el.value }, { silent: true });
+    },
+
     /* --- project details --- */
 
     pdValue: function (el) { patchDetails(el, { estValue: numberOrNull(el.value) }); },
@@ -423,6 +492,34 @@ export function createHandlers(app) {
   /* ----------------------------------------------------------------- forms */
 
   const forms = {
+    note: function (fd, form) {
+      const projectId = form.dataset.id;
+      const doc = newNote({
+        projectId: projectId,
+        text: String(fd.get('text') || ''),
+        authorId: myPersonId(),
+        now: nowIso()
+      });
+      if (!doc) return;
+      store.set('projectNotes', store.newId(), doc).then(render);
+      render();
+    },
+
+    noteEdit: function (fd, form) {
+      const snap = store.snapshot();
+      const id = form.dataset.id;
+      const note = byId(snap.projectNotes, id);
+      if (!note) return;
+      if (!canEditNote(note, myPersonId(), byId(snap.projects, note.projectId))) return;
+
+      const doc = editNote(note, String(fd.get('text') || ''), nowIso());
+      ui.open = null;
+      // editNote returns null when nothing actually changed, which is not a failure -
+      // the editor still closes.
+      if (doc) store.set('projectNotes', id, doc).then(render);
+      render();
+    },
+
     wl: function (fd, form) {
       const t = currentTab();
       const text = String(fd.get('text') || '').trim();
@@ -575,18 +672,19 @@ export function createHandlers(app) {
 }
 
 /** Copy to the clipboard, with the old-browser fallback the original had. */
-function copyText(text) {
+function copyText(text, message) {
+  const said = message || 'Summary copied.';
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
     navigator.clipboard.writeText(text).then(
-      function () { toast('Summary copied.'); },
-      function () { fallbackCopy(text); }
+      function () { toast(said); },
+      function () { fallbackCopy(text, said); }
     );
     return;
   }
-  fallbackCopy(text);
+  fallbackCopy(text, said);
 }
 
-function fallbackCopy(text) {
+function fallbackCopy(text, message) {
   if (typeof document === 'undefined') return;
   const ta = document.createElement('textarea');
   ta.value = text;
@@ -597,5 +695,6 @@ function fallbackCopy(text) {
   let ok = false;
   try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
   document.body.removeChild(ta);
-  toast(ok ? 'Summary copied.' : 'Couldn’t copy — select the text and copy it manually.');
+  toast(ok ? (message || 'Summary copied.')
+    : 'Couldn’t copy — select the text and copy it manually.');
 }

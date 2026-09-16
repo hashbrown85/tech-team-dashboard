@@ -31,6 +31,24 @@
 import { byId } from '../lib/seq.js';
 
 /**
+ * Did the restricted project-details collection actually arrive?
+ *
+ * This is the gate for anything showing estimated value, confidence or why-we-win.
+ *
+ * It must NOT be `Array.isArray(snap.projectDetails)`. A person refused that list
+ * gets an empty array plus a note in `snap.denied`, so the array is always present
+ * and that test always passes - which is how the panel came to be drawn for
+ * everybody. Asking `denied` is the difference between a panel that is absent
+ * because nothing was sent and one the browser merely chose not to draw.
+ *
+ * @param {Snapshot} snap
+ * @returns {boolean}
+ */
+export function detailsArrived(snap) {
+  return (snap.denied || []).indexOf('projectDetails') < 0;
+}
+
+/**
  * A person by id, or null.
  *
  * @param {Snapshot} snap

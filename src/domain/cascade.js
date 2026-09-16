@@ -185,6 +185,23 @@ function removeNotesFor(snap, projectId) {
  * @param {string} id
  * @returns {Cascade}
  */
+export function deleteNote(snap, id) {
+  const n = byId(snap.projectNotes, id);
+  if (!n) return nothing();
+
+  return {
+    writes: [{ op: 'remove', col: 'projectNotes', id: id }],
+    undo: [{ op: 'set', col: 'projectNotes', id: id, data: docOf(n) }],
+    message: 'Note removed.'
+  };
+}
+
+/**
+ * Remove a project.
+ *
+ * @param {Snapshot} snap
+ * @param {string} id
+ */
 export function deleteProject(snap, id) {
   const p = byId(snap.projects, id);
   if (!p) return nothing();

@@ -558,7 +558,7 @@ test('The row carries its status class, so the stylesheet can treat it', () => {
 });
 
 test('A selected project uses .sel, which the stylesheet defines', () => {
-  const html = projectsStage({ proj: 'pr1' });
+  const html = projectsStage({ railProj: 'pr1' });
   ok(/class="proj ps-[a-z]+ sel"/.test(html), 'the highlight class the CSS has');
   notOk(/psel/.test(html), 'not psel, which is for something else');
 });
@@ -583,9 +583,48 @@ test('The heading shows the name and their title', () => {
   ok(head.indexOf('<span>') >= 0, 'title beside it');
 });
 
-test('.pname is used for the project name button, where it belongs', () => {
+test('A project row keeps exactly the three cells its grid has', () => {
+  // `.proj` is `grid-template-columns:minmax(0,1fr) auto auto`. A fourth top-level
+  // child does not overflow or error - it silently wraps onto its own line, which
+  // is how the name, the delete button and the status control end up misaligned.
+  // So opening a project goes INSIDE the first cell rather than beside it.
   const html = projectsStage();
-  ok(/class="pname" data-act="selectProject"/.test(html));
+  const row = html.match(/<li class="proj [^]*?<\/li>/);
+  ok(row, 'found a project row');
+
+  ok(/<li class="proj[^"]*"[^>]*><div class="pname">/.test(row[0]),
+    'first cell is the name block');
+  ok(/<\/div><button class="x edit-only"/.test(row[0]), 'second is the delete button');
+  ok(/<div class="stat" role="group"/.test(row[0]), 'third is the status control');
+});
+
+test('The project name opens the project, and filtering is still reachable', () => {
+  // The name used to filter the action rail. It now opens the project's own page,
+  // which is what the rest of the board links to - but the filter is what you want
+  // mid-meeting, so it survives as its own control rather than being dropped.
+  const html = projectsStage();
+  ok(/class="it-t pname-open" data-act="openProject"/.test(html), 'the name opens it');
+  ok(/data-act="selectProject"/.test(html), 'the rail filter is still there');
+});
+
+test('The meeting view hides project details when that list was refused', () => {
+  // This was a live defect: the gate was `Array.isArray(snap.projectDetails)`, and a
+  // refused reader gets an EMPTY ARRAY plus a note in snap.denied - so the array is
+  // always there and the panel was drawn for everybody, editable, on every project.
+  const refused = demoBoard();
+  refused.denied = ['projectDetails'];
+  const html = renderApp(refused, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 2 }
+  }), { today: today(), modes: MODES });
+
+  notOk(/data-edit="pdValue"/.test(html), 'no value field');
+  notOk(/data-edit="pdWin"/.test(html), 'no confidence field');
+  notOk(html.indexOf('Project details') > 0, 'and no panel at all');
+});
+
+test('And shows them when the list did arrive', () => {
+  const html = projectsStage();
+  ok(/data-edit="pdValue"/.test(html));
 });
 
 group('Escaping');

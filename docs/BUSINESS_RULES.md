@@ -226,6 +226,75 @@ There is no "meetings" calendar to maintain. Prev/next shift the override by ±7
 and "Upcoming" deletes it. A `meetings` document only comes into existence when
 someone rates a meeting or writes a note.
 
+## 12. A project note belongs to the project, not to a meeting
+
+A win, a loss or an opportunity belongs to ONE meeting: it is what somebody said that
+week, and next week's meeting starts clean. A **note** belongs to the project for its
+whole life. "Supplier finally sent the data sheets" is not a thing you said in a
+meeting; it is a fact about the project that is still true next month.
+
+Notes are held in their own collection, `projectNotes`, keyed by `projectId`, and
+shown newest-first on the project page. Newest-first because the page is glanced at
+far more often than it is read.
+
+Implemented in `src/domain/notes.js`.
+
+### Who may change one
+
+**Only the author**, and only while the project is still live.
+
+Be clear about what that is: it is a **courtesy, not a control**. It stops people
+accidentally rewriting each other's notes. It is enforced in the browser, and
+SharePoint cannot express per-item authorship without item-level permissions — which
+is a different and much heavier thing. Anyone with Contribute on the list could still
+edit any note directly.
+
+That is fine for working notes. It would not be fine for anything sensitive, which is
+why sensitive numbers live in `projectDetails` instead, on their own permissioned
+list. The distinction is the point.
+
+Somebody not on the roster has no person id. They can still write a note — it is
+stored with an empty `authorId` — but they can never edit one, because two such
+people cannot be told apart.
+
+### They lock when the project finishes
+
+Once a project is `done` or `cancelled`, its notes stop accepting changes: nothing new
+can be added and nothing existing edited or removed. They stay on the page as the
+record of how it went, which is usually the most useful part of a finished project.
+
+A project that is not there at all also reads as locked — writing a note against
+something that does not exist cannot be right.
+
+---
+
+## 13. The project-details gate asks whether the data arrived
+
+Estimated value, confidence and why-we-win live in `projectDetails`, on their own
+SharePoint list with its own permissions. Somebody refused that list gets a **403**,
+which `graphAdapter.load()` turns into an **empty collection plus an entry in
+`snap.denied`** — the rest of the board loads normally.
+
+So the test for "may this person see project value" is:
+
+```js
+(snap.denied || []).indexOf('projectDetails') < 0   // detailsArrived(snap)
+```
+
+**It must not be `Array.isArray(snap.projectDetails)`.** A refused reader still gets
+an array — an empty one — so that test always passes. It shipped that way, and the
+consequence was that the Project Details panel rendered for everybody, with writable
+fields, on every project row. The panel looked empty, which is exactly why nobody
+noticed.
+
+The difference this encodes: a panel that is absent **because nothing was sent**, not
+one the browser merely chose not to draw. Client-side hiding is never a control.
+
+The same gate governs **Copy summary** on the project page. Otherwise the button would
+hand out in plain text precisely what the page withheld.
+
+---
+
 ## 11. What is not actually enforced
 
 Be honest about these — three of them look like controls and aren't:
@@ -266,3 +335,10 @@ extraction is finished.
   closed while reviewing last week's meeting is stamped with today.
 - **A rating and a meeting note written at the same moment can clobber each other**,
   because both writers replace the whole `meetings` document rather than patching it.
+
+### Fixed since
+
+- **The Project Details panel was shown to everyone.** The gate was
+  `Array.isArray(snap.projectDetails)`, which a refused reader also passes — see rule
+  13. Both the meeting view and the project page now ask `detailsArrived(snap)`, and
+  a test pins each. Found while building the project page, not by anyone using it.

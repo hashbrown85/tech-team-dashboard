@@ -28,7 +28,8 @@ function defaults() {
     person: 'all',      // scope everything to one person's work
     regTab: 'all',      // action register meeting filter
     projFilter: 'all',  // action register project filter
-    proj: null,         // selected project in the Current Projects step
+    railProj: null,     // project whose actions the meeting rail is filtered to
+    project: null,      // the project whose own page is open (view === 'project')
     tlGroup: 'meeting', // timeline grouping
     follow: false,      // showing the copyable follow-up text
     sumShow: false,     // showing the meeting summary preview
