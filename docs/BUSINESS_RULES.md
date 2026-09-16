@@ -226,6 +226,26 @@ There is no "meetings" calendar to maintain. Prev/next shift the override by ±7
 and "Upcoming" deletes it. A `meetings` document only comes into existence when
 someone rates a meeting or writes a note.
 
+## 11. The Projects list is ordered for working down, not for browsing
+
+Off track first, then soonest due, undated last. That is the order somebody would
+actually work down it, and it is why the list is not simply alphabetical.
+
+**Undated sorts last on purpose.** An empty string compares below every real date as
+text, so the obvious comparison puts everything undated at the top and buries the
+work that has a deadline. `byWorkOrder` substitutes a far-future date instead.
+
+**`priority` is deliberately ignored here.** It is per person per meeting — two
+people's lists are numbered independently — so it cannot order a list that spans
+both. It orders a person's block inside a meeting and nothing else.
+
+An empty list says **why** it is empty: a filter hiding everything reads differently
+from a meeting with no projects, which reads differently again from a board with
+none. "No projects" while a filter quietly hides them is how somebody concludes
+their project is gone and enters it a second time.
+
+---
+
 ## 12. A project note belongs to the project, not to a meeting
 
 A win, a loss or an opportunity belongs to ONE meeting: it is what somebody said that
@@ -312,7 +332,7 @@ a gap nobody can account for.
 
 ---
 
-## 11. What is not actually enforced
+## 14. What is not actually enforced
 
 Be honest about these — three of them look like controls and aren't:
 

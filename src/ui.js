@@ -28,6 +28,8 @@ function defaults() {
     person: 'all',      // scope everything to one person's work
     regTab: 'all',      // action register meeting filter
     projFilter: 'all',  // action register project filter
+    projStatus: 'live', // Projects list: which statuses to show
+    projTab: 'all',     // Projects list: meeting filter
     railProj: null,     // project whose actions the meeting rail is filtered to
     project: null,      // the project whose own page is open (view === 'project')
     tlGroup: 'meeting', // timeline grouping

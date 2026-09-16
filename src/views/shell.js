@@ -20,6 +20,7 @@
  */
 
 import { esc } from '../lib/dom.js';
+import { ACTIVE_STATUSES } from '../domain/constants.js';
 import { fmtShort } from '../lib/dates.js';
 import { stats } from '../domain/dueness.js';
 import { meetingDate } from '../domain/meetings.js';
@@ -179,6 +180,10 @@ export function renderSide(snap, ui, env) {
     '<div class="nsep"></div>' +
     item('actions', 'Action items',
       s.over ? '<span class="cnt">' + s.over + '</span>' : '<span class="cnt n">' + s.open + '</span>') +
+    item('projects', 'Projects',
+      '<span class="cnt n">' + snap.projects.filter(function (p) {
+        return ACTIVE_STATUSES.indexOf(p.status) >= 0;
+      }).length + '</span>') +
     item('timeline', 'Timeline') + item('people', 'People') +
     '</nav>' +
     '<div class="side-foot">' + whoAmI(env) +

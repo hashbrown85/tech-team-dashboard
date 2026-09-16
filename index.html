@@ -127,6 +127,25 @@
   .ctrend .spark { margin-top: 4px; }
   .ctrend .spark.bare { max-width: 200px; }
 
+  /* --- The Projects list --- */
+
+  /* Status as a chip, mirroring the colours the .stat control already uses on a
+     project row, so the two surfaces agree about what "off track" looks like. */
+  .chip.ps-on { background: var(--good-soft); color: var(--good); }
+  .chip.ps-off { background: var(--gold-soft); color: var(--gold-ink); }
+  .chip.ps-hold { background: var(--sunk); color: var(--ink); }
+  .chip.ps-done { background: var(--ink); color: var(--on-ink); }
+  .chip.ps-cancelled { background: var(--crit-soft); color: var(--crit); }
+  .chip.ps-new { background: var(--gold); color: var(--on-brand); }
+
+  /* The table is for scanning, so the title carries the weight and everything
+     else recedes. `.k` is the stylesheet's muted cell text. */
+  table.t .linkbtn { font-weight: 600; }
+  table.t td.mono { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
+  table.t td.mono.overdue { color: var(--crit); font-weight: 600; }
+  table.t td.c { width: auto; min-width: 64px; }
+  .filters + .scope-note { margin-top: 10px; }
+
   /* The x on a chip. `.x` is a 26px control sized for a list row, which makes a
      chip half again as tall as it needs to be. This also tidies the same chips on
      the People & settings screen, which had the problem first. */

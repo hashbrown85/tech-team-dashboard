@@ -136,6 +136,7 @@ export function createHandlers(app) {
     closeForm: function () { ui.open = null; render(); },
 
     filter: function (el, id, v) { ui.filter = v; render(); },
+    projStatusFilter: function (el, id, v) { ui.projStatus = v; render(); },
     tlGroup: function (el, id, v) { ui.tlGroup = v; render(); },
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
@@ -361,6 +362,7 @@ export function createHandlers(app) {
   const edits = {
     personFilter: function (el) { ui.person = el.value; render(); },
     regTab: function (el) { ui.regTab = el.value; ui.projFilter = 'all'; render(); },
+    projTabFilter: function (el) { ui.projTab = el.value; render(); },
 
     navSelect: function (el) {
       const v = el.value;
