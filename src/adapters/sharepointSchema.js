@@ -23,7 +23,7 @@
  * internal names — you would need the older SharePoint REST API to find out.
  * Single words keep internal and display names identical.
  *
- * **Arrays are JSON in a text column.** members, resources, chemistries and the
+ * **Arrays are JSON in a text column.** members, resources, focus and the
  * rest. Justified in DATA_MODEL.md: every place in the app reads or writes the
  * whole array at once, and nothing ever queries "which tabs contain person X"
  * from the store. Junction lists would triple the writes and buy nothing.
@@ -126,6 +126,19 @@ export const SCHEMA = {
       rank: { col: 'Rank', kind: 'number' },
 
       /*
+       * Where this project sits in ITS OWNER'S order, within this meeting.
+       *
+       * Deliberately not `rank`. That one is the position in the off-track Issues
+       * queue, and statusChange sets it when a project goes off track and deletes
+       * it when it comes back - so reusing it would mean a status change silently
+       * scrambled somebody's priorities.
+       *
+       * Absent sorts last, so a board nobody has ordered still renders in a stable
+       * order rather than shuffling between renders.
+       */
+      priority: { col: 'Priority', kind: 'number' },
+
+      /*
        * How likely we are to land it, and why. Team-visible: the people running
        * the meeting need to talk about confidence, and it is not the number that
        * needs protecting. ONLY the dollar value is restricted - see below.
@@ -138,7 +151,7 @@ export const SCHEMA = {
        *
        * The authoritative product list lives in Dataverse. Nothing here can reach
        * it yet, so the picker is fed from a `products` row in `settings` - the
-       * same shape as chemistries and resources, maintained by hand for now. When
+       * same shape as focus and resources, maintained by hand for now. When
        * Dataverse is reachable, only the SOURCE of that list changes: this column
        * stores the chosen values either way, so no migration falls out of it.
        */
@@ -146,7 +159,7 @@ export const SCHEMA = {
 
       // What it needs and what it is made of. Team-visible for the same reason.
       resources: { col: 'ResourcesJson', kind: 'json' },
-      chemistries: { col: 'ChemistriesJson', kind: 'json' }
+      focus: { col: 'FocusJson', kind: 'json' }
       // The dollar value is NOT here. It lives in projectDetails, on its own list
       // with its own permissions, so somebody without access never receives it.
     }
@@ -160,7 +173,7 @@ export const SCHEMA = {
      * Do not add fields here because they feel sensitive. This list exists so
      * SharePoint can refuse it, and everything put in it disappears together for
      * anyone refused - so every extra field is something the team loses the
-     * ability to discuss. Confidence, why-we-win, products, chemistries and
+     * ability to discuss. Confidence, why-we-win, products, focus and
      * resources all started here and were moved back onto the project for exactly
      * that reason: the dollar figure was the only part that needed protecting.
      *
@@ -256,7 +269,7 @@ export const SCHEMA = {
 
   settings: {
     /*
-     * Three rows: Key 'chemistries', 'resources' and 'products'.
+     * Three rows: Key 'focus', 'resources' and 'products'.
      *
      * 'products' is a placeholder for a list that really lives in Dataverse. See
      * the note on projects.products.

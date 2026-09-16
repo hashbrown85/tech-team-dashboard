@@ -29,7 +29,7 @@ function seed() {
                 support: '', due: MEETING, status: 'open',
                 parent: { type: 'project', id: 'pr1' }, meeting: MEETING }],
     meetings: { 't1|2026-09-14': { ratings: { p1: 4 }, note: 'a note' } },
-    settings: { chemistries: { items: ['one', 'two'] } }
+    settings: { focus: { items: ['one', 'two'] } }
   };
 }
 

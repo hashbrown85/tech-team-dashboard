@@ -57,6 +57,15 @@
   .pname-open:hover { text-decoration: underline; }
   .pfilter { margin-left: 2px; }
 
+  /* Priority arrows and delete, sharing the project row's middle cell. `.proj` is
+     a three-column grid, so they have to be one child, not three. */
+  .ptools { display: flex; align-items: center; gap: 3px; }
+
+  /* Focus chips in the collapsed row sit in a line of muted 13px text, so they
+     need to read as part of it rather than as full-size controls. */
+  .proj .meta .pchip { font-size: 11.5px; padding: 1px 7px; }
+  .pfoc { margin-top: 10px; }
+
   /* The x on a chip. `.x` is a 26px control sized for a list row, which makes a
      chip half again as tall as it needs to be. This also tidies the same chips on
      the People & settings screen, which had the problem first. */

@@ -271,7 +271,7 @@ something that does not exist cannot be right.
 ## 13. Only the dollar value is restricted, and the gate asks whether it arrived
 
 **What is restricted is deliberately narrow: `estValue`, and nothing else.**
-Confidence, why-we-win, product selection, chemistries and resources all live on the
+Confidence, why-we-win, product selection, focus and resources all live on the
 project and are shown to everyone who can see the project at all.
 
 They did not start that way — all of them were in `projectDetails` — and the reason
@@ -359,7 +359,7 @@ extraction is finished.
   `Array.isArray(snap.projectDetails)`, which a refused reader also passes — see rule
   13. Both the meeting view and the project page now ask `detailsArrived(snap)`, and
   a test pins each. Found while building the project page, not by anyone using it.
-- **`resources` and `chemistries` were stored but editable nowhere.** The meeting row
+- **`resources` and `focus` (then `chemistries`) were stored but editable nowhere.** The meeting row
   never offered them and the project page only printed them, so since the split they
   could be read and never set. The project page now has a picker for both, and for
   `products`.

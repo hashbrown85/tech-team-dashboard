@@ -78,7 +78,7 @@ export function renderPeople(snap, ui, env) {
     table + addForm +
     managedList(snap, ui, env, 'products', 'Products', 'product', 'delProduct',
       'Stands in for the product list in Dataverse, until that is reachable.') +
-    managedList(snap, ui, env, 'chemistries', 'Chemistries', 'chem', 'delChem') +
+    managedList(snap, ui, env, 'focus', 'Focus', 'focus', 'delFocus') +
     managedList(snap, ui, env, 'resources', 'Potential resources', 'resource',
       'delResource');
 }

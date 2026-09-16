@@ -97,27 +97,23 @@ test('The sidebar reports who you are rather than asking', () => {
   ok(html.indexOf('Signed in as') >= 0, 'it is a statement now');
 });
 
-test('Project Details appears only when the data actually arrived', () => {
-  // The gate is no longer a check in the browser. The sensitive fields live on
-  // their own permissioned list, so somebody without access simply receives an
-  // empty collection and there is nothing to draw. That is the difference between
-  // hiding the numbers and protecting them.
+test('The meeting view carries no project value at all any more', () => {
+  // It used to show the annual value under the caret, gated on whether the
+  // restricted collection had arrived. The value now lives only on a project's own
+  // page - which means this screen has nothing left to protect, and the caret works
+  // for everyone. That is the point of having moved it.
   const withData = demoBoard();
-  const withoutData = demoBoard();
-  withoutData.projectDetails = [];   // what a refused load looks like
 
   const shown = renderApp(withData,
     Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
     { today: today(), modes: MODES, identity: identify(withData, null) });
 
-  ok(shown.indexOf('data-edit="pdValue"') >= 0, 'the panel is there when the data is');
-  ok(shown.indexOf('180000') >= 0, 'and shows the figure');
+  notOk(shown.indexOf('data-edit="pdValue"') >= 0, 'no value field');
+  notOk(shown.indexOf('180000') >= 0, 'and the figure is nowhere in the markup');
 
-  const hidden = renderApp(withoutData,
-    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
-    { today: today(), modes: MODES, identity: identify(withoutData, null) });
-
-  notOk(hidden.indexOf('180000') >= 0, 'and the figure is nowhere in the page');
+  ok(shown.indexOf('Project details') >= 0, 'the panel is still there');
+  ok(shown.indexOf('data-edit="pdWin"') >= 0, 'with confidence');
+  ok(shown.indexOf('data-f="focus"') >= 0, 'and the focus picker');
 });
 
 test('A refused collection leaves the rest of the board working', () => {

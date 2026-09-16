@@ -267,8 +267,8 @@ export function projectSummary(snap, p, today, withValue) {
     if (p.products && p.products.length) {
       L.push('• Product selection: ' + p.products.join(', '));
     }
-    if (p.chemistries && p.chemistries.length) {
-      L.push('• Chemistries: ' + p.chemistries.join(', '));
+    if (p.focus && p.focus.length) {
+      L.push('• Focus: ' + p.focus.join(', '));
     }
     if (p.resources && p.resources.length) {
       L.push('• Resources: ' + p.resources.join(', '));
@@ -288,4 +288,87 @@ export function projectSummary(snap, p, today, withValue) {
 
   L.push('', 'As at ' + fmtLong(today) + '.');
   return L.join('\n');
+}
+
+/**
+ * Order a person's projects: by priority, then by something stable.
+ *
+ * A project with no priority sorts last. The tiebreak matters more than it looks -
+ * without it a list nobody has ordered comes back in whatever order the store
+ * happened to return, which can differ between a load and the 60-second poll, and
+ * rows appear to shuffle on their own.
+ *
+ * @param {any} a
+ * @param {any} b
+ */
+export function byPriority(a, b) {
+  const pa = a.priority == null ? 1e9 : a.priority;
+  const pb = b.priority == null ? 1e9 : b.priority;
+  if (pa !== pb) return pa - pb;
+
+  const aa = String(a.added || '');
+  const ab = String(b.added || '');
+  if (aa !== ab) return aa < ab ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * Move one project up or down its owner's list, and renumber.
+ *
+ * Priority is per person per meeting: two people's lists are ordered independently.
+ *
+ * Two things here are less obvious than they look.
+ *
+ * **It renumbers rather than swapping two values.** The issue queue swaps ranks,
+ * which works because issues always have one. Projects start with no priority at
+ * all, so a swap would exchange two absent values and do nothing - the first click
+ * on a fresh board would appear broken.
+ *
+ * **It steps past the next VISIBLE project but renumbers the whole set.** A
+ * person's list on screen is filtered by `projVisible`: a project finished last
+ * week, or starting next week, is not shown. Stepping past something invisible
+ * would look like nothing happened, and renumbering only the visible ones would
+ * throw away the hidden ones' places. So the step is taken in the visible list and
+ * written to the full one.
+ *
+ * @param {Snapshot} snap
+ * @param {string} tabId
+ * @param {string} personId
+ * @param {string} projectId
+ * @param {number} delta - negative to move up, positive to move down
+ * @param {(p: any) => boolean} visible
+ * @returns {{col: string, id: string, patch: {priority: number}}[] | null}
+ */
+export function reorderProjects(snap, tabId, personId, projectId, delta, visible) {
+  const all = snap.projects
+    .filter(function (p) { return p.tab === tabId && p.personId === personId; })
+    .sort(byPriority);
+
+  const shown = all.filter(visible);
+  let at = -1;
+  shown.forEach(function (p, i) { if (p.id === projectId) at = i; });
+  if (at < 0) return null;
+
+  const neighbour = shown[at + (delta < 0 ? -1 : 1)];
+  if (!neighbour) return null;           // already at the end it is moving toward
+
+  let from = -1;
+  all.forEach(function (p, i) { if (p.id === projectId) from = i; });
+  const moving = all[from];
+
+  const moved = all.slice();
+  moved.splice(from, 1);
+
+  let to = -1;
+  moved.forEach(function (p, i) { if (p.id === neighbour.id) to = i; });
+  moved.splice(delta < 0 ? to : to + 1, 0, moving);
+
+  /** @type {any[]} */
+  const writes = [];
+  moved.forEach(function (p, i) {
+    if (p.priority !== i) {
+      writes.push({ col: 'projects', id: p.id, patch: { priority: i } });
+    }
+  });
+  return writes.length ? writes : null;
 }

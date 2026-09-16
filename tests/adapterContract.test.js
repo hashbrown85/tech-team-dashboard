@@ -188,11 +188,11 @@ ADAPTERS.forEach(function (impl) {
 
   test('[' + impl.name + '] Settings documents round-trip by their own key', async () => {
     const a = impl.make();
-    await a.set('settings', 'chemistries', { items: ['Acrylic', 'Epoxy'] });
+    await a.set('settings', 'focus', { items: ['Corrosion', 'Pipeline'] });
 
     const snap = await a.load();
-    eq(Object.keys(snap.settings), ['chemistries']);
-    eq(snap.settings.chemistries.items, ['Acrylic', 'Epoxy']);
+    eq(Object.keys(snap.settings), ['focus']);
+    eq(snap.settings.focus.items, ['Corrosion', 'Pipeline']);
   });
 
   test('[' + impl.name + '] Action numbers are unique and gapless', async () => {

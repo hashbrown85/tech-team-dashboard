@@ -109,11 +109,12 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 | `statusMeeting` | date string *optional* | Bookkeeping for the meeting summary |
 | `doneMeeting` | date string *optional* | Set while status is done/cancelled |
 | `rank` | number *optional* | Queue position **while off-track only** |
+| `priority` | number *optional* | Position in **its owner's** list, within this meeting |
 | `winPct` | number *optional* | How likely we are to land it, 0-100 |
 | `winReason` | string *optional* | Why it is ours to lose |
 | `products` | string[] *optional* | values from `settings/products` |
 | `resources` | string[] *optional* | values from `settings/resources` |
-| `chemistries` | string[] *optional* | values from `settings/chemistries` |
+| `focus` | string[] *optional* | values from `settings/focus` |
 
 The **dollar value** is not here. It is the one field that lives in
 `projectDetails`, on its own permissioned list.
@@ -121,7 +122,20 @@ The **dollar value** is not here. It is the one field that lives in
 `products` names the products this project is proposing. It is picked from a
 dropdown of what is not yet chosen, with each choice shown as a removable chip —
 rather than a grid of togglable chips, which stops scaling the moment the list is
-longer than a line. `chemistries` and `resources` use the same control.
+longer than a line. `focus` and `resources` use the same control.
+
+**`priority` is not `rank`.** `rank` is the position in the off-track Issues queue,
+and `statusChange` sets it when a project goes off track and deletes it when it comes
+back — so reusing it would have meant a status change silently scrambled somebody's
+priorities. Priority is per person per meeting: two people's lists are ordered
+independently. Absent sorts last, so a newly added project lands at the bottom rather
+than the top, and a board nobody has ordered still renders the same way twice.
+
+`focus` is what the customer or project cares about most — Corrosion, Scale,
+Pipeline, Rod Pumps — so a glance at a project row says whether we are pointed at
+their actual problem. It replaced a `chemistries` field, which recorded what a
+project was chemically made of; the rename happened before any SharePoint list
+existed, so the column went with it.
 
 The authoritative product list lives in **Dataverse**; nothing in the app can reach it yet, so the picker is fed
 from a `products` row in `settings`, maintained by hand on the People & settings
@@ -149,7 +163,7 @@ without access never receives the figure at all.
 **Do not add fields here because they feel sensitive.** This list exists so
 SharePoint can refuse it, and everything in it disappears together for anyone
 refused — so each extra field is something the team loses the ability to discuss.
-`winPct`, `winReason`, `resources` and `chemistries` all started here and were moved
+`winPct`, `winReason`, `resources` and `focus` all started here and were moved
 back onto the project for exactly that reason: the dollar figure was the only part
 that needed protecting.
 
@@ -263,7 +277,7 @@ Two documents, each with a fixed id:
 
 | Document id | Shape |
 |---|---|
-| `chemistries` | `{items: string[]}` |
+| `focus` | `{items: string[]}` |
 | `resources` | `{items: string[]}` |
 
 These are the pick-lists for the two Project Details multi-select fields. Read by

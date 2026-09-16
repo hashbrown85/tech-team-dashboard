@@ -20,6 +20,7 @@ import { createHandlers } from '../src/handlers.js';
 import { loadUi } from '../src/ui.js';
 import { today } from '../src/lib/dates.js';
 import { issueItems, actionedItems } from '../src/domain/queries.js';
+import { byPriority } from '../src/domain/projects.js';
 import { renderApp } from '../src/views/render.js';
 
 /** Just enough DOM for the handlers to run outside a browser. */
@@ -237,7 +238,7 @@ test('Walking every agenda step leaves the app renderable', async () => {
   }
 });
 
-group('Picking products, chemistries and resources');
+group('Picking products, focus and resources');
 
 /** Choose something from one of the dropdowns. */
 function add(a, projectId, field, value) {
@@ -315,15 +316,15 @@ test('Removing something that is not chosen changes nothing', async () => {
   eq(proj(a, 'pr1').products, before);
 });
 
-test('Chemistries and resources are separate lists', async () => {
+test('Focus and resources are separate lists', async () => {
   const a = await app();
-  add(a, 'pr1', 'chemistries', 'Epoxy');
+  add(a, 'pr1', 'focus', 'Pipeline');
   await settle();
 
   const p = proj(a, 'pr1');
-  ok(p.chemistries.indexOf('Epoxy') >= 0, 'chemistry added');
-  notOk((p.resources || []).indexOf('Epoxy') >= 0, 'and not to resources');
-  notOk((p.products || []).indexOf('Epoxy') >= 0, 'nor to products');
+  ok(p.focus.indexOf('Pipeline') >= 0, 'focus area added');
+  notOk((p.resources || []).indexOf('Pipeline') >= 0, 'and not to resources');
+  notOk((p.products || []).indexOf('Pipeline') >= 0, 'nor to products');
 });
 
 test('A field name that is not one of the three is refused', async () => {
@@ -452,6 +453,152 @@ test('Somebody else cannot edit it either', async () => {
   await settle();
 
   eq(a.snap().projectNotes.find(function (n) { return n.id === theirs.id; }).text, was);
+});
+
+group('Priority: each person orders their own projects');
+
+/** The ids of one person's projects in a meeting, in the order they render. */
+function orderOf(a, tabId, personId) {
+  return a.snap().projects
+    .filter(function (p) { return p.tab === tabId && p.personId === personId; })
+    .sort(byPriority)
+    .map(function (p) { return p.id; });
+}
+
+function moveProject(a, id, delta) {
+  a.H.clicks.movePriority(null, id, String(delta));
+}
+
+test('Moving a project up swaps it with the one above', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = orderOf(a, 't1', 'p1');
+  ok(before.length >= 2, 'p1 has a couple in t1, got ' + before.length);
+
+  moveProject(a, before[1], -1);
+  await settle();
+
+  const after = orderOf(a, 't1', 'p1');
+  eq(after[0], before[1], 'the second one is now first');
+  eq(after[1], before[0], 'and the first is second');
+});
+
+test('Moving it back down restores the order', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = orderOf(a, 't1', 'p1');
+
+  moveProject(a, before[1], -1);
+  await settle();
+  moveProject(a, before[1], 1);
+  await settle();
+
+  eq(orderOf(a, 't1', 'p1'), before, 'back where it started');
+});
+
+test('The first click works on a board that has never been ordered', async () => {
+  // Nothing starts with a priority. A pairwise SWAP would exchange two absent
+  // values and do nothing at all, so the very first arrow click would look broken.
+  // reorderProjects renumbers instead, which is the whole reason it does.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  a.snap().projects.forEach(function (p) {
+    notOk('priority' in p, p.id + ' starts with no priority');
+  });
+
+  const before = orderOf(a, 't1', 'p1');
+  moveProject(a, before[1], -1);
+  await settle();
+
+  notOk(orderOf(a, 't1', 'p1')[0] === before[0], 'the order really changed');
+});
+
+test('Moving up from the top does nothing, and neither does down from the bottom', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = orderOf(a, 't1', 'p1');
+
+  moveProject(a, before[0], -1);
+  await settle();
+  eq(orderOf(a, 't1', 'p1'), before, 'top stays put');
+
+  moveProject(a, before[before.length - 1], 1);
+  await settle();
+  eq(orderOf(a, 't1', 'p1'), before, 'bottom stays put');
+});
+
+test('One person reordering never moves anybody else work', async () => {
+  // Priority is per person per meeting. Two people's lists are independent.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const others = a.snap().projects
+    .filter(function (p) { return p.personId !== 'p1'; })
+    .map(function (p) { return p.id + ':' + p.priority; });
+
+  const mine = orderOf(a, 't1', 'p1');
+  moveProject(a, mine[1], -1);
+  await settle();
+
+  const after = a.snap().projects
+    .filter(function (p) { return p.personId !== 'p1'; })
+    .map(function (p) { return p.id + ':' + p.priority; });
+  eq(after, others, 'nobody else was renumbered');
+});
+
+test('Priority survives a project going off track and back', async () => {
+  // `rank` is the off-track queue position, and statusChange sets it on the way out
+  // and deletes it on the way back. Reusing it for priority would have meant a
+  // status change silently scrambled somebody's order - this is that test.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = orderOf(a, 't1', 'p1');
+  moveProject(a, before[1], -1);
+  await settle();
+  const ordered = orderOf(a, 't1', 'p1');
+
+  a.H.clicks.projStatus(null, ordered[0], 'off');
+  await settle();
+  a.H.clicks.projStatus(null, ordered[0], 'on');
+  await settle();
+
+  eq(orderOf(a, 't1', 'p1'), ordered, 'the order is untouched');
+});
+
+test('An unordered list still renders the same way twice', async () => {
+  // Without a tiebreak, a list nobody has ordered comes back in whatever order the
+  // store returned, which can differ between a load and the poll - and rows appear
+  // to shuffle on their own.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const once = orderOf(a, 't1', 'p1');
+  const shuffled = a.snap().projects.slice().reverse();
+  eq(shuffled.filter(function (p) { return p.tab === 't1' && p.personId === 'p1'; })
+      .sort(byPriority).map(function (p) { return p.id; }),
+    once, 'same order from a differently-ordered snapshot');
+});
+
+test('A project nobody has ordered sorts BELOW the ones somebody has', () => {
+  // Every project starts with no priority, so a board where none is set cannot tell
+  // "absent sorts last" from "absent sorts first" - both put them in the same order.
+  // It takes a mixture to pin down, and the mixture is the normal case: somebody
+  // orders their list, then adds a project.
+  const ordered = { id: 'a', priority: 3, added: '2026-01-01' };
+  const fresh = { id: 'b', added: '2026-01-01' };
+
+  ok(byPriority(ordered, fresh) < 0, 'the ordered one comes first');
+  ok(byPriority(fresh, ordered) > 0, 'and the fresh one after it, both ways round');
+
+  const sorted = [fresh, ordered].sort(byPriority).map(function (x) { return x.id; });
+  eq(sorted, ['a', 'b'], 'even a large priority beats no priority');
+});
+
+test('A newly added project lands at the bottom of an ordered list', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = orderOf(a, 't1', 'p1');
+  moveProject(a, before[1], -1);          // give the list real priorities
+  await settle();
+
+  a.H.forms.project(fields([['name', 'Brand new thing'], ['due', '']]),
+    /** @type {any} */ ({ dataset: { pid: 'p1' } }));
+  await settle();
+
+  const after = orderOf(a, 't1', 'p1');
+  const added = a.snap().projects.find(function (p) { return p.name === 'Brand new thing'; });
+  ok(added, 'it was created');
+  eq(after[after.length - 1], added.id, 'and it is last, not first');
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

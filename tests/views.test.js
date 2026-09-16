@@ -537,14 +537,29 @@ test('Every status button carries both attributes the colour rule needs', () => 
 });
 
 test('Exactly one button per project is pressed, and it is the current status', () => {
+  // Checked on EVERY row, not just the first. It used to look at whichever row came
+  // back first, which was fine until projects started sorting by priority and a
+  // 'new' one led - and a 'new' project correctly has nothing pressed, because it
+  // has no status yet. That made a sound test look like a regression.
   const html = projectsStage();
-  const row = /<li class="proj ps-([a-z]+)[\s\S]*?<\/li>/.exec(html);
+  const rows = html.match(/<li class="proj ps-[a-z]+[\s\S]*?<\/li>/g) || [];
+  ok(rows.length > 1, 'several project rows, got ' + rows.length);
 
-  ok(row, 'a project row is present');
-  const pressed = row[0].match(/data-v="([a-z]+)" aria-pressed="true"/g) || [];
-  eq(pressed.length, 1, 'one pressed, not none and not several');
-  eq(/data-v="([a-z]+)"/.exec(pressed[0])[1], row[1],
-    'and it is the status in the row class');
+  let checked = 0;
+  rows.forEach(function (row) {
+    const status = /<li class="proj ps-([a-z]+)/.exec(row)[1];
+    const pressed = row.match(/data-v="([a-z]+)" aria-pressed="true"/g) || [];
+
+    if (status === 'new') {
+      eq(pressed.length, 0, 'a new project has no status set yet');
+      return;
+    }
+    eq(pressed.length, 1, status + ': one pressed, not none and not several');
+    eq(/data-v="([a-z]+)"/.exec(pressed[0])[1], status,
+      'and it is the status in the row class');
+    checked++;
+  });
+  ok(checked > 0, 'at least one row had a real status to check');
 });
 
 test('The row carries its status class, so the stylesheet can treat it', () => {
@@ -594,8 +609,14 @@ test('A project row keeps exactly the three cells its grid has', () => {
 
   ok(/<li class="proj[^"]*"[^>]*><div class="pname">/.test(row[0]),
     'first cell is the name block');
-  ok(/<\/div><button class="x edit-only"/.test(row[0]), 'second is the delete button');
+  ok(/<div class="ptools edit-only">/.test(row[0]),
+    'second is the tools: priority arrows and delete, together in one cell');
   ok(/<div class="stat" role="group"/.test(row[0]), 'third is the status control');
+
+  // The arrows must not become a fourth child - that is the failure this pins.
+  const tools = /<div class="ptools edit-only">([\s\S]*?)<\/div>/.exec(row[0]);
+  ok(tools, 'the tools cell closes');
+  eq((tools[1].match(/<button/g) || []).length, 3, 'up, down and delete inside it');
 });
 
 test('The project name opens the project, and filtering is still reachable', () => {
@@ -639,9 +660,71 @@ test('The value never reaches a refused meeting view at all', () => {
   notOk(html.indexOf(String(value)) > 0, 'the number is not in the HTML');
 });
 
-test('And the value field is there when the list did arrive', () => {
+test('The caret needs no permission now that the value has gone', () => {
+  // Removing the value from this panel removed the only reason it had a gate.
+  const refused = demoBoard();
+  refused.denied = ['projectDetails'];
+  refused.projectDetails = [];
+  const html = renderApp(refused, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 2 }
+  }), { today: today(), modes: MODES });
+
+  ok(html.indexOf('Project details') > 0, 'the panel is there even when refused');
+  ok(/data-edit="pdWin"/.test(html), 'with confidence');
+  ok(/data-f="focus"/.test(html), 'and the focus picker');
+});
+
+test('Every project row has priority arrows, blunted at the ends', () => {
   const html = projectsStage();
-  ok(/data-edit="pdValue"/.test(html));
+  const rows = html.match(/<li class="proj ps-[a-z]+[\s\S]*?<\/li>/g) || [];
+  ok(rows.length > 1, 'several rows');
+
+  rows.forEach(function (row) {
+    const ups = row.match(/<button[^>]*data-v="-1"[^>]*>/g) || [];
+    const downs = row.match(/<button[^>]*data-v="1"[^>]*>/g) || [];
+    eq(ups.length, 1, 'one up arrow');
+    eq(downs.length, 1, 'one down arrow');
+  });
+
+  // Only the ends are disabled, and each person's block has its own ends - so
+  // across several people there is more than one of each.
+  ok(/data-v="-1"[^>]*disabled/.test(html), 'somebody is at the top');
+  ok(/data-v="1"[^>]*disabled/.test(html), 'and somebody at the bottom');
+});
+
+test('Focus reads on the collapsed row, not only under the caret', () => {
+  const html = projectsStage();
+  const row = /<li class="proj[\s\S]*?<details/.exec(html);
+  ok(row, 'found the part of a row above the caret');
+
+  const withFocus = (html.match(/<li class="proj[\s\S]*?<details/g) || [])
+    .filter(function (r) { return r.indexOf('Corrosion') > 0; });
+  ok(withFocus.length > 0, 'a project with focus shows it before the caret');
+});
+
+test('The rendered rows really come out in priority order', () => {
+  // The flow tests sort the data themselves to check it, which proves the domain
+  // function and nothing about the view. Dropping .sort(byPriority) from the stage
+  // left every one of them passing. This reads the order off the page.
+  const snap = demoBoard();
+  const mine = snap.projects.filter(function (p) {
+    return p.tab === 't1' && p.personId === 'p1';
+  });
+  ok(mine.length >= 2, 'p1 has a couple in t1');
+
+  // Deliberately the reverse of the order they appear in the snapshot.
+  mine.forEach(function (p, i) { p.priority = mine.length - i; });
+  const wanted = mine.slice().reverse().map(function (p) { return p.id; });
+
+  const html = renderApp(snap, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 2 }
+  }), { today: today(), modes: MODES });
+
+  const rendered = (html.match(/id="proj-([a-z0-9]+)"/g) || [])
+    .map(function (m) { return /id="proj-([a-z0-9]+)"/.exec(m)[1]; })
+    .filter(function (id) { return wanted.indexOf(id) >= 0; });
+
+  eq(rendered, wanted, 'rows appear in the order priority asks for');
 });
 
 group('Escaping');

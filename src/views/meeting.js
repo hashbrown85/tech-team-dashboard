@@ -17,10 +17,12 @@
 import { esc, clock, minutes } from '../lib/dom.js';
 import { fmt, fmtDay, fmtLong, rel, nextOn, addDays } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
+import { pickerControl } from './pickers.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen, detailsArrived
+  personName, person, attendeeIds, isOpen
 } from '../domain/queries.js';
+import { byPriority } from '../domain/projects.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
@@ -281,19 +283,17 @@ function businessReview(snap, tab) {
 
 function stageProjects(snap, ui, env, tab, d) {
   const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
-  // Whether the panel appears is now simply whether the data arrived. If this
-  // person cannot read project values, the collection came back empty and there
-  // is nothing to render - see OPTIONAL_COLLECTIONS in DataStore.js.
-  const seeDetails = detailsArrived(snap);
 
   const rows = reporting.map(function (id) {
-    const mine = snap.projects.filter(function (p) {
-      return p.personId === id && projVisible(p, tab.id, d);
-    });
+    // Each person orders their own projects, and the two orders are independent -
+    // the arrows on one person's block never move anybody else's work.
+    const mine = snap.projects
+      .filter(function (p) { return p.personId === id && projVisible(p, tab.id, d); })
+      .sort(byPriority);
 
     const list = mine.length
-      ? '<ul class="items">' + mine.map(function (p) {
-          return projectRow(snap, ui, env, p, seeDetails);
+      ? '<ul class="items">' + mine.map(function (p, i) {
+          return projectRow(snap, ui, env, p, i, mine.length);
         }).join('') + '</ul>'
       : '<p class="none">No current projects.</p>';
 
@@ -331,14 +331,24 @@ function stageProjects(snap, ui, env, tab, d) {
  * @param {any} ui
  * @param {any} env
  * @param {any} p
- * @param {boolean} seeDetails
+ * @param {number} idx - where it sits in its owner's list, for the move arrows
+ * @param {number} count - how many that owner has on screen
  */
-function projectRow(snap, ui, env, p, seeDetails) {
+function projectRow(snap, ui, env, p, idx, count) {
   const open = openActsFor(snap, p.id);
   const selected = ui.railProj === p.id;
 
+  // Focus reads on the collapsed row rather than only under the caret: the point of
+  // it is to see at a glance whether we are pointed at what the customer actually
+  // cares about. `.pchip` is inline, so these flow in the meta line as they are.
+  const focus = (p.focus || []).length
+    ? (p.focus || []).map(function (v) {
+        return '<span class="pchip">' + esc(v) + '</span>';
+      }).join(' ') + ' \u00b7 '
+    : '';
+
   const meta =
-    (p.customer ? '<b>' + esc(p.customer) + '</b> \u00b7 ' : '') +
+    (p.customer ? '<b>' + esc(p.customer) + '</b> \u00b7 ' : '') + focus +
     (p.status === 'new'
       ? '<span class="chip new">New</span> ' +
         (p.fromOpp
@@ -369,29 +379,39 @@ function projectRow(snap, ui, env, p, seeDetails) {
     esc(p.id) + '" aria-pressed="' + selected + '">' +
     (selected ? 'Show all actions' : 'Filter actions') + '</button>' +
     '</span></div>' +
-    '<button class="x edit-only" type="button" data-act="delProject" data-id="' + esc(p.id) +
+    // `.proj` is a three-column grid - name, tools, status. The arrows share the
+    // middle cell with the delete button rather than becoming a fourth child, which
+    // would not error and would not look wrong in the markup: it would silently wrap
+    // onto its own line and push the status control out of alignment.
+    '<div class="ptools edit-only">' +
+    '<button class="mv" type="button" data-act="movePriority" data-id="' + esc(p.id) +
+    '" data-v="-1" aria-label="Raise priority of ' + esc(p.name) + '"' +
+    (idx === 0 ? ' disabled' : dis(env)) + '>▲</button>' +
+    '<button class="mv" type="button" data-act="movePriority" data-id="' + esc(p.id) +
+    '" data-v="1" aria-label="Lower priority of ' + esc(p.name) + '"' +
+    (idx === count - 1 ? ' disabled' : dis(env)) + '>▼</button>' +
+    '<button class="x" type="button" data-act="delProject" data-id="' + esc(p.id) +
     '" aria-label="Remove project"' + dis(env) + '>×</button>' +
+    '</div>' +
     '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' + status + '</div>' +
-    projectDetailsPanel(snap, ui, env, p, seeDetails) +
+    projectDetailsPanel(snap, ui, env, p) +
     '</li>';
 }
 
 /**
- * The commercial panel on a project's row in a meeting.
+ * What sits under the caret on a project's row in a meeting.
  *
- * Only the dollar value is restricted. It lives on its own permissioned SharePoint
- * list, so somebody without access never receives it — that row is absent because
- * there is nothing to draw, not because the browser decided to hide it. That is the
- * difference between hiding a number and protecting it.
+ * **Nothing here is restricted, so there is no permission check.** The annual value
+ * used to live here and was the only reason this panel had a gate at all; it now
+ * appears on the project's own page and nowhere else. Confidence, why-we-win and
+ * focus belong to the team, so the caret and everything under it works for anyone
+ * who can see the project.
  *
- * Confidence and why-we-win sit on the project itself and are shown to everyone.
- * They were restricted until it was pointed out that the value is the only part
- * that needs protecting, and hiding the rest merely stopped the team discussing it.
- *
- * @param {boolean} seeValue - did the restricted collection arrive?
+ * Focus is editable here as well as readable on the collapsed row above, because
+ * "actually, they care more about scale than corrosion" is a thing said during the
+ * meeting, and walking to the project page to record it loses the moment.
  */
-function projectDetailsPanel(snap, ui, env, p, seeValue) {
-  const d = byId(snap.projectDetails, p.id) || {};
+function projectDetailsPanel(snap, ui, env, p) {
   // Whether this was open is remembered, because a render can happen at any moment -
   // the background poll alone would otherwise shut the panel every minute while
   // somebody was still typing in it.
@@ -399,11 +419,6 @@ function projectDetailsPanel(snap, ui, env, p, seeValue) {
   return '<details class="dtl" data-details="' + esc(p.id) + '"' + (isOpen ? ' open' : '') +
     '><summary class="lbl">Project details</summary>' +
     '<div class="sgrid">' +
-    (seeValue
-      ? '<label class="lbl">Annual value' +
-        '<input class="fld n" type="number" data-edit="pdValue" data-id="' + esc(p.id) +
-        '" value="' + esc(d.estValue == null ? '' : d.estValue) + '"' + dis(env) + '></label>'
-      : '') +
     '<label class="lbl">Win confidence %' +
     '<input class="fld n" type="number" min="0" max="100" data-edit="pdWin" data-id="' +
     esc(p.id) + '" value="' + esc(p.winPct == null ? '' : p.winPct) + '"' + dis(env) +
@@ -411,7 +426,10 @@ function projectDetailsPanel(snap, ui, env, p, seeValue) {
     '</div>' +
     '<label class="lbl">Why we win' +
     '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) + '"' + dis(env) + '>' +
-    esc(p.winReason || '') + '</textarea></label></details>';
+    esc(p.winReason || '') + '</textarea></label>' +
+    '<div class="lbl pfoc">Focus</div>' +
+    pickerControl(snap, env, p, 'focus', 'focus area') +
+    '</details>';
 }
 
 /* --- 3: Issues --- */

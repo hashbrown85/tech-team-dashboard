@@ -551,7 +551,7 @@ test('Field mapping round-trips every collection', () => {
                text: 'x', why: 'y', change: 'z' },
     projects: { tab: 't1', personId: 'p1', name: 'P', status: 'off', rank: 1000,
                 winPct: 0, winReason: 'R', products: ['Testex 12 clear'],
-                resources: ['Rheometer'], chemistries: [] },
+                resources: ['Rheometer'], focus: [] },
     projectDetails: { estValue: 1000 },
     issues: { tab: 't1', personId: 'p1', text: 'x', sev: 'stopper', status: 'resolved',
               meeting: '2026-09-14', rank: 0.5, autoResolved: true },

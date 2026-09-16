@@ -142,7 +142,7 @@ test('Only the VALUE is absent when that list was refused', () => {
   // test exists to prevent: it would show the value to everyone.
   //
   // And what the refusal hides is deliberately narrow. Confidence, why-we-win and
-  // the product/chemistry/resource pickers are the team's and stay put.
+  // the product/focus/resource pickers are the team's and stay put.
   const snap = demoBoard();
   snap.denied = ['projectDetails'];
   const html = page('pr1', { snap: snap });
@@ -221,7 +221,7 @@ test('Without commercial access only the value slot changes', () => {
   ok(html.indexOf('Days in status') > 0, 'and days in status takes the free slot');
 });
 
-group('Product selection, chemistries and resources');
+group('Product selection, focus and resources');
 
 test('Chosen values are chips, and the dropdown offers the rest', () => {
   // pr1 picks Testex 12 clear and Demo-Bond 7 out of four products.
@@ -255,7 +255,7 @@ test('The dropdown leads with an add prompt, not a real value', () => {
   // which reads as though it were.
   const html = page('pr1');
   ok(/<option value="">\+ Add a product<\/option>/.test(html), 'products');
-  ok(/<option value="">\+ Add a chemistry<\/option>/.test(html), 'chemistries');
+  ok(/<option value="">\+ Add a focus area<\/option>/.test(html), 'focus');
   ok(/<option value="">\+ Add a resource<\/option>/.test(html), 'resources');
 });
 
@@ -267,14 +267,14 @@ test('Every control names the field it writes to, and the project', () => {
   const adders = html.match(/<select[^>]*data-edit="projAdd"[^>]*>/g) || [];
   eq(adders.length, 3, 'one dropdown per list');
   adders.forEach(function (el) {
-    ok(/data-f="(products|chemistries|resources)"/.test(el), 'names its field: ' + el);
+    ok(/data-f="(products|focus|resources)"/.test(el), 'names its field: ' + el);
     ok(el.indexOf('data-id="pr1"') > 0, 'and its project: ' + el);
   });
 
   const droppers = html.match(/<button[^>]*data-act="projDrop"[^>]*>/g) || [];
   ok(droppers.length > 0, 'found chips to remove');
   droppers.forEach(function (el) {
-    ok(/data-f="(products|chemistries|resources)"/.test(el), 'names its field: ' + el);
+    ok(/data-f="(products|focus|resources)"/.test(el), 'names its field: ' + el);
     ok(el.indexOf('data-v="') > 0, 'and its value: ' + el);
   });
 });

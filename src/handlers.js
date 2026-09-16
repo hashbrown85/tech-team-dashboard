@@ -18,9 +18,9 @@ import { byId, byName } from './lib/seq.js';
 import { addDays, nowIso } from './lib/dates.js';
 import { toast, flash, focusFirst } from './lib/dom.js';
 import { newNote, editNote, canEditNote } from './domain/notes.js';
-import { issueItems, detailsArrived } from './domain/queries.js';
+import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import {
-  statusChange, newProject, newOpportunity, projectSummary
+  statusChange, newProject, newOpportunity, projectSummary, reorderProjects
 } from './domain/projects.js';
 import {
   newIssue, resolveIssue, reopenIssue, reorderQueue
@@ -232,6 +232,30 @@ export function createHandlers(app) {
 
     delProject: function (el, id) { cascade(deleteProject(store.snapshot(), id)); },
 
+    /**
+     * Move a project up or down its owner's list.
+     *
+     * Priority is per person per meeting: two people's lists are ordered
+     * independently, which is what "each person has their own priority" means.
+     */
+    movePriority: function (el, id, v) {
+      const t = currentTab();
+      if (!t) return;
+      const snap = store.snapshot();
+      const p = byId(snap.projects, id);
+      if (!p) return;
+
+      const d = currentDate(t);
+      const writes = reorderProjects(snap, t.id, p.personId, id, Number(v),
+        function (x) { return projVisible(x, t.id, d); });
+      if (!writes) return;
+
+      store.batch(writes.map(function (w) {
+        return { op: 'update', col: w.col, id: w.id, patch: w.patch };
+      })).then(render);
+      render();
+    },
+
     /* --- issues --- */
 
     resolveIssue: function (el, id) {
@@ -286,12 +310,12 @@ export function createHandlers(app) {
       render();
     },
 
-    delChem: function (el, id, v) { removeFromList('chemistries', v); },
+    delFocus: function (el, id, v) { removeFromList('focus', v); },
     delResource: function (el, id, v) { removeFromList('resources', v); },
     delProduct: function (el, id, v) { removeFromList('products', v); },
 
     /**
-     * Take one value off a project's products, chemistries or resources.
+     * Take one value off a project's products, focus or resources.
      *
      * The field name rides on `data-f` because `data-v` is already carrying the
      * value. Adding is `edits.projAdd`, from the dropdown beside these chips.
@@ -498,12 +522,12 @@ export function createHandlers(app) {
    * key onto the project, which the schema then silently drops.
    *
    * @param {string} id - project id
-   * @param {string} field - 'products' | 'chemistries' | 'resources'
+   * @param {string} field - 'products' | 'focus' | 'resources'
    * @param {string} value
    * @param {boolean} add - true to add, false to remove
    */
   function pickValue(id, field, value, add) {
-    if (['products', 'chemistries', 'resources'].indexOf(field) < 0) return;
+    if (['products', 'focus', 'resources'].indexOf(field) < 0) return;
 
     const p = byId(store.snapshot().projects, id);
     if (!p) return;
@@ -715,7 +739,7 @@ export function createHandlers(app) {
       render();
     },
 
-    chem: function (fd) { addToList('chemistries', fd); },
+    focus: function (fd) { addToList('focus', fd); },
     resource: function (fd) { addToList('resources', fd); },
     product: function (fd) { addToList('products', fd); }
   };

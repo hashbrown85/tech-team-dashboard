@@ -68,7 +68,7 @@ export function demoBoard() {
         winPct: 65,
         winReason: 'Only supplier with the low-VOC data package',
         products: ['Testex 12 clear', 'Demo-Bond 7'],
-        resources: ['Rheometer'], chemistries: ['Acrylic'],
+        resources: ['Rheometer'], focus: ['Corrosion', 'Scale'],
         due: addDays(thisMonday, 24), added: lastMonday },
       { id: 'pr2', tab: 't1', personId: 'p2', name: 'Sealant reformulation', status: 'off',
         customer: 'Halden Industrial',
@@ -85,7 +85,7 @@ export function demoBoard() {
       { id: 'pr5', tab: 't2', personId: 'p3', name: 'Line 3 throughput uplift', status: 'on',
         customer: 'Internal',
         winPct: 40, winReason: '',
-        products: ['Testex 12 clear'], resources: [], chemistries: [],
+        products: ['Testex 12 clear'], resources: [], focus: [],
         due: addDays(thisMonday, 17), added: lastMonday },
       { id: 'pr6', tab: 'techdir', personId: 'p4', name: 'Shared test-method library', status: 'on',
         due: addDays(thisMonday, 60), added: addDays(lastMonday, -28) }
@@ -160,7 +160,8 @@ export function demoBoard() {
     },
 
     settings: {
-      chemistries: { items: ['Acrylic', 'Epoxy', 'Polyurethane', 'Silicone'] },
+      // What the customer cares about most, not what the project is made of.
+      focus: { items: ['Corrosion', 'Scale', 'Pipeline', 'Rod Pumps', 'Paraffin'] },
       resources: { items: ['Pilot reactor', 'Rheometer', 'Weathering cabinet', 'External lab'] },
       // Invented product names. The real list lives in Dataverse; this row stands
       // in for it until that is reachable. See projects.products in the schema.
