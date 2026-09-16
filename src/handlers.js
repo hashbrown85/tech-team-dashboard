@@ -438,8 +438,29 @@ export function createHandlers(app) {
       store.update('projects', el.dataset.id, { mission: el.value }, { silent: true });
     },
 
+    /*
+     * Customer and name together are the project's title, and both are correctable
+     * here because a project often gets entered mid-meeting against the wrong
+     * customer or under a placeholder name.
+     *
+     * Renaming a project needs no cascade: actions point at it by id. That is the
+     * difference between this and renaming a PERSON, which has to rewrite every
+     * action they own because those store an owner's name as text - see the
+     * personName handler below.
+     *
+     * Both are silent, so the field keeps the caret while it is being typed in. The
+     * heading above catches up on the next render.
+     */
     projCustomer: function (el) {
       store.update('projects', el.dataset.id, { customer: el.value }, { silent: true });
+    },
+
+    projName: function (el) {
+      // An empty name would leave a row with nothing to click on, so a blank is
+      // simply not written. projectTitle still has the customer to fall back on.
+      const name = String(el.value == null ? '' : el.value).trim();
+      if (!name) return;
+      store.update('projects', el.dataset.id, { name: name }, { silent: true });
     },
 
     projDue: function (el) {

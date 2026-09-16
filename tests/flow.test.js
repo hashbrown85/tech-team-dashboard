@@ -19,8 +19,8 @@ import { demoBoard } from '../src/demo-data.js';
 import { createHandlers } from '../src/handlers.js';
 import { loadUi } from '../src/ui.js';
 import { today } from '../src/lib/dates.js';
-import { issueItems, actionedItems } from '../src/domain/queries.js';
-import { byPriority } from '../src/domain/projects.js';
+import { issueItems, actionedItems, actsOf } from '../src/domain/queries.js';
+import { byPriority, projectTitle } from '../src/domain/projects.js';
 import { renderApp } from '../src/views/render.js';
 
 /** Just enough DOM for the handlers to run outside a browser. */
@@ -599,6 +599,63 @@ test('A newly added project lands at the bottom of an ordered list', async () =>
   const added = a.snap().projects.find(function (p) { return p.name === 'Brand new thing'; });
   ok(added, 'it was created');
   eq(after[after.length - 1], added.id, 'and it is last, not first');
+});
+
+group('Correcting a project title');
+
+test('Renaming a project writes the new name', async () => {
+  const a = await app();
+  a.H.edits.projName(/** @type {any} */ ({
+    dataset: { id: 'pr1' }, value: '  Coating additive trial, phase 2  '
+  }));
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr1'; }).name,
+    'Coating additive trial, phase 2', 'trimmed');
+});
+
+test('A blank name is refused rather than written', async () => {
+  // An empty name leaves a project row with nothing to click on and a heading with
+  // nothing in it. Clearing the box is almost always the first half of retyping.
+  const a = await app();
+  const before = a.snap().projects.find(function (p) { return p.id === 'pr1'; }).name;
+
+  a.H.edits.projName(/** @type {any} */ ({ dataset: { id: 'pr1' }, value: '   ' }));
+  await settle();
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr1'; }).name, before);
+
+  a.H.edits.projName(/** @type {any} */ ({ dataset: { id: 'pr1' }, value: '' }));
+  await settle();
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr1'; }).name, before);
+});
+
+test('Renaming a project does not orphan its actions', async () => {
+  // Actions point at a project by id, so this needs no cascade - unlike renaming a
+  // PERSON, which has to rewrite every action they own because those store a name.
+  const a = await app();
+  const before = actsOf(a.snap(), 'pr2').map(function (x) { return x.id; });
+  ok(before.length > 0, 'pr2 has an action');
+
+  a.H.edits.projName(/** @type {any} */ ({
+    dataset: { id: 'pr2' }, value: 'Renamed entirely'
+  }));
+  await settle();
+
+  eq(actsOf(a.snap(), 'pr2').map(function (x) { return x.id; }), before,
+    'the same actions still point at it');
+});
+
+test('Correcting the customer changes the title but nothing else', async () => {
+  const a = await app();
+  a.H.edits.projCustomer(/** @type {any} */ ({
+    dataset: { id: 'pr1' }, value: 'Meridian Coatings Ltd'
+  }));
+  await settle();
+
+  const p = a.snap().projects.find(function (x) { return x.id === 'pr1'; });
+  eq(p.customer, 'Meridian Coatings Ltd');
+  eq(projectTitle(p), 'Meridian Coatings Ltd - Coating additive trial');
+  eq(p.status, 'on', 'nothing else moved');
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

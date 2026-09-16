@@ -238,9 +238,9 @@ export function projectSummary(snap, p, today, withValue) {
     else L.push('\u2022 ' + empty);
   }
 
-  L.push(p.name);
+  // The customer is part of the title now, so the line under it does not repeat it.
+  L.push(projectTitle(p));
   L.push([
-    p.customer || null,
     personName(snap, p.personId),
     tab ? tab.name : null
   ].filter(Boolean).join(' \u00b7 '));
@@ -371,4 +371,31 @@ export function reorderProjects(snap, tabId, personId, projectId, delta, visible
     }
   });
   return writes.length ? writes : null;
+}
+
+/**
+ * What a project is called: the customer and the name, joined by a hyphen.
+ *
+ * "Meridian Coatings - Coating additive trial". Both halves are free text and both
+ * are editable on the project page, because a project is often entered mid-meeting
+ * against the wrong customer or with a placeholder name, and the correction has to
+ * be possible later.
+ *
+ * Internal work has no customer, so it is just the name rather than a title with a
+ * dangling hyphen. A project with neither is still given something to render, since
+ * a blank heading is impossible to click on or talk about.
+ *
+ * Renaming needs no cascade: actions point at a project by id. That is the
+ * difference between this and renaming a person, which has to rewrite every action
+ * they own because those store a NAME. See the personName handler.
+ *
+ * @param {any} p
+ * @returns {string}
+ */
+export function projectTitle(p) {
+  if (!p) return 'Project';
+  const customer = String(p.customer || '').trim();
+  const name = String(p.name || '').trim();
+  if (customer && name) return customer + ' - ' + name;
+  return name || customer || 'Untitled project';
 }

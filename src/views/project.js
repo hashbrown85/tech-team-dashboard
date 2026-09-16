@@ -36,6 +36,7 @@ import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
 import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
+import { projectTitle } from '../domain/projects.js';
 import { pageHeader, kpi } from './shell.js';
 import { pickerControl } from './pickers.js';
 
@@ -84,8 +85,10 @@ export function renderProject(snap, ui, env, p) {
 
   /* ------------------------------------------------------------------ header */
 
-  const sub = (p.customer ? '<b>' + esc(p.customer) + '</b> · ' : '') +
-    esc(personName(snap, p.personId)) +
+  // Customer and project name together are the title. The customer is no longer
+  // repeated in the line underneath, which leaves it saying who owns this and where
+  // it is discussed.
+  const sub = esc(personName(snap, p.personId)) +
     (tab ? ' · ' + esc(tab.name) : '');
 
   const back = tab
@@ -94,11 +97,30 @@ export function renderProject(snap, ui, env, p) {
     : '<button class="btn ghost sm" type="button" data-act="go" data-v="overview">' +
       '‹ Overview</button>';
 
-  const head = pageHeader(esc(p.name), sub,
+  const head = pageHeader(esc(projectTitle(p)), sub,
     back +
     '<button class="btn ghost sm" type="button" data-act="copyProject" data-id="' +
     esc(p.id) + '">Copy summary</button>',
     'Project');
+
+  /* ------------------------------------------------- what the title is made of */
+
+  // Straight under the heading, because these two fields ARE the heading, and
+  // because a project frequently gets entered mid-meeting against the wrong
+  // customer or with a placeholder name. Somewhere to correct that has to be the
+  // first thing you find, not a row buried under the status control.
+  const identity = '<section class="panel"><div class="pan-h"><h2>Project</h2>' +
+    '<span class="sub">Customer and name, which together make the title above</span>' +
+    '</div>' +
+    row('Customer',
+      '<input class="fld wide" type="text" value="' + esc(p.customer || '') +
+      '" data-edit="projCustomer" data-id="' + esc(p.id) +
+      '" placeholder="Who it is for" aria-label="Customer"' + dis(env) + '>') +
+    row('Project',
+      '<input class="fld wide" type="text" value="' + esc(p.name || '') +
+      '" data-edit="projName" data-id="' + esc(p.id) +
+      '" placeholder="What it is" aria-label="Project name"' + dis(env) + '>') +
+    '</section>';
 
   /* ---------------------------------------------------- the numbers up front */
 
@@ -173,10 +195,6 @@ export function renderProject(snap, ui, env, p) {
         ? '<p class="why"><b class="warnt">Off track with no action yet</b> — it is ' +
           'sitting in the Issues queue until somebody owns a next step.</p>'
         : '')) +
-    row('Customer',
-      '<input class="fld" type="text" value="' + esc(p.customer || '') +
-      '" data-edit="projCustomer" data-id="' + esc(p.id) +
-      '" placeholder="Who it is for" aria-label="Customer"' + dis(env) + '>') +
     row('Due',
       '<input class="fld" type="date" value="' + esc(p.due || '') +
       '" data-edit="projDue" data-id="' + esc(p.id) + '" aria-label="Due date"' +
@@ -253,8 +271,8 @@ export function renderProject(snap, ui, env, p) {
       : '') +
     '</section>';
 
-  return head + numbers + statusPanel + mission + commercial + actionsPanel +
-    renderNotes(snap, ui, env, p);
+  return head + identity + numbers + statusPanel + mission + commercial +
+    actionsPanel + renderNotes(snap, ui, env, p);
 }
 
 /** One labelled row. Exactly two children, because `.rp` is a two-column grid. */

@@ -124,6 +124,16 @@ dropdown of what is not yet chosen, with each choice shown as a removable chip �
 rather than a grid of togglable chips, which stops scaling the moment the list is
 longer than a line. `focus` and `resources` use the same control.
 
+**A project's title is `customer` and `name`, joined by a hyphen** — "Meridian
+Coatings - Coating additive trial" (`projectTitle`). Internal work with no customer
+is just its name rather than a title with a dangling hyphen. Both halves are free
+text and both are editable at the top of the project page, because a project is
+often entered mid-meeting against the wrong customer or under a placeholder name.
+
+Renaming a project needs **no cascade**: actions point at it by id. That is the
+difference between this and renaming a *person*, which has to rewrite every action
+they own, because those store an owner's name as text.
+
 **`priority` is not `rank`.** `rank` is the position in the off-track Issues queue,
 and `statusChange` sets it when a project goes off track and deletes it when it comes
 back — so reusing it would have meant a status change silently scrambled somebody's

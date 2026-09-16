@@ -81,10 +81,57 @@ test('A project that no longer exists falls back to the overview', () => {
   notOk(/data-act="copyProject"/.test(html), 'but not a project page');
 });
 
-test('The page carries the project name, its customer and its owner', () => {
+test('The heading is the customer and the name, joined by a hyphen', () => {
   const html = page('pr1');
-  ok(html.indexOf('Meridian Coatings') > 0, 'the customer, per the agreed change');
-  ok(html.indexOf('Alex Morgan') > 0, 'the owner');
+  ok(html.indexOf('<h1>Meridian Coatings - Coating additive trial</h1>') > 0,
+    'both halves, in that order');
+  ok(html.indexOf('Alex Morgan') > 0, 'the owner is still on the page');
+});
+
+test('The customer is not repeated under the heading', () => {
+  // It used to lead the sub-line. Now that it is half the title, saying it twice in
+  // two adjacent lines is just noise.
+  const html = page('pr1');
+  const sub = /<div class="sub">([\s\S]*?)<\/div>/.exec(html);
+  ok(sub, 'there is a sub-line');
+  notOk(sub[1].indexOf('Meridian Coatings') >= 0, 'and it does not repeat the customer');
+});
+
+test('Both halves of the title are editable, at the top of the page', () => {
+  // A project gets entered mid-meeting against the wrong customer or with a
+  // placeholder name often enough that correcting it has to be easy to find.
+  const html = page('pr1');
+  ok(/data-edit="projCustomer"/.test(html), 'customer is editable');
+  ok(/data-edit="projName"/.test(html), 'and so is the name');
+
+  ok(html.indexOf('data-edit="projCustomer"') < html.indexOf('data-edit="projName"'),
+    'customer first, then the project');
+  ok(html.indexOf('data-edit="projCustomer"') < html.indexOf('class="kpis"'),
+    'and both above the numbers, at the top of the page');
+});
+
+test('The customer appears once as a field, not twice as a row as well', () => {
+  const html = page('pr1');
+  eq((html.match(/data-edit="projCustomer"/g) || []).length, 1);
+});
+
+test('The two rows are labelled Customer and Project, in that order', () => {
+  // The inputs being in the right order is not the same as them being labelled
+  // right - and the label is what somebody reads before typing in the box.
+  const html = page('pr1');
+  const panel = /<h2>Project<\/h2>[\s\S]*?<\/section>/.exec(html);
+  ok(panel, 'found the panel');
+
+  const labels = (panel[0].match(/<div class="rp-h"><b>([^<]+)<\/b>/g) || [])
+    .map(function (m) { return /<b>([^<]+)<\/b>/.exec(m)[1]; });
+  eq(labels, ['Customer', 'Project']);
+});
+
+test('Internal work with no customer gets no dangling hyphen', () => {
+  const snap = demoBoard();
+  project(snap, 'pr6').customer = '';
+  const html = page('pr6', { snap: snap });
+  ok(html.indexOf('<h1>Shared test-method library</h1>') > 0, 'just the name');
 });
 
 group('The shapes the stylesheet dictates');

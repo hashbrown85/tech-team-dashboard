@@ -16,7 +16,8 @@ import {
   nextOffTrackRank,
   newProject,
   newOpportunity,
-  linkedProjectGoesToo
+  linkedProjectGoesToo,
+  projectTitle
 } from '../src/domain/projects.js';
 
 const MEETING = '2026-09-14';
@@ -373,5 +374,37 @@ test('A plain win or loss entry has no project to remove', () => {
 function idsIn(items) {
   return items.map((it) => it.o.id);
 }
+
+group('What a project is called');
+
+test('Customer and name, joined by a hyphen', () => {
+  eq(projectTitle({ customer: 'Meridian Coatings', name: 'Coating additive trial' }),
+    'Meridian Coatings - Coating additive trial');
+});
+
+test('Internal work with no customer is just its name', () => {
+  // A dangling "- " in front of every internal project would be worse than useless.
+  eq(projectTitle({ name: 'Line 3 throughput uplift' }), 'Line 3 throughput uplift');
+  eq(projectTitle({ customer: '', name: 'Line 3 throughput uplift' }),
+    'Line 3 throughput uplift');
+  eq(projectTitle({ customer: '   ', name: 'Line 3 throughput uplift' }),
+    'Line 3 throughput uplift');
+});
+
+test('A customer with no name yet is better than nothing', () => {
+  eq(projectTitle({ customer: 'Halden Industrial' }), 'Halden Industrial');
+});
+
+test('Neither still renders something clickable', () => {
+  // A blank heading cannot be clicked on or talked about.
+  eq(projectTitle({}), 'Untitled project');
+  eq(projectTitle({ customer: '', name: '' }), 'Untitled project');
+  eq(projectTitle(null), 'Project');
+});
+
+test('Surrounding whitespace does not become part of the title', () => {
+  eq(projectTitle({ customer: '  Meridian Coatings  ', name: '  Trial  ' }),
+    'Meridian Coatings - Trial');
+});
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
