@@ -353,6 +353,12 @@ extraction is finished.
 - **A rating and a meeting note written at the same moment can clobber each other**,
   because both writers replace the whole `meetings` document rather than patching it.
 
+- **`fmt()` renders an unparseable date as the literal text "undefined NaN".**
+  Every caller today guards against a missing date first, so it does not show. Worth
+  knowing before adding a new one: `confidencePoints` checks the date's *shape*
+  rather than just its presence for exactly this reason, because that history is a
+  JSON column somebody can edit by hand in SharePoint.
+
 ### Fixed since
 
 - **The Project Details panel was shown to everyone.** The gate was

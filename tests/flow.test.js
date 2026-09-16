@@ -20,7 +20,9 @@ import { createHandlers } from '../src/handlers.js';
 import { loadUi } from '../src/ui.js';
 import { today } from '../src/lib/dates.js';
 import { issueItems, actionedItems, actsOf } from '../src/domain/queries.js';
-import { byPriority, projectTitle } from '../src/domain/projects.js';
+import {
+  byPriority, projectTitle, confidencePoints
+} from '../src/domain/projects.js';
 import { renderApp } from '../src/views/render.js';
 
 /** Just enough DOM for the handlers to run outside a browser. */
@@ -656,6 +658,168 @@ test('Correcting the customer changes the title but nothing else', async () => {
   eq(p.customer, 'Meridian Coatings Ltd');
   eq(projectTitle(p), 'Meridian Coatings Ltd - Coating additive trial');
   eq(p.status, 'on', 'nothing else moved');
+});
+
+group('Raising an opportunity, through the handlers');
+
+/**
+ * Form data with repeated values, the way a browser really sends checkboxes.
+ *
+ * The plain Map the other tests use cannot express two values under one name, and
+ * the focus checkboxes need exactly that. This is the smallest thing that answers
+ * both get and getAll.
+ */
+function multiFields(pairs) {
+  const m = new Map();
+  pairs.forEach(function (pair) {
+    const list = m.get(pair[0]) || [];
+    list.push(pair[1]);
+    m.set(pair[0], list);
+  });
+  return {
+    get: function (k) { const v = m.get(k); return v ? v[0] : null; },
+    getAll: function (k) { return (m.get(k) || []).slice(); }
+  };
+}
+
+function raise(a, pairs) {
+  a.H.forms.opp(multiFields(pairs), /** @type {any} */ ({ dataset: { pid: 'p1' } }));
+}
+
+function newestProject(a) {
+  const known = ['pr1', 'pr2', 'pr3', 'pr4', 'pr5', 'pr6'];
+  return a.snap().projects.filter(function (p) { return known.indexOf(p.id) < 0; })[0];
+}
+
+test('An opportunity carries its project fields through to the project', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [
+    ['customer', 'Halden Industrial'],
+    ['text', 'Downhole scale trial'],
+    ['why', 'Their lab is slow'],
+    ['winPct', '40'],
+    ['winReason', 'Only ones with the data'],
+    ['focus', 'Scale'],
+    ['focus', 'Pipeline']
+  ]);
+  await settle();
+
+  const p = newestProject(a);
+  ok(p, 'a project was created');
+  eq(p.customer, 'Halden Industrial');
+  eq(p.name, 'Downhole scale trial');
+  eq(p.note, 'Their lab is slow');
+  eq(p.winPct, 40);
+  eq(p.winReason, 'Only ones with the data');
+  eq(p.focus, ['Scale', 'Pipeline'], 'both boxes ticked');
+  eq(p.status, 'new', 'and it joins as a new project');
+});
+
+test('Its confidence is seeded, so one revision later makes a trend', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [['text', 'Downhole scale trial'], ['winPct', '40']]);
+  await settle();
+
+  const p = newestProject(a);
+  eq(confidencePoints(p).length, 1, 'one point to start from');
+  eq(confidencePoints(p)[0].v, 40);
+});
+
+test('Only the title is needed - everything else may be blank', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [['text', 'Just a thought']]);
+  await settle();
+
+  const p = newestProject(a);
+  ok(p, 'it was still created');
+  eq(p.name, 'Just a thought');
+  eq(p.customer, '');
+  eq(p.focus, []);
+  notOk('winPct' in p, 'an empty box is not a confidence of zero');
+});
+
+test('No title means nothing is created at all', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const before = a.snap().projects.length;
+  raise(a, [['customer', 'Halden Industrial'], ['winPct', '40']]);
+  await settle();
+  eq(a.snap().projects.length, before);
+});
+
+test('The optional first action is created and points at the new project', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [
+    ['text', 'Downhole scale trial'],
+    ['actionText', 'Call their lab manager'],
+    ['actionOwner', 'Alex Morgan'],
+    ['actionDue', '2026-09-30']
+  ]);
+  await settle();
+
+  const p = newestProject(a);
+  const acts = actsOf(a.snap(), p.id);
+  eq(acts.length, 1, 'one action');
+  eq(acts[0].text, 'Call their lab manager');
+  eq(acts[0].owner, 'Alex Morgan', 'stored by name, as actions are');
+  eq(acts[0].due, '2026-09-30');
+  eq(acts[0].parent.type, 'project');
+  eq(acts[0].parent.id, p.id, 'attached to the project it will become');
+});
+
+test('Leaving the action blank is the normal case, not an error', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const before = a.snap().actions.length;
+  raise(a, [['text', 'Downhole scale trial'], ['actionText', '   ']]);
+  await settle();
+
+  const p = newestProject(a);
+  ok(p, 'the opportunity was still raised');
+  eq(a.snap().actions.length, before, 'and no action was invented');
+});
+
+test('The entry keeps the record of what was said in the meeting', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [['text', 'Downhole scale trial'], ['why', 'Their lab is slow']]);
+  await settle();
+
+  const p = newestProject(a);
+  const entry = a.snap().entries.find(function (e) { return e.projectId === p.id; });
+  ok(entry, 'an entry was written too');
+  eq(entry.kind, 'opp');
+  eq(entry.text, 'Downhole scale trial');
+  eq(entry.why, 'Their lab is slow');
+});
+
+group('Confidence recorded through the handler');
+
+test('Editing confidence stamps the meeting, not today', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  a.H.edits.pdWin(/** @type {any} */ ({ dataset: { id: 'pr2' }, value: '55' }));
+  await settle();
+
+  const p = a.snap().projects.find(function (x) { return x.id === 'pr2'; });
+  eq(p.winPct, 55);
+  const points = confidencePoints(p);
+  eq(points[points.length - 1].v, 55);
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(points[points.length - 1].d), 'against a meeting date');
+});
+
+test('Typing a number a digit at a time leaves one point, not three', async () => {
+  // The field writes on every change. Without one-point-per-meeting, "8" then "80"
+  // would leave a jagged line nobody drew.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = confidencePoints(
+    a.snap().projects.find(function (x) { return x.id === 'pr1'; })).length;
+
+  ['8', '80'].forEach(function (v) {
+    a.H.edits.pdWin(/** @type {any} */ ({ dataset: { id: 'pr1' }, value: v }));
+  });
+  await settle();
+
+  const p = a.snap().projects.find(function (x) { return x.id === 'pr1'; });
+  const points = confidencePoints(p);
+  eq(points[points.length - 1].v, 80, 'the number that was meant');
+  ok(points.length <= before + 1, 'at most one new point, got ' + points.length);
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

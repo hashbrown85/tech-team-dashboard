@@ -147,6 +147,16 @@ export const SCHEMA = {
       winReason: { col: 'WinReason', kind: 'note' },
 
       /*
+       * Every value winPct has held, as [{m: meeting date, p: per cent}].
+       *
+       * Kept on the project rather than in a collection of its own: it is small
+       * (one point per meeting the number actually changed), it is only ever read
+       * whole, and holding it here means deleting a project takes its history with
+       * it and undo brings it back, with no cascade to write or forget.
+       */
+      confidence: { col: 'ConfidenceJson', kind: 'json' },
+
+      /*
        * Which of our products this project is proposing.
        *
        * The authoritative product list lives in Dataverse. Nothing here can reach

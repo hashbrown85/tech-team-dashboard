@@ -113,6 +113,7 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 | `winPct` | number *optional* | How likely we are to land it, 0-100 |
 | `winReason` | string *optional* | Why it is ours to lose |
 | `products` | string[] *optional* | values from `settings/products` |
+| `confidence` | `{m,p}[]` *optional* | every value `winPct` has held |
 | `resources` | string[] *optional* | values from `settings/resources` |
 | `focus` | string[] *optional* | values from `settings/focus` |
 
@@ -133,6 +134,18 @@ often entered mid-meeting against the wrong customer or under a placeholder name
 Renaming a project needs **no cascade**: actions point at it by id. That is the
 difference between this and renaming a *person*, which has to rewrite every action
 they own, because those store an owner's name as text.
+
+**`confidence` is the history behind `winPct`**, as `[{m: meeting date, p: per
+cent}]`, oldest first. A point is stamped with the **meeting date**, there is **one
+point per meeting** (editing twice replaces it, which is what makes this survive a
+field that writes on every keystroke), and **no point is added when the value did not
+change**. Clearing `winPct` does not erase the history — the number was believed for
+a while, and that happened. The project page and tile draw a trend line through it
+once there are two points; one reading is a number, not a trend.
+
+It lives on the project rather than in a collection of its own: it is small, only
+ever read whole, and holding it here means deleting a project takes its history with
+it and undo brings it back, with no cascade to write or forget.
 
 **`priority` is not `rank`.** `rank` is the position in the off-track Issues queue,
 and `statusChange` sets it when a project goes off track and deletes it when it comes

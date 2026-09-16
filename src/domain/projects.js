@@ -159,8 +159,43 @@ export function newProject({ tab, personId, name, due, meetingDate }) {
  * @param {string} args.meetingDate
  * @returns {{entry: any, project: any, startsOn: string}} two documents to write
  */
-export function newOpportunity({ entryId, projectId, tab, personId, text, why, meetingDate }) {
+export function newOpportunity({
+  entryId, projectId, tab, personId, text, why, meetingDate,
+  customer, winPct, winReason, focus
+}) {
   const startsOn = addDays(meetingDate, 7);
+  const pct = winPct == null || winPct === '' || isNaN(Number(winPct))
+    ? null
+    : Number(winPct);
+
+  /*
+   * An opportunity is raised with the same shape a project is tracked in, because
+   * it becomes one - and everything not captured in the meeting where it came up
+   * tends never to be captured at all. The entry stays the record of what was SAID
+   * that week; the project carries what is now known about it.
+   */
+  const project = {
+    tab: tab,
+    personId: personId,
+    customer: customer || '',
+    name: text,
+    status: 'new',
+    due: '',
+    start: startsOn,
+    fromOpp: entryId,
+    note: why || '',
+    winReason: winReason || '',
+    focus: focus && focus.length ? focus.slice() : []
+  };
+
+  if (pct != null) {
+    project.winPct = pct;
+    // Seeded so the first revision a fortnight later makes two points, and the
+    // trend line has something to draw from the beginning rather than from the
+    // second time somebody happened to think about it.
+    project.confidence = [{ m: meetingDate, p: pct }];
+  }
+
   return {
     entry: {
       tab: tab,
@@ -171,16 +206,7 @@ export function newOpportunity({ entryId, projectId, tab, personId, text, why, m
       why: why || '',
       projectId: projectId
     },
-    project: {
-      tab: tab,
-      personId: personId,
-      name: text,
-      status: 'new',
-      due: '',
-      start: startsOn,
-      fromOpp: entryId,
-      note: why || ''
-    },
+    project: project,
     startsOn: startsOn
   };
 }
@@ -398,4 +424,78 @@ export function projectTitle(p) {
   const name = String(p.name || '').trim();
   if (customer && name) return customer + ' - ' + name;
   return name || customer || 'Untitled project';
+}
+
+/**
+ * Set win confidence, and remember what it was.
+ *
+ * "Was this 30% in June and 80% now, or the other way round?" is the question the
+ * number alone cannot answer, and the one that tells you whether the work is going
+ * anywhere. So every value it holds is kept, and the project page and tile draw the
+ * line through them.
+ *
+ * Three rules keep the history honest rather than merely long:
+ *
+ * - A point is stamped with the **meeting date**, not today, like everything else
+ *   on this board. A number revised while reviewing last week belongs to last week.
+ * - **One point per meeting.** Editing twice in the same meeting replaces the
+ *   point instead of adding another, which is also what makes this survive a field
+ *   that writes on every keystroke: typing "6" then "65" leaves 65, not both.
+ * - **No point when the value did not change.** Re-saving the same number is not a
+ *   week of progress.
+ *
+ * Clearing the field sets it back to nothing but does NOT erase the history: the
+ * number was believed for a while, and that happened.
+ *
+ * @param {any} project
+ * @param {number | null} pct
+ * @param {string} meetingDate
+ * @returns {any} the patch to write
+ */
+export function recordConfidence(project, pct, meetingDate) {
+  const value = pct == null || pct === '' || isNaN(Number(pct)) ? null : Number(pct);
+  /** @type {any} */
+  const patch = { winPct: value };
+  if (value == null || !meetingDate) return patch;
+
+  const history = ((project && project.confidence) || []).slice();
+
+  let at = -1;
+  history.forEach(function (h, i) { if (h && h.m === meetingDate) at = i; });
+
+  if (at >= 0) {
+    if (Number(history[at].p) === value) return patch;
+    history[at] = { m: meetingDate, p: value };
+  } else {
+    const last = history[history.length - 1];
+    if (last && Number(last.p) === value) return patch;
+    history.push({ m: meetingDate, p: value });
+  }
+
+  patch.confidence = history;
+  return patch;
+}
+
+/**
+ * The confidence history as trend points, oldest first.
+ *
+ * Sorted by date rather than trusted in stored order, because a number can be
+ * corrected against an earlier meeting and would otherwise draw a line that goes
+ * backwards. Malformed rows are dropped rather than plotted as NaN.
+ *
+ * @param {any} project
+ * @returns {{d: string, v: number}[]}
+ */
+export function confidencePoints(project) {
+  return (((project && project.confidence) || [])
+    .filter(function (h) {
+      // The date shape is checked, not just its presence. This history is a JSON
+      // column somebody can edit by hand in SharePoint, and fmt() of an unparseable
+      // date renders the literal text "undefined NaN" onto the page.
+      return h && typeof h.m === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h.m) &&
+        h.p != null && !isNaN(Number(h.p));
+    })
+    .slice()
+    .sort(function (a, b) { return a.m < b.m ? -1 : a.m > b.m ? 1 : 0; })
+    .map(function (h) { return { d: String(h.m), v: Number(h.p) }; }));
 }

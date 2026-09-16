@@ -18,11 +18,12 @@ import { esc, clock, minutes } from '../lib/dom.js';
 import { fmt, fmtDay, fmtLong, rel, nextOn, addDays } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import { pickerControl } from './pickers.js';
+import { spark } from './spark.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
   personName, person, attendeeIds, isOpen
 } from '../domain/queries.js';
-import { byPriority } from '../domain/projects.js';
+import { byPriority, confidencePoints } from '../domain/projects.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
@@ -247,11 +248,7 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
 
     const formKey = 'opp:' + id;
     const form = ui.open === formKey
-      ? '<form class="add" data-form="opp" data-pid="' + esc(id) + '">' +
-        '<input class="fld" name="text" type="text" placeholder="The opportunity" required>' +
-        '<input class="fld" name="why" type="text" placeholder="Any major challenge (optional)">' +
-        '<button class="btn" type="submit">Add</button>' +
-        '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
+      ? opportunityForm(snap, env, tab, id)
       : '<button class="btn ghost sm add-btn edit-only" type="button" data-act="openForm" data-v="' + esc(formKey) + '"' + dis(env) + '>+ Opportunity</button>';
 
     return personBlock(snap, id, list + form);
@@ -427,6 +424,7 @@ function projectDetailsPanel(snap, ui, env, p) {
     '<label class="lbl">Why we win' +
     '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) + '"' + dis(env) + '>' +
     esc(p.winReason || '') + '</textarea></label>' +
+    confidenceTrend(p, true) +
     '<div class="lbl pfoc">Focus</div>' +
     pickerControl(snap, env, p, 'focus', 'focus area') +
     '</details>';
@@ -616,24 +614,19 @@ function stageRate(snap, ui, env, tab, d) {
     note + summary;
 }
 
-/** The rating trend, drawn inline. Data comes from the domain; only the shape is here. */
+/**
+ * The rating trend, drawn inline. Data comes from the domain; only the shape is here.
+ *
+ * Ratings run 1-5 where confidence runs 0-100, which is the whole reason spark()
+ * takes a scale rather than assuming one.
+ */
 function sparkline(points) {
-  const W = 240, H = 64, px = 8, py = 8;
-  const x = function (i) { return px + i * (W - 2 * px) / (points.length - 1); };
-  const y = function (v) { return py + (5 - v) * (H - 2 * py) / 4; };
-  const last = points[points.length - 1];
-
-  return '<svg class="spark" viewBox="0 0 ' + W + ' ' + (H + 16) +
-    '" role="img" aria-label="Meeting score trend over the last ' + points.length + ' meetings">' +
-    [1, 3, 5].map(function (v) {
-      return '<line class="sg" x1="' + px + '" x2="' + (W - px) + '" y1="' + y(v) + '" y2="' + y(v) + '"></line>';
-    }).join('') +
-    '<polyline class="sl" points="' + points.map(function (p, i) {
-      return x(i).toFixed(1) + ',' + y(p.avg).toFixed(1);
-    }).join(' ') + '"></polyline>' +
-    '<circle class="se" cx="' + x(points.length - 1) + '" cy="' + y(last.avg) + '" r="3.5"></circle>' +
-    '<text class="st" x="' + px + '" y="' + (H + 13) + '">' + fmt(points[0].d) + '</text>' +
-    '<text class="st" x="' + (W - px) + '" y="' + (H + 13) + '" text-anchor="end">' + fmt(last.d) + '</text></svg>';
+  return spark(points.map(function (p) { return { d: p.d, v: p.avg }; }), {
+    min: 1,
+    max: 5,
+    grid: [1, 3, 5],
+    label: 'Meeting score trend over the last ' + points.length + ' meetings'
+  });
 }
 
 /* ---------- the rail ---------- */
@@ -766,4 +759,90 @@ function actionForm(snap, ui, env, tab, opts) {
     relatedOptions(snap, tab, opts.relKey || '') + '</select>' +
     '<button class="btn" type="submit">Add action</button>' +
     '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>';
+}
+
+/**
+ * How win confidence has moved, if it has moved at all.
+ *
+ * Nothing is drawn from a single reading - one point is a number, not a trend, and
+ * the line only starts saying something once the figure has been revisited. So a
+ * project whose confidence has never been touched shows nothing here rather than a
+ * flat line implying steadiness nobody claimed.
+ *
+ * @param {any} p
+ * @param {boolean} bare - drop the date labels, for the tile
+ */
+function confidenceTrend(p, bare) {
+  const points = confidencePoints(p);
+  if (points.length < 2) return '';
+
+  return '<div class="ctrend">' +
+    '<div class="lbl">Confidence over time</div>' +
+    spark(points, {
+      min: 0,
+      max: 100,
+      grid: [0, 50, 100],
+      bare: bare,
+      w: bare ? 200 : 240,
+      h: bare ? 40 : 64,
+      label: 'Win confidence across ' + points.length + ' meetings, now ' +
+        points[points.length - 1].v + ' per cent'
+    }) + '</div>';
+}
+
+/**
+ * Raising an opportunity, in the shape a project is tracked in.
+ *
+ * It asks for customer, title, challenge, confidence, why we win and focus - the
+ * same fields, in the same order, as the panel under a project's caret, because an
+ * opportunity becomes a project a week later and anything not captured while it is
+ * being discussed tends never to be captured at all.
+ *
+ * None of it is required except the title. A half-filled opportunity is better than
+ * one nobody raised because the form looked like work.
+ *
+ * ## The optional first action
+ *
+ * Offered, and deliberately quiet about it: no highlight, no asterisk, and the form
+ * submits perfectly well with it empty. Often the useful thing at the moment
+ * somebody raises an opportunity is "and I'll call them on Thursday", and there is
+ * currently nowhere to put that until the project exists a week later.
+ */
+function opportunityForm(snap, env, tab, personId) {
+  const focusOptions = (snap.settings.focus && snap.settings.focus.items) || [];
+
+  const focusBoxes = focusOptions.length
+    ? '<fieldset class="oppf"><legend class="lbl">Focus</legend>' +
+      focusOptions.map(function (v) {
+        return '<label class="fchk"><input type="checkbox" name="focus" value="' +
+          esc(v) + '">' + esc(v) + '</label>';
+      }).join('') + '</fieldset>'
+    : '';
+
+  return '<form class="add oppform" data-form="opp" data-pid="' + esc(personId) + '">' +
+    '<input class="fld full" name="customer" type="text" placeholder="Customer">' +
+    '<input class="fld full" name="text" type="text" ' +
+    'placeholder="Project title - what the opportunity is" required>' +
+    '<input class="fld full" name="why" type="text" ' +
+    'placeholder="Major challenge, if there is one">' +
+    '<input class="fld n" name="winPct" type="number" min="0" max="100" ' +
+    'placeholder="Win %" aria-label="Win confidence per cent">' +
+    '<input class="fld full" name="winReason" type="text" ' +
+    'placeholder="Why we win">' +
+    focusBoxes +
+    '<div class="oppf-more">' +
+    '<span class="why">Give it a first action now, if there is one. Optional.</span>' +
+    '<input class="fld full" name="actionText" type="text" ' +
+    'placeholder="First action" aria-label="First action">' +
+    // ownerOptions, not peopleOptions: an action stores its owner as a NAME, and
+    // peopleOptions emits ids. Both render identically, so getting this wrong shows
+    // up as an action owned by "p3" rather than by anybody.
+    '<select class="fld" name="actionOwner" aria-label="Action owner">' +
+    ownerOptions(snap, tab, '', 'Owner') + '</select>' +
+    '<input class="fld" name="actionDue" type="date" aria-label="Action due date">' +
+    '</div>' +
+    '<div class="acts-r">' +
+    '<button class="btn" type="submit">Add</button>' +
+    '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button>' +
+    '</div></form>';
 }

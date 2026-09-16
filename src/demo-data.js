@@ -66,6 +66,15 @@ export function demoBoard() {
         mission: 'Prove the low-VOC additive holds adhesion spec on their line, so they '
           + 'can move off the incumbent before their reformulation deadline.',
         winPct: 65,
+        // Confidence climbing as the trial data came in. Invented, like everything
+        // else here - and enough points that the trend line has something to draw.
+        confidence: [
+          { m: addDays(thisMonday, -28), p: 30 },
+          { m: addDays(thisMonday, -21), p: 45 },
+          { m: addDays(thisMonday, -14), p: 45 },
+          { m: lastMonday, p: 55 },
+          { m: thisMonday, p: 65 }
+        ],
         winReason: 'Only supplier with the low-VOC data package',
         products: ['Testex 12 clear', 'Demo-Bond 7'],
         resources: ['Rheometer'], focus: ['Corrosion', 'Scale'],
@@ -85,6 +94,12 @@ export function demoBoard() {
       { id: 'pr5', tab: 't2', personId: 'p3', name: 'Line 3 throughput uplift', status: 'on',
         customer: 'Internal',
         winPct: 40, winReason: '',
+        // And one going the other way, which is the case worth being able to see.
+        confidence: [
+          { m: addDays(thisMonday, -21), p: 70 },
+          { m: addDays(thisMonday, -14), p: 60 },
+          { m: lastMonday, p: 40 }
+        ],
         products: ['Testex 12 clear'], resources: [], focus: [],
         due: addDays(thisMonday, 17), added: lastMonday },
       { id: 'pr6', tab: 'techdir', personId: 'p4', name: 'Shared test-method library', status: 'on',

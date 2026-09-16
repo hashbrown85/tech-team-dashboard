@@ -18,6 +18,8 @@ import { demoBoard } from '../src/demo-data.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
 import { today, addDays } from '../src/lib/dates.js';
 import { loadUi } from '../src/ui.js';
+import { spark } from '../src/views/spark.js';
+import { confidencePoints } from '../src/domain/projects.js';
 
 const MODES = { content: 'live', settings: 'live' };
 const snap = demoBoard();
@@ -725,6 +727,148 @@ test('The rendered rows really come out in priority order', () => {
     .filter(function (id) { return wanted.indexOf(id) >= 0; });
 
   eq(rendered, wanted, 'rows appear in the order priority asks for');
+});
+
+group('Raising an opportunity');
+
+function oppForm() {
+  return render({ view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp:p1' });
+}
+
+test('It asks for the project fields, in the order a project is tracked in', () => {
+  const html = oppForm();
+  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(html);
+  ok(form, 'the form is open');
+
+  const order = ['customer', 'text', 'why', 'winPct', 'winReason', 'focus'];
+  let at = -1;
+  order.forEach(function (name) {
+    const i = form[0].indexOf('name="' + name + '"');
+    ok(i > at, name + ' comes after the one before it');
+    at = i;
+  });
+});
+
+test('Only the title is required', () => {
+  // A half-filled opportunity beats one nobody raised because the form looked
+  // like work.
+  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
+  const required = form.match(/<input[^>]*required[^>]*>/g) || [];
+  eq(required.length, 1, 'exactly one required field');
+  ok(required[0].indexOf('name="text"') > 0, 'and it is the title');
+});
+
+test('Focus is offered as every option on the list', () => {
+  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
+  (snap.settings.focus.items).forEach(function (v) {
+    ok(form.indexOf('value="' + v + '"') > 0, v + ' is offered');
+  });
+});
+
+test('The first action is offered but never demanded', () => {
+  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
+
+  ok(form.indexOf('name="actionText"') > 0, 'there is somewhere to put one');
+  ok(form.indexOf('Optional') > 0, 'and it says so');
+
+  const action = /<div class="oppf-more">[\s\S]*?<\/div>/.exec(form);
+  ok(action, 'it is set apart');
+  notOk(/required/.test(action[0]), 'nothing in it is required');
+});
+
+test('The action owner list is by NAME, because that is what an action stores', () => {
+  // peopleOptions emits ids and renders identically, so getting this wrong shows
+  // up as an action owned by "p3" rather than by anybody.
+  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
+  const select = /<select[^>]*name="actionOwner"[\s\S]*?<\/select>/.exec(form);
+  ok(select, 'there is an owner select');
+
+  ok(select[0].indexOf('value="Alex Morgan"') > 0, 'options carry names');
+  notOk(/<option value="p\d"/.test(select[0]), 'and not person ids');
+});
+
+group('The confidence trend');
+
+test('It is drawn once a project has been judged more than once', () => {
+  const html = projectsStage();
+  ok(html.indexOf('Confidence over time') > 0, 'the tile shows it');
+  ok(/<svg class="spark bare"/.test(html), 'as a bare line, without date labels');
+});
+
+test('A project judged once or never shows no line at all', () => {
+  // One reading is a number, not a trend, and a flat line would imply a steadiness
+  // nobody claimed.
+  const one = demoBoard();
+  one.projects.forEach(function (p) {
+    if (p.confidence) p.confidence = p.confidence.slice(0, 1);
+  });
+  const html = renderApp(one, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 2 }
+  }), { today: today(), modes: MODES });
+
+  notOk(html.indexOf('Confidence over time') > 0, 'nothing drawn');
+  notOk(/<svg class="spark bare"/.test(html), 'and no empty chart');
+});
+
+group('The trend line itself');
+
+test('Fewer than two points draws nothing at all', () => {
+  // Both callers check this before asking, so the guard here is never reached in
+  // normal use - which is exactly why it needs its own test. Without it, one point
+  // divides by (length - 1) and every coordinate comes out NaN.
+  eq(spark([], { min: 0, max: 100 }), '');
+  eq(spark([{ d: '2026-09-07', v: 65 }], { min: 0, max: 100 }), '');
+  eq(spark(null, { min: 0, max: 100 }), '');
+});
+
+test('Two points make a line with two real coordinates', () => {
+  const svg = spark([
+    { d: '2026-09-07', v: 0 },
+    { d: '2026-09-14', v: 100 }
+  ], { min: 0, max: 100, grid: [0, 50, 100] });
+
+  const line = /<polyline class="sl" points="([^"]+)"/.exec(svg);
+  ok(line, 'there is a line');
+  eq(line[1].split(' ').length, 2, 'one coordinate per point');
+  notOk(/NaN|Infinity/.test(svg), 'and no arithmetic escaped into the markup');
+});
+
+test('The scale is honoured, so 0-100 and 1-5 both fill the box', () => {
+  const y = function (svg) {
+    return Number(/<circle class="se" cx="[\d.]+" cy="([\d.]+)"/.exec(svg)[1]);
+  };
+  const top = spark([{ d: 'a', v: 0 }, { d: 'b', v: 100 }], { min: 0, max: 100 });
+  const bottom = spark([{ d: 'a', v: 100 }, { d: 'b', v: 0 }], { min: 0, max: 100 });
+  ok(y(top) < y(bottom), 'a high value sits above a low one');
+
+  const rating = spark([{ d: 'a', v: 1 }, { d: 'b', v: 5 }], { min: 1, max: 5 });
+  eq(y(rating), y(top), '5 of 5 lands where 100 of 100 does');
+});
+
+test('A value outside the scale is clamped rather than drawn off the chart', () => {
+  const svg = spark([{ d: 'a', v: -20 }, { d: 'b', v: 250 }], { min: 0, max: 100 });
+  const ys = (svg.match(/,([\d.]+)/g) || []).map(function (m) { return Number(m.slice(1)); });
+  ok(ys.every(function (v) { return v >= 0 && v <= 64; }), 'stays inside the box');
+});
+
+test('A flat scale does not divide by zero', () => {
+  const svg = spark([
+    { d: '2026-09-07', v: 5 }, { d: '2026-09-14', v: 5 }
+  ], { min: 5, max: 5 });
+  notOk(/NaN|Infinity/.test(svg));
+});
+
+test('A malformed date never reaches the chart', () => {
+  // fmt() of an unparseable date renders the literal text "undefined NaN", and the
+  // confidence history is a JSON column somebody can edit by hand in SharePoint.
+  const p = { confidence: [
+    { m: '2026-09-07', p: 65 },
+    { m: 'last Tuesday', p: 70 },
+    { m: '07/09/2026', p: 75 },
+    { m: '2026-09-14', p: 80 }
+  ] };
+  eq(confidencePoints(p).map(function (x) { return x.d; }),
+    ['2026-09-07', '2026-09-14'], 'only real dates survive');
 });
 
 group('Escaping');

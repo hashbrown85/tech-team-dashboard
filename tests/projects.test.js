@@ -17,7 +17,9 @@ import {
   newProject,
   newOpportunity,
   linkedProjectGoesToo,
-  projectTitle
+  projectTitle,
+  recordConfidence,
+  confidencePoints
 } from '../src/domain/projects.js';
 
 const MEETING = '2026-09-14';
@@ -405,6 +407,141 @@ test('Neither still renders something clickable', () => {
 test('Surrounding whitespace does not become part of the title', () => {
   eq(projectTitle({ customer: '  Meridian Coatings  ', name: '  Trial  ' }),
     'Meridian Coatings - Trial');
+});
+
+group('Win confidence, tracked over time');
+
+const WK1 = '2026-09-07';
+const WK2 = '2026-09-14';
+
+test('Setting confidence records a point against the meeting', () => {
+  const patch = recordConfidence({}, 65, WK1);
+  eq(patch.winPct, 65);
+  eq(patch.confidence, [{ m: WK1, p: 65 }]);
+});
+
+test('Changing it a week later adds a second point', () => {
+  const p = { winPct: 65, confidence: [{ m: WK1, p: 65 }] };
+  const patch = recordConfidence(p, 80, WK2);
+
+  eq(patch.winPct, 80);
+  eq(patch.confidence, [{ m: WK1, p: 65 }, { m: WK2, p: 80 }]);
+});
+
+test('Editing twice in the same meeting replaces the point, not adds one', () => {
+  // The field writes on every change, so typing "8" then "80" arrives as two
+  // edits. Without this, one afternoon of typing becomes a jagged trend line.
+  let p = { confidence: [{ m: WK1, p: 65 }] };
+  p = Object.assign({}, p, recordConfidence(p, 8, WK2));
+  p = Object.assign({}, p, recordConfidence(p, 80, WK2));
+
+  eq(p.confidence, [{ m: WK1, p: 65 }, { m: WK2, p: 80 }], 'one point for this week');
+});
+
+test('Re-saving the same number records nothing', () => {
+  const p = { winPct: 65, confidence: [{ m: WK1, p: 65 }] };
+  const patch = recordConfidence(p, 65, WK2);
+
+  eq(patch.winPct, 65);
+  notOk('confidence' in patch, 'a week with no change is not a data point');
+});
+
+test('Clearing the field does not erase what was believed before', () => {
+  const p = { winPct: 65, confidence: [{ m: WK1, p: 65 }] };
+  const patch = recordConfidence(p, null, WK2);
+
+  eq(patch.winPct, null, 'the number goes');
+  notOk('confidence' in patch, 'the history stays');
+});
+
+test('A project with no meeting date records nothing rather than throwing', () => {
+  const patch = recordConfidence({}, 50, '');
+  eq(patch.winPct, 50);
+  notOk('confidence' in patch);
+});
+
+test('Zero is a real confidence, not an absence', () => {
+  const patch = recordConfidence({}, 0, WK1);
+  eq(patch.winPct, 0);
+  eq(patch.confidence, [{ m: WK1, p: 0 }]);
+});
+
+group('Reading the confidence trend');
+
+test('Points come back oldest first', () => {
+  const p = { confidence: [{ m: WK2, p: 80 }, { m: WK1, p: 65 }] };
+  eq(confidencePoints(p), [{ d: WK1, v: 65 }, { d: WK2, v: 80 }]);
+});
+
+test('Sorted by date, not trusted in stored order', () => {
+  // A number corrected against an earlier meeting would otherwise draw a line
+  // that runs backwards.
+  const p = { confidence: [
+    { m: '2026-09-21', p: 90 }, { m: WK1, p: 65 }, { m: WK2, p: 80 }
+  ] };
+  eq(confidencePoints(p).map(function (x) { return x.v; }), [65, 80, 90]);
+});
+
+test('Malformed rows are dropped rather than plotted as NaN', () => {
+  const p = { confidence: [
+    { m: WK1, p: 65 }, { m: WK2 }, { p: 40 }, null, { m: WK2, p: 'abc' }
+  ] };
+  eq(confidencePoints(p), [{ d: WK1, v: 65 }]);
+});
+
+test('A project that has never been judged has no points', () => {
+  eq(confidencePoints({}), []);
+  eq(confidencePoints(null), []);
+});
+
+group('Raising an opportunity with what is known about it');
+
+test('It carries the project fields through, not just a title', () => {
+  const built = newOpportunity({
+    entryId: 'e9', projectId: 'pr9', tab: 't1', personId: 'p1',
+    text: 'Downhole scale trial', why: 'Their lab is slow',
+    customer: 'Halden Industrial', winPct: 40, winReason: 'Only ones with the data',
+    focus: ['Scale', 'Pipeline'], meetingDate: WK1
+  });
+
+  eq(built.project.customer, 'Halden Industrial');
+  eq(built.project.name, 'Downhole scale trial');
+  eq(built.project.note, 'Their lab is slow', 'the challenge');
+  eq(built.project.winPct, 40);
+  eq(built.project.winReason, 'Only ones with the data');
+  eq(built.project.focus, ['Scale', 'Pipeline']);
+});
+
+test('The confidence is seeded so the trend has a starting point', () => {
+  const built = newOpportunity({
+    entryId: 'e9', projectId: 'pr9', tab: 't1', personId: 'p1',
+    text: 'x', winPct: 40, meetingDate: WK1
+  });
+  eq(built.project.confidence, [{ m: WK1, p: 40 }]);
+});
+
+test('Left blank, confidence is absent rather than zero', () => {
+  // Zero means "we will not win this", which is not what an empty box says.
+  const built = newOpportunity({
+    entryId: 'e9', projectId: 'pr9', tab: 't1', personId: 'p1',
+    text: 'x', winPct: '', meetingDate: WK1
+  });
+  notOk('winPct' in built.project);
+  notOk('confidence' in built.project);
+});
+
+test('The entry still records what was said, separately from the project', () => {
+  const built = newOpportunity({
+    entryId: 'e9', projectId: 'pr9', tab: 't1', personId: 'p1',
+    text: 'Downhole scale trial', why: 'Their lab is slow',
+    customer: 'Halden Industrial', meetingDate: WK1
+  });
+
+  eq(built.entry.kind, 'opp');
+  eq(built.entry.text, 'Downhole scale trial');
+  eq(built.entry.why, 'Their lab is slow');
+  eq(built.entry.projectId, 'pr9');
+  eq(built.project.status, 'new', 'and it still joins as a new project');
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

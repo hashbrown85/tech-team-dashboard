@@ -70,6 +70,31 @@
   .proj .meta .pchip { font-size: 11.5px; padding: 1px 7px; }
   .pfoc { margin-top: 10px; }
 
+  /* Raising an opportunity: the same fields a project is tracked by. `.add` is a
+     flex row, so the long free-text fields take a line each and the short ones
+     share one. */
+  .oppform .fld.n { flex: 0 0 110px; font-family: var(--f-mono); }
+  .oppf {
+    flex-basis: 100%; border: 0; padding: 0; margin: 2px 0 0;
+    display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center;
+  }
+  .oppf legend { padding: 0; margin-bottom: 4px; }
+  .fchk { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; }
+
+  /* The optional first action. Set apart by a rule rather than by colour: it is
+     offered, not asked for, and nothing here should read as required. */
+  .oppf-more {
+    flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px;
+    border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px;
+  }
+  .oppf-more .why { flex-basis: 100%; margin: 0; }
+
+  /* The confidence trend in a project tile. `.spark` is 260px wide by default,
+     which is right on a page and too much inside a tile's details panel. */
+  .ctrend { margin-top: 12px; }
+  .ctrend .spark { margin-top: 4px; }
+  .ctrend .spark.bare { max-width: 200px; }
+
   /* The x on a chip. `.x` is a 26px control sized for a list row, which makes a
      chip half again as tall as it needs to be. This also tidies the same chips on
      the People & settings screen, which had the problem first. */

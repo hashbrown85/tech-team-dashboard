@@ -36,9 +36,10 @@ import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
 import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
-import { projectTitle } from '../domain/projects.js';
+import { projectTitle, confidencePoints } from '../domain/projects.js';
 import { pageHeader, kpi } from './shell.js';
 import { pickerControl } from './pickers.js';
+import { spark } from './spark.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -78,6 +79,10 @@ export function renderProject(snap, ui, env, p) {
   // For somebody without access to that list it is absent because the numbers were
   // never sent, not because the browser chose not to draw them. See detailsArrived().
   const canSeeCommercial = detailsArrived(snap);
+
+  // One reading is a number, not a trend. The line appears once the figure has
+  // actually been revisited in a later meeting.
+  const points = confidencePoints(p);
 
   const acts = actsOf(snap, p.id);
   const open = acts.filter(isOpen);
@@ -241,6 +246,16 @@ export function renderProject(snap, ui, env, p) {
       esc(p.winPct == null ? '' : p.winPct) +
       '" data-edit="pdWin" data-id="' + esc(p.id) + '" aria-label="Win confidence percent"' +
       dis(env) + '><span class="why">Per cent</span>') +
+    (points.length >= 2
+      ? row('Confidence over time',
+          spark(points, {
+            min: 0, max: 100, grid: [0, 50, 100],
+            label: 'Win confidence across ' + points.length + ' meetings, now ' +
+              points[points.length - 1].v + ' per cent'
+          }) +
+          '<span class="why">' + points[0].v + '% when it was first judged, ' +
+          points[points.length - 1].v + '% now.</span>')
+      : '') +
     row('Why we win',
       '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
       '" placeholder="What makes this ours to lose."' + dis(env) + '>' +

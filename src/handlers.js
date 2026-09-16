@@ -20,7 +20,8 @@ import { toast, flash, focusFirst } from './lib/dom.js';
 import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import {
-  statusChange, newProject, newOpportunity, projectSummary, reorderProjects
+  statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
+  recordConfidence
 } from './domain/projects.js';
 import {
   newIssue, resolveIssue, reopenIssue, reorderQueue
@@ -476,8 +477,15 @@ export function createHandlers(app) {
     // restricted until it was pointed out that the value is the only part anyone
     // needs to protect, and hiding the rest just stopped people discussing them.
     pdWin: function (el) {
-      store.update('projects', el.dataset.id,
-        { winPct: numberOrNull(el.value) }, { silent: true });
+      const snap = store.snapshot();
+      const p = byId(snap.projects, el.dataset.id);
+      if (!p) return;
+
+      // The project's OWN meeting, so a number revised on the project page - where
+      // no meeting is on screen - is still stamped with the right week.
+      const t = byId(snap.tabs, p.tab) || currentTab();
+      const patch = recordConfidence(p, numberOrNull(el.value), t ? currentDate(t) : '');
+      store.update('projects', el.dataset.id, patch, { silent: true });
     },
     pdReason: function (el) {
       store.update('projects', el.dataset.id, { winReason: el.value }, { silent: true });
@@ -563,6 +571,57 @@ export function createHandlers(app) {
     patch[field] = chosen;
     store.update('projects', id, patch).then(render);
     render();
+  }
+
+  /**
+   * Every value of a repeated field, whichever kind of form data this is.
+   *
+   * A browser sends several checkboxes of the same name as several values, which
+   * `FormData.getAll` returns. The tests hand handlers a Map, which has no getAll -
+   * so both are accepted rather than making the tests carry a fake browser.
+   *
+   * @param {any} fd
+   * @param {string} name
+   * @returns {string[]}
+   */
+  function manyOf(fd, name) {
+    if (typeof fd.getAll === 'function') {
+      return fd.getAll(name).map(String).filter(Boolean);
+    }
+    const one = fd.get(name);
+    if (one == null || one === '') return [];
+    return Array.isArray(one) ? one.map(String) : [String(one)];
+  }
+
+  /**
+   * The optional action offered while raising an opportunity.
+   *
+   * Empty is the normal case and must not be an error, so this resolves quietly
+   * when there is nothing to add. The action points at the PROJECT the opportunity
+   * created, which is what it will still be attached to next week when the project
+   * appears in Current Projects.
+   *
+   * @returns {Promise<any>}
+   */
+  function addFirstAction(fd, tab, projectId, meetingDate) {
+    const text = String(fd.get('actionText') || '').trim();
+    if (!text) return Promise.resolve();
+
+    return store.nextActionNum().then(function (num) {
+      const doc = newAction({
+        num: num,
+        tab: tab.id,
+        text: text,
+        owner: String(fd.get('actionOwner') || ''),
+        support: '',
+        due: String(fd.get('actionDue') || ''),
+        parent: { type: 'project', id: projectId },
+        meetingDate: meetingDate
+      });
+      return store.set('actions', store.newId(), doc).then(function () {
+        toast(actionLabel({ num: num }) + ' added to the new opportunity.');
+      });
+    });
   }
 
   function numberOrNull(v) {
@@ -659,6 +718,7 @@ export function createHandlers(app) {
 
       const entryId = store.newId();
       const projectId = store.newId();
+      const d = currentDate(t);
       const built = newOpportunity({
         entryId: entryId,
         projectId: projectId,
@@ -666,13 +726,19 @@ export function createHandlers(app) {
         personId: form.dataset.pid,
         text: text,
         why: String(fd.get('why') || '').trim(),
-        meetingDate: currentDate(t)
+        customer: String(fd.get('customer') || '').trim(),
+        winPct: fd.get('winPct'),
+        winReason: String(fd.get('winReason') || '').trim(),
+        focus: manyOf(fd, 'focus'),
+        meetingDate: d
       });
 
       store.batch([
         { op: 'set', col: 'entries', id: entryId, data: built.entry },
         { op: 'set', col: 'projects', id: projectId, data: built.project }
-      ]).then(render);
+      ]).then(function () {
+        return addFirstAction(fd, t, projectId, d);
+      }).then(render);
       render();
     },
 
