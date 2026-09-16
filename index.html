@@ -50,20 +50,52 @@
   .note.editing .note-tools { margin-left: 0; margin-top: 6px; }
   .pnote-add .acts-r { margin-left: auto; }
 
-  /* Opening a project from its row in a meeting. `.proj` is a three-column grid,
-     so this goes INSIDE the existing first cell rather than becoming a fourth
-     child, which would wrap onto its own line. It keeps `.it-t` because the
-     status colours in theme.css key off that class. */
+  /* Opening a project from its row in a meeting. This goes INSIDE the row's first
+     cell rather than becoming another child of `.proj`, which would wrap onto its
+     own line. It keeps `.it-t` because the status colours in theme.css key off
+     that class. */
   .pname-open {
     border: 0; background: none; padding: 0; text-align: left; font: inherit;
-    font-weight: 500; color: inherit; cursor: pointer; overflow-wrap: anywhere;
+    font-weight: 500; color: inherit; cursor: pointer;
   }
   .pname-open:hover { text-decoration: underline; }
   .pfilter { margin-left: 2px; }
 
-  /* Priority arrows and delete, sharing the project row's middle cell. `.proj` is
-     a three-column grid, so they have to be one child, not three. */
+  /* Priority arrows and delete, sharing the project row's tools cell. `.proj` is a
+     grid, so they have to be one child, not three. */
   .ptools { display: flex; align-items: center; gap: 3px; }
+  /* `.x` already carries flex:none; `.mv` does not, so the arrows would squash
+     before the cell gave up any width. */
+  .ptools .mv { flex: none; }
+
+  /*
+   * Stop a project title rendering one letter per line.
+   *
+   * Two things combine to allow it. `.it-t` sets `overflow-wrap: anywhere`, which
+   * makes the title's MIN-CONTENT WIDTH a single character - the browser is then
+   * entitled to render it as a vertical column of letters. And `.proj`'s first
+   * track is `minmax(0, 1fr)`, explicitly floored at zero, so nothing stops the
+   * column shrinking that far when the row is tight.
+   *
+   * Adding the priority arrows took about 58px more than the single x they
+   * replaced, which was enough to tip a marginal layout over. The arrows were the
+   * trigger, not the cause: any future control added to this row would have done
+   * the same, so both halves are fixed rather than the width alone.
+   *
+   * `break-word` still breaks a genuinely unbreakable string, but unlike `anywhere`
+   * it does not reduce min-content width, so the column cannot collapse past the
+   * longest word.
+   */
+  .proj { grid-template-columns: minmax(11em, 1fr) auto !important; }
+  .pname, .pname-open { overflow-wrap: break-word; min-width: 0; }
+
+  /* On a phone 11em plus the tools would overflow sideways, and pushing the page
+     wider than the screen is how the timeline became unusable. The floor relaxes
+     rather than disappearing; break-word above is what actually prevents the
+     one-letter-per-line rendering. */
+  @media (max-width: 560px) {
+    .proj { grid-template-columns: minmax(7em, 1fr) auto !important; }
+  }
 
   /* Focus chips in the collapsed row sit in a line of muted 13px text, so they
      need to read as part of it rather than as full-size controls. */

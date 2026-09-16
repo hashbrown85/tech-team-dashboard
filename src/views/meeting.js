@@ -376,10 +376,11 @@ function projectRow(snap, ui, env, p, idx, count) {
     esc(p.id) + '" aria-pressed="' + selected + '">' +
     (selected ? 'Show all actions' : 'Filter actions') + '</button>' +
     '</span></div>' +
-    // `.proj` is a three-column grid - name, tools, status. The arrows share the
-    // middle cell with the delete button rather than becoming a fourth child, which
-    // would not error and would not look wrong in the markup: it would silently wrap
-    // onto its own line and push the status control out of alignment.
+    // `.proj` is a TWO-column grid - theme.css:249 overrides the three-column rule
+    // above it with !important, and `.stat` then spans both columns on its own row.
+    // So the arrows share the tools cell with the delete button rather than becoming
+    // another child, which would not error and would not look wrong in the markup:
+    // it would silently wrap onto its own line and push the status out of line.
     '<div class="ptools edit-only">' +
     '<button class="mv" type="button" data-act="movePriority" data-id="' + esc(p.id) +
     '" data-v="-1" aria-label="Raise priority of ' + esc(p.name) + '"' +

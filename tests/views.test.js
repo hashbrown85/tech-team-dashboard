@@ -601,7 +601,7 @@ test('The heading shows the name and their title', () => {
 });
 
 test('A project row keeps exactly the three cells its grid has', () => {
-  // `.proj` is `grid-template-columns:minmax(0,1fr) auto auto`. A fourth top-level
+  // `.proj` is a two-column grid with `.stat` spanning both on its own row. Another
   // child does not overflow or error - it silently wraps onto its own line, which
   // is how the name, the delete button and the status control end up misaligned.
   // So opening a project goes INSIDE the first cell rather than beside it.
