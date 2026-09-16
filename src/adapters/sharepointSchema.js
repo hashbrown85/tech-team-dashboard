@@ -123,22 +123,51 @@ export const SCHEMA = {
       statusMeeting: { col: 'StatusMeeting', kind: 'date' },
       prevStatus: { col: 'PrevStatus', kind: 'text' },
       doneMeeting: { col: 'DoneMeeting', kind: 'date' },
-      rank: { col: 'Rank', kind: 'number' }
-      // The value and confidence fields are NOT here. They live in
-      // projectDetails, on their own list with its own permissions, so somebody
-      // without access never receives them at all. See below.
+      rank: { col: 'Rank', kind: 'number' },
+
+      /*
+       * How likely we are to land it, and why. Team-visible: the people running
+       * the meeting need to talk about confidence, and it is not the number that
+       * needs protecting. ONLY the dollar value is restricted - see below.
+       */
+      winPct: { col: 'WinPct', kind: 'number' },
+      winReason: { col: 'WinReason', kind: 'note' },
+
+      /*
+       * Which of our products this project is proposing.
+       *
+       * The authoritative product list lives in Dataverse. Nothing here can reach
+       * it yet, so the picker is fed from a `products` row in `settings` - the
+       * same shape as chemistries and resources, maintained by hand for now. When
+       * Dataverse is reachable, only the SOURCE of that list changes: this column
+       * stores the chosen values either way, so no migration falls out of it.
+       */
+      products: { col: 'ProductsJson', kind: 'json' },
+
+      // What it needs and what it is made of. Team-visible for the same reason.
+      resources: { col: 'ResourcesJson', kind: 'json' },
+      chemistries: { col: 'ChemistriesJson', kind: 'json' }
+      // The dollar value is NOT here. It lives in projectDetails, on its own list
+      // with its own permissions, so somebody without access never receives it.
     }
   },
 
   projectDetails: {
     /*
-     * The sensitive half of a project, split out so SharePoint can decide who
-     * reads it. One record per project, keyed by the project's own id.
+     * The money, and ONLY the money. One record per project, keyed by the
+     * project's own id.
      *
-     * This is the difference between hiding the numbers and protecting them. A
-     * client-side check only stops the browser drawing them - the data has still
-     * arrived and is one network-tab away. Because these are on their own list,
-     * Graph returns 403 and they never leave the server.
+     * Do not add fields here because they feel sensitive. This list exists so
+     * SharePoint can refuse it, and everything put in it disappears together for
+     * anyone refused - so every extra field is something the team loses the
+     * ability to discuss. Confidence, why-we-win, products, chemistries and
+     * resources all started here and were moved back onto the project for exactly
+     * that reason: the dollar figure was the only part that needed protecting.
+     *
+     * This is the difference between hiding a number and protecting it. A
+     * client-side check only stops the browser drawing it - the data has still
+     * arrived and is one network-tab away. Because it is on its own list, Graph
+     * returns 403 and it never leaves the server.
      *
      * The consequence, stated plainly: access is all-or-nothing. SharePoint
      * permissions are per list, so a person can read project value or cannot.
@@ -148,11 +177,7 @@ export const SCHEMA = {
     list: 'BoardProjectDetails',
     indexes: [],
     fields: {
-      estValue: { col: 'EstValue', kind: 'number' },
-      winPct: { col: 'WinPct', kind: 'number' },
-      winReason: { col: 'WinReason', kind: 'note' },
-      resources: { col: 'ResourcesJson', kind: 'json' },
-      chemistries: { col: 'ChemistriesJson', kind: 'json' }
+      estValue: { col: 'EstValue', kind: 'number' }
     }
   },
 
@@ -230,7 +255,12 @@ export const SCHEMA = {
   },
 
   settings: {
-    // Two rows: Key 'chemistries' and Key 'resources'.
+    /*
+     * Three rows: Key 'chemistries', 'resources' and 'products'.
+     *
+     * 'products' is a placeholder for a list that really lives in Dataverse. See
+     * the note on projects.products.
+     */
     list: 'BoardSettings',
     indexes: [],
     fields: {

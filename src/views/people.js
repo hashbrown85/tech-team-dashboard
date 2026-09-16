@@ -76,8 +76,11 @@ export function renderPeople(snap, ui, env) {
 
   return pageHeader('People', 'Who is in which meeting') +
     table + addForm +
-    managedList(snap, ui, env, 'chemistries', 'Chemistries', 'chem') +
-    managedList(snap, ui, env, 'resources', 'Potential resources', 'resource');
+    managedList(snap, ui, env, 'products', 'Products', 'product', 'delProduct',
+      'Stands in for the product list in Dataverse, until that is reachable.') +
+    managedList(snap, ui, env, 'chemistries', 'Chemistries', 'chem', 'delChem') +
+    managedList(snap, ui, env, 'resources', 'Potential resources', 'resource',
+      'delResource');
 }
 
 /**
@@ -90,14 +93,14 @@ export function renderPeople(snap, ui, env) {
  * @param {string} title
  * @param {string} formName
  */
-function managedList(snap, ui, env, key, title, formName) {
+function managedList(snap, ui, env, key, title, formName, delAct, sub) {
   const items = (snap.settings[key] && snap.settings[key].items) || [];
 
   const chips = items.length
     ? '<div class="mchips">' + items.map(function (v) {
         return '<span class="pchip">' + esc(v) +
-          (env.areaReadonly ? '' : '<button class="x" type="button" data-act="del' +
-            (formName === 'chem' ? 'Chem' : 'Resource') + '" data-v="' + esc(v) +
+          (env.areaReadonly ? '' : '<button class="x" type="button" data-act="' +
+            delAct + '" data-v="' + esc(v) +
             '" aria-label="Remove ' + esc(v) + '">×</button>') + '</span>';
       }).join('') + '</div>'
     : '<p class="none">Nothing in this list yet.</p>';
@@ -111,5 +114,6 @@ function managedList(snap, ui, env, key, title, formName) {
       formName + '"' + dis(env) + '>+ Add</button>';
 
   return '<section class="panel"><div class="pan-h"><h2>' + title + '</h2>' +
-    '<span class="sub">Used by Project details</span></div>' + chips + form + '</section>';
+    '<span class="sub">' + (sub || 'Picked from on a project page') + '</span></div>' +
+    chips + form + '</section>';
 }

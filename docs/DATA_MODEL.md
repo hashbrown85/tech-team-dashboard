@@ -109,8 +109,20 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 | `statusMeeting` | date string *optional* | Bookkeeping for the meeting summary |
 | `doneMeeting` | date string *optional* | Set while status is done/cancelled |
 | `rank` | number *optional* | Queue position **while off-track only** |
+| `winPct` | number *optional* | How likely we are to land it, 0-100 |
+| `winReason` | string *optional* | Why it is ours to lose |
+| `products` | string[] *optional* | values from `settings/products` |
+| `resources` | string[] *optional* | values from `settings/resources` |
+| `chemistries` | string[] *optional* | values from `settings/chemistries` |
 
-The value and confidence fields are **not** here. They live in `projectDetails`.
+The **dollar value** is not here. It is the one field that lives in
+`projectDetails`, on its own permissioned list.
+
+`products` names the products this project is proposing. The authoritative list
+lives in **Dataverse**; nothing in the app can reach it yet, so the picker is fed
+from a `products` row in `settings`, maintained by hand on the People & settings
+screen. When Dataverse becomes reachable only the *source* of that list changes —
+the project stores the chosen values either way, so no migration follows.
 
 **Status values** (`PST` board.html:479, labels in `PSTL` board.html:616):
 
@@ -119,20 +131,23 @@ The value and confidence fields are **not** here. They live in `projectDetails`.
 `ACTIVE` (board.html:480) counts `new`, `on`, `off`, `hold` as active. The transition
 rules are non-obvious and live in BUSINESS_RULES.md.
 
-## `projectDetails` — the sensitive half of a project
+## `projectDetails` — the money, and only the money
 
 One record per project, keyed by **the project's own id**. Separate from `projects`
 because it lives on its own SharePoint list with its own permissions, so somebody
-without access never receives these figures at all.
+without access never receives the figure at all.
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | string | the project's id |
-| `estValue` | number *optional* | |
-| `winPct` | number *optional* | |
-| `winReason` | string *optional* | |
-| `resources` | string[] *optional* | values from `settings/resources` |
-| `chemistries` | string[] *optional* | values from `settings/chemistries` |
+| `estValue` | number *optional* | Dollars per year |
+
+**Do not add fields here because they feel sensitive.** This list exists so
+SharePoint can refuse it, and everything in it disappears together for anyone
+refused — so each extra field is something the team loses the ability to discuss.
+`winPct`, `winReason`, `resources` and `chemistries` all started here and were moved
+back onto the project for exactly that reason: the dollar figure was the only part
+that needed protecting.
 
 **Access is all-or-nothing.** SharePoint permissions are per list, so a person can
 read every project's value or none. The per-area granularity the old `detailAreas`

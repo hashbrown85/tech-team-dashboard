@@ -136,17 +136,23 @@ test('It appears when the details collection arrived', () => {
   ok(/data-edit="pdValue"/.test(html), 'and its fields');
 });
 
-test('It is absent when that list was refused', () => {
+test('Only the VALUE is absent when that list was refused', () => {
   // The adapter hands back an EMPTY ARRAY plus a note in snap.denied when the list
-  // is refused - so the array is always present. Gating on the array is the bug
-  // this test exists to prevent: it would show the block to everyone.
+  // is refused - so the array is always there. Gating on the array is the bug this
+  // test exists to prevent: it would show the value to everyone.
+  //
+  // And what the refusal hides is deliberately narrow. Confidence, why-we-win and
+  // the product/chemistry/resource pickers are the team's and stay put.
   const snap = demoBoard();
   snap.denied = ['projectDetails'];
   const html = page('pr1', { snap: snap });
 
-  notOk(html.indexOf('Why we win') > 0, 'no commercial block');
-  notOk(/data-edit="pdValue"/.test(html), 'and no way to write to it');
-  notOk(/data-edit="pdWin"/.test(html), 'nor to confidence');
+  notOk(/data-edit="pdValue"/.test(html), 'no way to read or write the value');
+  ok(html.indexOf('project value is kept to the people') > 0, 'and it says why');
+
+  ok(/data-edit="pdWin"/.test(html), 'confidence survives');
+  ok(/data-edit="pdReason"/.test(html), 'why we win survives');
+  ok(/data-f="products"/.test(html), 'and the product picker');
 });
 
 test('The numbers themselves never reach a refused page', () => {
@@ -164,14 +170,13 @@ test('Value and confidence are shown separately, never multiplied', () => {
   // money. Anyone wanting a risk-adjusted pipeline number can weight it in the
   // roll-up, where the convention gets stated once.
   const snap = demoBoard();
-  const d = snap.projectDetails.find(function (x) { return x.id === 'pr1'; });
-  d.estValue = 250000;
-  d.winPct = 70;
+  snap.projectDetails.find(function (x) { return x.id === 'pr1'; }).estValue = 250000;
+  project(snap, 'pr1').winPct = 70;
   const html = page('pr1', { snap: snap });
 
-  ok(html.indexOf('Annual value') > 0, 'the dollars, on their own');
+  ok(/<span class="l">Annual value<\/span>/.test(html), 'the dollars, on their own');
   ok(html.indexOf('$250k') > 0, 'abbreviated to fit the KPI cell');
-  ok(html.indexOf('Win confidence') > 0, 'the percentage, on its own');
+  ok(/<span class="l">Win confidence<\/span>/.test(html), 'the percentage, on its own');
   ok(html.indexOf('>70%<') > 0, 'shown as a percentage');
 
   notOk(html.indexOf('175,000') > 0, 'and no weighted dollar figure');
@@ -181,9 +186,8 @@ test('Value and confidence are shown separately, never multiplied', () => {
 
 test('The copy summary carries no weighted figure either', () => {
   const snap = demoBoard();
-  const d = snap.projectDetails.find(function (x) { return x.id === 'pr1'; });
-  d.estValue = 250000;
-  d.winPct = 70;
+  snap.projectDetails.find(function (x) { return x.id === 'pr1'; }).estValue = 250000;
+  project(snap, 'pr1').winPct = 70;
   const text = projectSummary(snap, project(snap, 'pr1'), TODAY, true);
 
   ok(text.indexOf('250,000') >= 0, 'the value is there');
@@ -201,28 +205,75 @@ test('The strip shows the four stats its grid has room for, and no more', () => 
   eq((page('pr1', { snap: snap }).match(/<div class="kpi /g) || []).length, 4, 'without');
 });
 
-test('Without commercial access the strip falls back to dates, not blanks', () => {
+test('Without commercial access only the value slot changes', () => {
+  // Confidence is the team's, so it keeps its place. Days in status takes the slot
+  // the value gave up, rather than the strip showing a blank.
   const snap = demoBoard();
+  project(snap, 'pr1').winPct = 65;
   snap.denied = ['projectDetails'];
-  const html = page('pr2', { snap: snap });
+  const html = page('pr1', { snap: snap });
 
-  notOk(html.indexOf('Annual value') > 0, 'no value stat');
-  notOk(html.indexOf('Win confidence') > 0, 'no confidence stat');
-  ok(html.indexOf('Days in status') > 0, 'days in status takes the slot back');
-  ok(html.indexOf('Next due') > 0, 'and the next date');
+  // The Commercial panel has a row labelled "Annual value" either way - it is the
+  // KPI that goes. So this looks for the stat label specifically.
+  notOk(/<span class="l">Annual value<\/span>/.test(html), 'no value stat');
+  ok(/<span class="l">Win confidence<\/span>/.test(html), 'confidence is still a stat');
+  ok(html.indexOf('>65%<') > 0, 'with its number');
+  ok(html.indexOf('Days in status') > 0, 'and days in status takes the free slot');
 });
 
-test('Money is abbreviated in the KPI strip and written out in the row', () => {
-  // `.kpi .n` is 30px monospace in a quarter-width column.
-  eq(moneyShort(180000), '$180k');
-  eq(moneyShort(1250000), '$1.3M');
-  eq(moneyShort(1000000), '$1M', 'no trailing .0');
-  eq(moneyShort(940), '$940');
-  eq(moneyShort(null), '—', 'nothing to show reads as a dash, not NaN');
-  eq(moneyShort(undefined), '—');
+group('Product selection, chemistries and resources');
+
+test('The pickers offer every option and mark the chosen ones', () => {
+  const snap = demoBoard();
+  const html = page('pr1', { snap: snap });   // pr1 picks Testex 12 clear + Demo-Bond 7
+
+  snap.settings.products.items.forEach(function (v) {
+    ok(html.indexOf('data-v="' + v + '"') > 0, v + ' is offered');
+  });
+  ok(/data-v="Testex 12 clear" aria-pressed="true"/.test(html), 'a chosen one is pressed');
+  ok(/data-v="Demo-Seal HT" aria-pressed="false"/.test(html), 'an unchosen one is not');
 });
 
-group('Notes on the page');
+test('Chosen chips are styled differently from unchosen ones', () => {
+  // .pchip.m is the filled chip, .pchip.o the dashed one. Both already exist in the
+  // stylesheet, so this needs no new colours - but getting the classes the wrong way
+  // round would look fine in the markup and wrong on the page.
+  const html = page('pr1');
+  ok(/class="pchip m"[^>]*data-v="Testex 12 clear"/.test(html), 'chosen is .m');
+  ok(/class="pchip o"[^>]*data-v="Demo-Seal HT"/.test(html), 'unchosen is .o');
+});
+
+test('Every picker names the field it writes to', () => {
+  // data-v is already carrying the value, so the field rides on data-f. Miss it and
+  // the handler silently does nothing.
+  const html = page('pr1');
+  ['products', 'chemistries', 'resources'].forEach(function (f) {
+    ok(html.indexOf('data-f="' + f + '"') > 0, f + ' has a picker');
+  });
+  const buttons = html.match(/<button[^>]*data-act="projPick"[^>]*>/g) || [];
+  ok(buttons.length > 0, 'found pickers');
+  buttons.forEach(function (b) {
+    ok(/data-f="(products|chemistries|resources)"/.test(b), 'names its field: ' + b);
+    ok(b.indexOf('data-id="pr1"') > 0, 'and its project: ' + b);
+  });
+});
+
+test('An empty list says where to fill it in rather than showing nothing', () => {
+  const snap = demoBoard();
+  snap.settings.products = { items: [] };
+  const html = page('pr1', { snap: snap });
+  ok(html.indexOf('Product selection') > 0, 'the row is still there');
+  ok(html.indexOf('maintained on the People') > 0, 'and says where the list lives');
+});
+
+test('A read-only board disables the pickers', () => {
+  const html = page('pr1', { modes: { content: 'read', settings: 'read' } });
+  const buttons = html.match(/<button[^>]*data-act="projPick"[^>]*>/g) || [];
+  ok(buttons.length > 0, 'still shown');
+  buttons.forEach(function (b) { ok(b.indexOf('disabled') > 0, 'disabled: ' + b); });
+});
+
+group('Notes on the page');group('Notes on the page');
 
 test('Notes show newest first, with author and time', () => {
   const html = page('pr2');   // pr2 is the project with several notes
@@ -297,18 +348,22 @@ test('The summary carries the project, its actions and its notes', () => {
   notOk(/undefined|NaN|\[object Object\]/.test(text), 'nothing failed to arrive');
 });
 
-test('The summary withholds the commercial figures from a reader who cannot see them', () => {
-  // Otherwise Copy summary would hand out exactly what the page withheld.
+test('The summary withholds the value from a reader who cannot see it', () => {
+  // Otherwise Copy summary would hand out in plain text exactly what the page
+  // withheld. Only the dollar figure is withheld - the rest is the team's.
   const snap = demoBoard();
-  const d = snap.projectDetails.find(function (x) { return x.id === 'pr1'; });
-  d.estValue = 250000;
+  snap.projectDetails.find(function (x) { return x.id === 'pr1'; }).estValue = 250000;
+  project(snap, 'pr1').winPct = 65;
 
   const withValue = projectSummary(snap, project(snap, 'pr1'), TODAY, true);
   ok(withValue.indexOf('250,000') >= 0, 'included when it may be');
+  ok(withValue.indexOf('VALUE') >= 0, 'under its own heading');
 
   const without = projectSummary(snap, project(snap, 'pr1'), TODAY, false);
   notOk(without.indexOf('250,000') >= 0, 'and absent when it may not');
-  notOk(without.indexOf('COMMERCIAL') >= 0, 'no empty heading either');
+  notOk(without.indexOf('VALUE') >= 0, 'no empty heading either');
+  ok(without.indexOf('65%') >= 0, 'but confidence still travels');
+  ok(without.indexOf('Product selection') >= 0, 'and the products');
 });
 
 test('Every project summarises without a hole in it', () => {

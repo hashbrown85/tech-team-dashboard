@@ -67,7 +67,10 @@ async function app(uiOverrides) {
     store: store,
     ui: ui,
     render: function () {},
-    today: today
+    today: today,
+    identity: function () {
+      return { kind: 'signed-in', personId: (uiOverrides || {}).asPerson || 'p1' };
+    }
   });
   return {
     store: store,
@@ -232,6 +235,182 @@ test('Walking every agenda step leaves the app renderable', async () => {
     ok(html.length > 2000, 'step ' + step + ' renders');
     notOk(html.indexOf('undefined') >= 0, 'step ' + step + ' has no holes');
   }
+});
+
+group('Picking products, chemistries and resources');
+
+/** Fire the picker the way a click on a chip does. */
+function pick(a, projectId, field, value) {
+  a.H.clicks.projPick(/** @type {any} */ ({ dataset: { f: field } }), projectId, value);
+}
+
+function proj(a, id) {
+  return a.snap().projects.find(function (p) { return p.id === id; });
+}
+
+test('Picking a value adds it without disturbing the others', async () => {
+  const a = await app();
+  const before = (proj(a, 'pr1').products || []).slice();
+  ok(before.length >= 2, 'pr1 starts with a couple');
+
+  pick(a, 'pr1', 'products', 'Demo-Seal HT');
+  await settle();
+
+  const after = proj(a, 'pr1').products;
+  ok(after.indexOf('Demo-Seal HT') >= 0, 'the new one is on');
+  before.forEach(function (v) { ok(after.indexOf(v) >= 0, v + ' is still chosen'); });
+  eq(after.length, before.length + 1, 'exactly one added');
+});
+
+test('Picking a chosen value takes it off again, and only it', async () => {
+  const a = await app();
+  const before = proj(a, 'pr1').products.slice();
+
+  pick(a, 'pr1', 'products', before[0]);
+  await settle();
+
+  const after = proj(a, 'pr1').products;
+  notOk(after.indexOf(before[0]) >= 0, 'the one clicked is off');
+  eq(after.length, before.length - 1, 'and nothing else moved');
+});
+
+test('Chemistries and resources are separate lists', async () => {
+  const a = await app();
+  pick(a, 'pr1', 'chemistries', 'Epoxy');
+  await settle();
+
+  const p = proj(a, 'pr1');
+  ok(p.chemistries.indexOf('Epoxy') >= 0, 'chemistry added');
+  notOk((p.resources || []).indexOf('Epoxy') >= 0, 'and not to resources');
+  notOk((p.products || []).indexOf('Epoxy') >= 0, 'nor to products');
+});
+
+test('A field name that is not one of the three is refused', async () => {
+  // data-f comes off the page, so it is worth not trusting. Without the guard this
+  // writes an arbitrary key onto the project - here, one that would cancel it.
+  const a = await app();
+  pick(a, 'pr1', 'status', 'cancelled');
+  await settle();
+
+  eq(proj(a, 'pr1').status, 'on', 'the project is untouched');
+});
+
+test('Picking on a project that is not there does nothing', async () => {
+  const a = await app();
+  pick(a, 'no-such-project', 'products', 'Demo-Seal HT');
+  await settle();
+  ok(true, 'did not throw');
+});
+
+group('Only the value is restricted');
+
+test('Confidence writes to the project, not the restricted list', async () => {
+  const a = await app();
+  a.H.edits.pdWin(/** @type {any} */ ({ dataset: { id: 'pr1' }, value: '80' }));
+  await settle();
+
+  eq(proj(a, 'pr1').winPct, 80);
+  const d = a.snap().projectDetails.find(function (x) { return x.id === 'pr1'; });
+  notOk(d && 'winPct' in d, 'nothing landed on the restricted record');
+});
+
+test('Why we win writes to the project too', async () => {
+  const a = await app();
+  a.H.edits.pdReason(/** @type {any} */ ({ dataset: { id: 'pr1' }, value: 'Best data' }));
+  await settle();
+
+  eq(proj(a, 'pr1').winReason, 'Best data');
+});
+
+test('The value still writes to the restricted list, and only there', async () => {
+  const a = await app();
+  a.H.edits.pdValue(/** @type {any} */ ({ dataset: { id: 'pr2' }, value: '42000' }));
+  await settle();
+
+  eq(a.snap().projectDetails.find(function (x) { return x.id === 'pr2'; }).estValue, 42000);
+  notOk('estValue' in proj(a, 'pr2'), 'and not onto the project');
+});
+
+group('Notes, through the handlers');
+
+test('Adding a note stamps the author and the time', async () => {
+  const a = await app({ asPerson: 'p3' });
+  a.H.forms.note(fields([['text', '  Supplier sent the data sheets  ']]),
+    /** @type {any} */ ({ dataset: { id: 'pr1' } }));
+  await settle();
+
+  const mine = a.snap().projectNotes.filter(function (n) { return n.authorId === 'p3'; });
+  eq(mine.length, 1);
+  eq(mine[0].text, 'Supplier sent the data sheets', 'trimmed');
+  eq(mine[0].projectId, 'pr1');
+  ok(/^\d{4}-\d{2}-\d{2}T/.test(mine[0].created), 'and timestamped');
+});
+
+test('An empty note is not written at all', async () => {
+  const a = await app();
+  const before = a.snap().projectNotes.length;
+  a.H.forms.note(fields([['text', '   ']]),
+    /** @type {any} */ ({ dataset: { id: 'pr1' } }));
+  await settle();
+  eq(a.snap().projectNotes.length, before, 'nothing added');
+});
+
+test('Only the author can remove a note, whatever the page offered', async () => {
+  // The view only draws Remove for the author, but the handler is reachable by
+  // anything that can dispatch an event, so the rule is checked there too.
+  const a = await app({ asPerson: 'p1' });
+  const theirs = a.snap().projectNotes.find(function (n) { return n.authorId === 'p2'; });
+  ok(theirs, 'p2 wrote one');
+
+  a.H.clicks.delNote(null, theirs.id);
+  await settle();
+  ok(a.snap().projectNotes.some(function (n) { return n.id === theirs.id; }),
+    'somebody else could not remove it');
+
+  const own = a.snap().projectNotes.find(function (n) { return n.authorId === 'p1'; });
+  a.H.clicks.delNote(null, own.id);
+  await settle();
+  notOk(a.snap().projectNotes.some(function (n) { return n.id === own.id; }),
+    'but the author could');
+});
+
+test('Nobody can remove a note once the project is finished', async () => {
+  const a = await app({ asPerson: 'p1' });
+  const own = a.snap().projectNotes.find(function (n) { return n.authorId === 'p1'; });
+  a.H.clicks.projStatus(null, own.projectId, 'done');
+  await settle();
+
+  a.H.clicks.delNote(null, own.id);
+  await settle();
+  ok(a.snap().projectNotes.some(function (n) { return n.id === own.id; }),
+    'the note survives, as the record of how it went');
+});
+
+test('Editing a note keeps its original time and stamps the change', async () => {
+  const a = await app({ asPerson: 'p1' });
+  const own = a.snap().projectNotes.find(function (n) { return n.authorId === 'p1'; });
+  const was = own.created;
+
+  a.H.forms.noteEdit(fields([['text', 'Rewritten']]),
+    /** @type {any} */ ({ dataset: { id: own.id } }));
+  await settle();
+
+  const after = a.snap().projectNotes.find(function (n) { return n.id === own.id; });
+  eq(after.text, 'Rewritten');
+  eq(after.created, was, 'still from when it was written');
+  ok(after.edited, 'and says it changed');
+});
+
+test('Somebody else cannot edit it either', async () => {
+  const a = await app({ asPerson: 'p1' });
+  const theirs = a.snap().projectNotes.find(function (n) { return n.authorId === 'p2'; });
+  const was = theirs.text;
+
+  a.H.forms.noteEdit(fields([['text', 'Not mine to change']]),
+    /** @type {any} */ ({ dataset: { id: theirs.id } }));
+  await settle();
+
+  eq(a.snap().projectNotes.find(function (n) { return n.id === theirs.id; }).text, was);
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

@@ -372,19 +372,25 @@ function projectRow(snap, ui, env, p, seeDetails) {
     '<button class="x edit-only" type="button" data-act="delProject" data-id="' + esc(p.id) +
     '" aria-label="Remove project"' + dis(env) + '>×</button>' +
     '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' + status + '</div>' +
-    (seeDetails ? projectDetailsPanel(snap, ui, env, p) : '') +
+    projectDetailsPanel(snap, ui, env, p, seeDetails) +
     '</li>';
 }
 
 /**
- * The value and confidence panel.
+ * The commercial panel on a project's row in a meeting.
  *
- * Rendered only when the data actually arrived. These fields live on their own
- * permissioned SharePoint list, so somebody without access never receives them —
- * the panel is absent because there is nothing to draw, not because the browser
- * decided to hide it. That is the difference between hiding and protecting.
+ * Only the dollar value is restricted. It lives on its own permissioned SharePoint
+ * list, so somebody without access never receives it — that row is absent because
+ * there is nothing to draw, not because the browser decided to hide it. That is the
+ * difference between hiding a number and protecting it.
+ *
+ * Confidence and why-we-win sit on the project itself and are shown to everyone.
+ * They were restricted until it was pointed out that the value is the only part
+ * that needs protecting, and hiding the rest merely stopped the team discussing it.
+ *
+ * @param {boolean} seeValue - did the restricted collection arrive?
  */
-function projectDetailsPanel(snap, ui, env, p) {
+function projectDetailsPanel(snap, ui, env, p, seeValue) {
   const d = byId(snap.projectDetails, p.id) || {};
   // Whether this was open is remembered, because a render can happen at any moment -
   // the background poll alone would otherwise shut the panel every minute while
@@ -393,16 +399,19 @@ function projectDetailsPanel(snap, ui, env, p) {
   return '<details class="dtl" data-details="' + esc(p.id) + '"' + (isOpen ? ' open' : '') +
     '><summary class="lbl">Project details</summary>' +
     '<div class="sgrid">' +
-    '<label class="lbl">Estimated value' +
-    '<input class="fld" type="number" data-edit="pdValue" data-id="' + esc(p.id) + '" value="' +
-    esc(d.estValue == null ? '' : d.estValue) + '"' + dis(env) + '></label>' +
-    '<label class="lbl">Confidence %' +
-    '<input class="fld" type="number" min="0" max="100" data-edit="pdWin" data-id="' + esc(p.id) + '" value="' +
-    esc(d.winPct == null ? '' : d.winPct) + '"' + dis(env) + '></label>' +
+    (seeValue
+      ? '<label class="lbl">Annual value' +
+        '<input class="fld n" type="number" data-edit="pdValue" data-id="' + esc(p.id) +
+        '" value="' + esc(d.estValue == null ? '' : d.estValue) + '"' + dis(env) + '></label>'
+      : '') +
+    '<label class="lbl">Win confidence %' +
+    '<input class="fld n" type="number" min="0" max="100" data-edit="pdWin" data-id="' +
+    esc(p.id) + '" value="' + esc(p.winPct == null ? '' : p.winPct) + '"' + dis(env) +
+    '></label>' +
     '</div>' +
     '<label class="lbl">Why we win' +
     '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) + '"' + dis(env) + '>' +
-    esc(d.winReason || '') + '</textarea></label></details>';
+    esc(p.winReason || '') + '</textarea></label></details>';
 }
 
 /* --- 3: Issues --- */

@@ -268,10 +268,20 @@ something that does not exist cannot be right.
 
 ---
 
-## 13. The project-details gate asks whether the data arrived
+## 13. Only the dollar value is restricted, and the gate asks whether it arrived
 
-Estimated value, confidence and why-we-win live in `projectDetails`, on their own
-SharePoint list with its own permissions. Somebody refused that list gets a **403**,
+**What is restricted is deliberately narrow: `estValue`, and nothing else.**
+Confidence, why-we-win, product selection, chemistries and resources all live on the
+project and are shown to everyone who can see the project at all.
+
+They did not start that way — all of them were in `projectDetails` — and the reason
+for moving them back is worth keeping: everything on that list disappears together
+for anyone refused it, so each field held there is one the team loses the ability to
+discuss. Confidence is a thing a meeting talks about. The dollar figure is the part
+that needs protecting.
+
+The value lives in `projectDetails`, on its own SharePoint list with its own
+permissions. Somebody refused that list gets a **403**,
 which `graphAdapter.load()` turns into an **empty collection plus an entry in
 `snap.denied`** — the rest of the board loads normally.
 
@@ -290,8 +300,15 @@ noticed.
 The difference this encodes: a panel that is absent **because nothing was sent**, not
 one the browser merely chose not to draw. Client-side hiding is never a control.
 
-The same gate governs **Copy summary** on the project page. Otherwise the button would
-hand out in plain text precisely what the page withheld.
+The same gate governs the value in **Copy summary** on the project page. Otherwise
+the button would hand out in plain text precisely what the page withheld. The rest of
+the commercial section travels with the summary either way, because it is not
+restricted.
+
+A refused reader sees the Commercial panel with a line saying the value is kept to
+the people who have access to it, rather than a row that is silently missing. That
+reveals only that projects have values, which is not a secret, and it is better than
+a gap nobody can account for.
 
 ---
 
@@ -342,3 +359,7 @@ extraction is finished.
   `Array.isArray(snap.projectDetails)`, which a refused reader also passes — see rule
   13. Both the meeting view and the project page now ask `detailsArrived(snap)`, and
   a test pins each. Found while building the project page, not by anyone using it.
+- **`resources` and `chemistries` were stored but editable nowhere.** The meeting row
+  never offered them and the project page only printed them, so since the split they
+  could be read and never set. The project page now has a picker for both, and for
+  `products`.

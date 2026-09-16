@@ -288,6 +288,32 @@ export function createHandlers(app) {
 
     delChem: function (el, id, v) { removeFromList('chemistries', v); },
     delResource: function (el, id, v) { removeFromList('resources', v); },
+    delProduct: function (el, id, v) { removeFromList('products', v); },
+
+    /**
+     * Tick or untick one value in a project's products, chemistries or resources.
+     *
+     * The field name rides on `data-f` because `data-v` is already carrying the
+     * value. Not silent: these are chips, so the page has to redraw for the tick
+     * to appear, and there is no caret to lose.
+     */
+    projPick: function (el, id, v) {
+      const field = el.dataset.f;
+      if (['products', 'chemistries', 'resources'].indexOf(field) < 0) return;
+
+      const p = byId(store.snapshot().projects, id);
+      if (!p) return;
+
+      const chosen = (p[field] || []).slice();
+      const at = chosen.indexOf(v);
+      if (at >= 0) chosen.splice(at, 1);
+      else chosen.push(v);
+
+      const patch = {};
+      patch[field] = chosen;
+      store.update('projects', id, patch).then(render);
+      render();
+    },
 
     /* --- ratings and the summary --- */
 
@@ -402,9 +428,19 @@ export function createHandlers(app) {
 
     /* --- project details --- */
 
+    // The dollar value, and only the dollar value, goes to the restricted list.
     pdValue: function (el) { patchDetails(el, { estValue: numberOrNull(el.value) }); },
-    pdWin: function (el) { patchDetails(el, { winPct: numberOrNull(el.value) }); },
-    pdReason: function (el) { patchDetails(el, { winReason: el.value }); },
+
+    // Confidence and why-we-win are the team's, on the project itself. They were
+    // restricted until it was pointed out that the value is the only part anyone
+    // needs to protect, and hiding the rest just stopped people discussing them.
+    pdWin: function (el) {
+      store.update('projects', el.dataset.id,
+        { winPct: numberOrNull(el.value) }, { silent: true });
+    },
+    pdReason: function (el) {
+      store.update('projects', el.dataset.id, { winReason: el.value }, { silent: true });
+    },
 
     /* --- meeting settings --- */
 
@@ -654,7 +690,8 @@ export function createHandlers(app) {
     },
 
     chem: function (fd) { addToList('chemistries', fd); },
-    resource: function (fd) { addToList('resources', fd); }
+    resource: function (fd) { addToList('resources', fd); },
+    product: function (fd) { addToList('products', fd); }
   };
 
   function addToList(key, fd) {

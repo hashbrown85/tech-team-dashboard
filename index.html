@@ -57,6 +57,13 @@
   .pname-open:hover { text-decoration: underline; }
   .pfilter { margin-left: 2px; }
 
+  /* Chips that are buttons: the product / chemistry / resource pickers. `.pchip`
+     was only ever a span, so it has no pointer and no pressed feedback. `.m` and
+     `.o` already carry the chosen / not-chosen look. */
+  button.pchip { cursor: pointer; }
+  button.pchip:hover { border-color: var(--ink); }
+  button.pchip:disabled { cursor: not-allowed; opacity: .55; }
+
   /* `<details>` blocks (project details, closed actions) had no styling at all. */
   .dtl > summary { cursor: pointer; padding: 6px 0; }
   .dtl > summary:hover { color: var(--ink); }

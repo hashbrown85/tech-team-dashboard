@@ -305,7 +305,7 @@ test('The numbers are genuinely absent, not merely unrendered', async () => {
   // values never reach the browser at all.
   const seed = {};
   seed[SCHEMA.projectDetails.list] = [
-    toFields('projectDetails', 'pr1', { estValue: 999999, winPct: 80 })
+    toFields('projectDetails', 'pr1', { estValue: 999999 })
   ];
   const { adapter } = make({
     seed: seed,
@@ -549,9 +549,10 @@ test('Field mapping round-trips every collection', () => {
             members: ['p1'], support: [], optional: ['p2'] },
     entries: { tab: 't1', meeting: '2026-09-14', personId: 'p1', kind: 'loss',
                text: 'x', why: 'y', change: 'z' },
-    projects: { tab: 't1', personId: 'p1', name: 'P', status: 'off', rank: 1000 },
-    projectDetails: { estValue: 1000, winPct: 0, winReason: 'R',
-                      resources: ['Rheometer'], chemistries: [] },
+    projects: { tab: 't1', personId: 'p1', name: 'P', status: 'off', rank: 1000,
+                winPct: 0, winReason: 'R', products: ['Testex 12 clear'],
+                resources: ['Rheometer'], chemistries: [] },
+    projectDetails: { estValue: 1000 },
     issues: { tab: 't1', personId: 'p1', text: 'x', sev: 'stopper', status: 'resolved',
               meeting: '2026-09-14', rank: 0.5, autoResolved: true },
     actions: { num: 7, tab: 't1', text: 'x', owner: 'O', support: 'S', due: '2026-09-21',

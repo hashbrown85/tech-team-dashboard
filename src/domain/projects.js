@@ -252,14 +252,27 @@ export function projectSummary(snap, p, today, withValue) {
     L.push(p.mission);
   }
 
-  if (withValue && details && (details.estValue != null || details.winPct != null)) {
+  // Only the dollar figure is withheld. Confidence, why-we-win and the product
+  // selection are the team's and travel with the summary either way.
+  if (withValue && details && details.estValue != null) {
+    L.push('', 'VALUE');
+    L.push('• Estimated value: $' +
+      Math.round(Number(details.estValue)).toLocaleString('en-US') + ' per year');
+  }
+
+  if (p.winPct != null || p.winReason || (p.products && p.products.length)) {
     L.push('', 'COMMERCIAL');
-    if (details.estValue != null) {
-      L.push('\u2022 Estimated value: $' +
-        Math.round(Number(details.estValue)).toLocaleString('en-US') + ' per year');
+    if (p.winPct != null) L.push('• Win confidence: ' + p.winPct + '%');
+    if (p.winReason) L.push('• Why we win: ' + p.winReason);
+    if (p.products && p.products.length) {
+      L.push('• Product selection: ' + p.products.join(', '));
     }
-    if (details.winPct != null) L.push('\u2022 Confidence: ' + details.winPct + '%');
-    if (details.winReason) L.push('\u2022 Why we win: ' + details.winReason);
+    if (p.chemistries && p.chemistries.length) {
+      L.push('• Chemistries: ' + p.chemistries.join(', '));
+    }
+    if (p.resources && p.resources.length) {
+      L.push('• Resources: ' + p.resources.join(', '));
+    }
   }
 
   sec('Open actions', open.map(function (a) {

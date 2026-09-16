@@ -607,10 +607,14 @@ test('The project name opens the project, and filtering is still reachable', () 
   ok(/data-act="selectProject"/.test(html), 'the rail filter is still there');
 });
 
-test('The meeting view hides project details when that list was refused', () => {
-  // This was a live defect: the gate was `Array.isArray(snap.projectDetails)`, and a
-  // refused reader gets an EMPTY ARRAY plus a note in snap.denied - so the array is
-  // always there and the panel was drawn for everybody, editable, on every project.
+test('The meeting view hides the VALUE when that list was refused, and nothing else', () => {
+  // The gate was `Array.isArray(snap.projectDetails)`, and a refused reader gets an
+  // EMPTY ARRAY plus a note in snap.denied - so the array is always there and the
+  // panel was drawn for everybody, editable, on every project.
+  //
+  // What it protects is now narrower on purpose: only the dollar value. Confidence
+  // and why-we-win sit on the project and stay visible, because hiding those stopped
+  // the team discussing them and protected nothing worth protecting.
   const refused = demoBoard();
   refused.denied = ['projectDetails'];
   const html = renderApp(refused, Object.assign({}, base, {
@@ -618,11 +622,24 @@ test('The meeting view hides project details when that list was refused', () => 
   }), { today: today(), modes: MODES });
 
   notOk(/data-edit="pdValue"/.test(html), 'no value field');
-  notOk(/data-edit="pdWin"/.test(html), 'no confidence field');
-  notOk(html.indexOf('Project details') > 0, 'and no panel at all');
+  notOk(html.indexOf('Annual value') > 0, 'nor its label');
+  ok(/data-edit="pdWin"/.test(html), 'but confidence is still there');
+  ok(/data-edit="pdReason"/.test(html), 'and why we win');
 });
 
-test('And shows them when the list did arrive', () => {
+test('The value never reaches a refused meeting view at all', () => {
+  const refused = demoBoard();
+  const value = refused.projectDetails.find(function (d) { return d.id === 'pr1'; }).estValue;
+  refused.denied = ['projectDetails'];
+  refused.projectDetails = [];   // as the adapter really hands it back
+  const html = renderApp(refused, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 2 }
+  }), { today: today(), modes: MODES });
+
+  notOk(html.indexOf(String(value)) > 0, 'the number is not in the HTML');
+});
+
+test('And the value field is there when the list did arrive', () => {
   const html = projectsStage();
   ok(/data-edit="pdValue"/.test(html));
 });

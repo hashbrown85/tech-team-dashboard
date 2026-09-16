@@ -130,17 +130,16 @@ export function renderProject(snap, ui, env, p) {
       acts.length ? (acts.length - open.length) + ' closed' : 'none yet') +
     kpi(overdue.length ? 'crit' : 'good', overdue.length, 'Overdue',
       overdue.length ? 'past their date' : 'nothing late') +
+    // Only the value slot is conditional. Confidence sits on the project and is
+    // shown to everyone, so it keeps its place either way.
     (canSeeCommercial
-      ? kpi('',
-          details && details.estValue != null ? moneyShort(details.estValue) : '—',
-          'Annual value', 'dollars per year') +
-        kpi('',
-          details && details.winPct != null ? details.winPct + '%' : '—',
-          'Win confidence', 'how likely we are to land it')
+      ? kpi('', details && details.estValue != null ? moneyShort(details.estValue) : '—',
+          'Annual value', 'dollars per year')
       : kpi(daysInStatus != null && daysInStatus > 60 ? 'warn' : '',
           daysInStatus == null ? '—' : daysInStatus, 'Days in status',
-          STATUS_LABELS[p.status] || p.status) +
-        kpi('', nextDue ? fmt(nextDue) : '—', 'Next due', 'the soonest action')) +
+          STATUS_LABELS[p.status] || p.status)) +
+    kpi('', p.winPct != null ? p.winPct + '%' : '—',
+      'Win confidence', 'how likely we are to land it') +
     '</section>';
 
   /* --------------------------------------------------- status, dates, origin */
@@ -196,29 +195,41 @@ export function renderProject(snap, ui, env, p) {
 
   /* -------------------------------------------------------------- commercial */
 
-  const commercial = canSeeCommercial
-    ? '<section class="panel"><div class="pan-h"><h2>Commercial</h2>' +
-      '<span class="sub">Restricted — not everyone sees this</span></div>' +
-      row('Estimated value',
-        '<input class="fld pnum" type="number" step="1000" value="' +
+  /*
+   * One panel, two permission levels.
+   *
+   * The dollar value comes from the restricted list and may simply not be here.
+   * Everything else - confidence, why we win, products, chemistries, resources -
+   * lives on the project and is the team's. Those were all restricted until it was
+   * pointed out that the value is the only part anyone needs to protect, and hiding
+   * the rest merely stopped people discussing their own projects.
+   *
+   * A refused reader gets a line saying the value is restricted rather than a gap.
+   * That is not a leak: it reveals that projects have values, which they plainly do.
+   * It is better than a missing row nobody can account for.
+   */
+  const commercial = '<section class="panel"><div class="pan-h"><h2>Commercial</h2>' +
+    '<span class="sub">Only the annual value is restricted</span></div>' +
+    row('Annual value', canSeeCommercial
+      ? '<input class="fld pnum" type="number" step="1000" value="' +
         esc(details && details.estValue != null ? details.estValue : '') +
-        '" data-edit="pdValue" data-id="' + esc(p.id) + '" aria-label="Estimated value"' +
-        dis(env) + '><span class="why">Dollars per year</span>') +
-      row('Confidence',
-        '<input class="fld pnum" type="number" min="0" max="100" value="' +
-        esc(details && details.winPct != null ? details.winPct : '') +
-        '" data-edit="pdWin" data-id="' + esc(p.id) + '" aria-label="Confidence percent"' +
-        dis(env) + '><span class="why">Per cent</span>') +
-      row('Why we win',
-        '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
-        '" placeholder="What makes this ours to lose."' + dis(env) + '>' +
-        esc((details && details.winReason) || '') + '</textarea>') +
-      (details && details.chemistries && details.chemistries.length
-        ? row('Chemistries', chips(details.chemistries)) : '') +
-      (details && details.resources && details.resources.length
-        ? row('Resources', chips(details.resources)) : '') +
-      '</section>'
-    : '';
+        '" data-edit="pdValue" data-id="' + esc(p.id) + '" aria-label="Annual value"' +
+        dis(env) + '><span class="why">Dollars per year</span>'
+      : '<span class="why">Not shown — project value is kept to the people who ' +
+        'have access to it.</span>') +
+    row('Win confidence',
+      '<input class="fld pnum" type="number" min="0" max="100" value="' +
+      esc(p.winPct == null ? '' : p.winPct) +
+      '" data-edit="pdWin" data-id="' + esc(p.id) + '" aria-label="Win confidence percent"' +
+      dis(env) + '><span class="why">Per cent</span>') +
+    row('Why we win',
+      '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
+      '" placeholder="What makes this ours to lose."' + dis(env) + '>' +
+      esc(p.winReason || '') + '</textarea>') +
+    picker(snap, env, p, 'products', 'Product selection') +
+    picker(snap, env, p, 'chemistries', 'Chemistries') +
+    picker(snap, env, p, 'resources', 'Resources') +
+    '</section>';
 
   /* ----------------------------------------------------------------- actions */
 
@@ -251,10 +262,36 @@ function row(label, body) {
     '<div class="rp-b">' + body + '</div></div>';
 }
 
-function chips(values) {
-  return '<div class="mchips">' + values.map(function (v) {
-    return '<span class="pchip">' + esc(v) + '</span>';
-  }).join('') + '</div>';
+/**
+ * Tick-list of one of the project's multi-value fields, as chips.
+ *
+ * These three fields have been stored since the split but were editable nowhere -
+ * the meeting row never offered them and the project page only printed them. So
+ * this is the first place any of them can actually be set.
+ *
+ * `.pchip.m` is the filled chip and `.pchip.o` the dashed one, both already in the
+ * stylesheet, so chosen and not-chosen read differently without new colours.
+ *
+ * The options come from `settings`. For products that row stands in for a list that
+ * really lives in Dataverse; swapping the source later changes nothing here,
+ * because the project stores the chosen values either way.
+ */
+function picker(snap, env, p, field, label) {
+  const chosen = p[field] || [];
+  const options = (snap.settings[field] && snap.settings[field].items) || [];
+
+  if (!options.length) {
+    return row(label, '<span class="why">Nothing in this list yet — it is ' +
+      'maintained on the People &amp; settings screen.</span>');
+  }
+
+  return row(label, '<div class="mchips">' + options.map(function (v) {
+    const on = chosen.indexOf(v) >= 0;
+    return '<button type="button" class="pchip ' + (on ? 'm' : 'o') +
+      '" data-act="projPick" data-id="' + esc(p.id) + '" data-f="' + field +
+      '" data-v="' + esc(v) + '" aria-pressed="' + on + '"' + dis(env) + '>' +
+      esc(v) + '</button>';
+  }).join('') + '</div>');
 }
 
 /**

@@ -250,12 +250,14 @@ ADAPTERS.forEach(function (impl) {
 
   test('[' + impl.name + '] A number of zero survives as zero', async () => {
     const a = impl.make();
-    await a.set('projects', 'pr1', { tab: 't1', name: 'x', status: 'on', rank: 0 });
-    await a.set('projectDetails', 'pr1', { estValue: 0, winPct: 0 });
+    await a.set('projects', 'pr1', {
+      tab: 't1', name: 'x', status: 'on', rank: 0, winPct: 0
+    });
+    await a.set('projectDetails', 'pr1', { estValue: 0 });
 
     const snap = await a.load();
     eq(snap.projects[0].rank, 0, 'zero is a real value, not absence');
-    eq(snap.projectDetails[0].winPct, 0);
+    eq(snap.projects[0].winPct, 0, 'nor is a confidence of zero');
     eq(snap.projectDetails[0].estValue, 0);
   });
 
