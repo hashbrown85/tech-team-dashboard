@@ -500,6 +500,94 @@ test('An off-track project is labelled the same way in the queue', () => {
   notOk(html.indexOf('Off-track project') >= 0, 'the old hardcoded wording is gone');
 });
 
+group('The project status control shows what is selected');
+
+/*
+ * This was invisible. `.tgl` is a radio-group CONTAINER that styles input+label
+ * children; it was on each individual button. And `.sel` is not a class the
+ * stylesheet defines at all — so nothing marked the current status.
+ *
+ * The real control is `.stat`, whose colour rule matches on BOTH `data-v` and
+ * `aria-pressed="true"`. A button missing either attribute can never look selected,
+ * which is why these check the attributes rather than any styling.
+ */
+
+function projectsStage(uiOverrides) {
+  return render(Object.assign({ view: 'tab', tab: 't1', steps: { t1: 2 } }, uiOverrides || {}));
+}
+
+test('The status control is .stat, not a generic toggle group', () => {
+  const html = projectsStage();
+  ok(/<div class="stat" role="group"/.test(html), 'the control the stylesheet colours');
+  notOk(/seg-tgl[^>]*aria-label="Status/.test(html), 'not .seg-tgl');
+  notOk(/class="tgl[^"]*" data-act="projStatus"/.test(html), 'and not .tgl on each button');
+});
+
+test('Every status button carries both attributes the colour rule needs', () => {
+  // .stat button[aria-pressed="true"][data-v="on"] - miss either and it never
+  // looks selected, however correct the rest of the markup is.
+  const html = projectsStage();
+  const buttons = html.match(/<button[^>]*data-act="projStatus"[^>]*>/g) || [];
+
+  ok(buttons.length > 0, 'there are status buttons');
+  eq(buttons.filter(function (b) { return /data-v="/.test(b); }).length, buttons.length,
+    'all have data-v');
+  eq(buttons.filter(function (b) { return /aria-pressed="/.test(b); }).length, buttons.length,
+    'all have aria-pressed, true or false');
+});
+
+test('Exactly one button per project is pressed, and it is the current status', () => {
+  const html = projectsStage();
+  const row = /<li class="proj ps-([a-z]+)[\s\S]*?<\/li>/.exec(html);
+
+  ok(row, 'a project row is present');
+  const pressed = row[0].match(/data-v="([a-z]+)" aria-pressed="true"/g) || [];
+  eq(pressed.length, 1, 'one pressed, not none and not several');
+  eq(/data-v="([a-z]+)"/.exec(pressed[0])[1], row[1],
+    'and it is the status in the row class');
+});
+
+test('The row carries its status class, so the stylesheet can treat it', () => {
+  // .proj.ps-new gets a gold outline, .ps-cancelled is struck through, and so on.
+  const snap = demoBoard();
+  const html = renderApp(snap, Object.assign({}, base, {
+    view: 'tab', tab: 't1', steps: { t1: 2 }
+  }), { today: today(), modes: MODES });
+
+  ok(/class="proj ps-/.test(html), 'every row says what state it is in');
+});
+
+test('A selected project uses .sel, which the stylesheet defines', () => {
+  const html = projectsStage({ proj: 'pr1' });
+  ok(/class="proj ps-[a-z]+ sel"/.test(html), 'the highlight class the CSS has');
+  notOk(/psel/.test(html), 'not psel, which is for something else');
+});
+
+group('Person rows use the record-row layout');
+
+test('Each person is an .rp row with a heading and a body', () => {
+  // Previously `.block`, which the stylesheet does not define, wrapping `.pname`,
+  // which is the clickable project-name button.
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+
+  ok(/<div class="rp"><div class="rp-h">/.test(html), 'record row with a heading');
+  ok(/class="rp-b"/.test(html), 'and a body column');
+  notOk(/class="block"/.test(html), 'the undefined class is gone');
+});
+
+test('The heading shows the name and their title', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  const head = /<div class="rp-h">([\s\S]*?)<\/div>/.exec(html)[1];
+
+  ok(head.indexOf('<b>') >= 0, 'name in bold');
+  ok(head.indexOf('<span>') >= 0, 'title beside it');
+});
+
+test('.pname is used for the project name button, where it belongs', () => {
+  const html = projectsStage();
+  ok(/class="pname" data-act="selectProject"/.test(html));
+});
+
 group('Escaping');
 
 test('Board content is escaped, so a stray character cannot break the page', function () {

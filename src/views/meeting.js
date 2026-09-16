@@ -15,7 +15,7 @@
  */
 
 import { esc, clock, minutes } from '../lib/dom.js';
-import { fmt, fmtDay, fmtLong, rel, nextOn } from '../lib/dates.js';
+import { fmt, fmtDay, fmtLong, rel, nextOn, addDays } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
@@ -165,9 +165,22 @@ function renderStage(snap, ui, env, tab, step, d, ents, segs) {
   return stageHead(segs, step) + '<div class="stg-body">' + body + '</div>' + stageFoot(step, segs.length - 1);
 }
 
-/** A small "who is speaking" heading, used to walk round the room. */
+/**
+ * One person's turn, as the agenda goes round the room.
+ *
+ * `.rp` is the stylesheet's record row: a fixed-width heading column and a content
+ * column. `.rp-h` holds the name and their title, `.rp-b` everything they said.
+ *
+ * It previously used `.block`, which the stylesheet does not define at all, and
+ * `.pname`, which is the clickable PROJECT name button — so neither did anything
+ * like what was intended.
+ */
 function personBlock(snap, id, inner) {
-  return '<div class="block"><div class="pname">' + esc(personName(snap, id)) + '</div>' + inner + '</div>';
+  const p = person(snap, id);
+  return '<div class="rp"><div class="rp-h">' +
+    '<b>' + esc(personName(snap, id)) + '</b>' +
+    '<span>' + esc((p && p.title) || '') + '</span></div>' +
+    '<div class="rp-b">' + inner + '</div></div>';
 }
 
 /* --- 0: Wins & Losses --- */
@@ -279,29 +292,9 @@ function stageProjects(snap, ui, env, tab, d) {
     });
 
     const list = mine.length
-      ? mine.map(function (p) {
-          const buttons = STATUSES.map(function (v) {
-            return '<button type="button" class="tgl' + (p.status === v ? ' sel' : '') +
-              '" data-act="projStatus" data-id="' + esc(p.id) + '" data-v="' + v + '"' +
-              (p.status === v ? ' aria-pressed="true"' : '') + dis(env) + '>' +
-              STATUS_LABELS[v] + '</button>';
-          }).join('');
-
-          const acts = actsOf(snap, p.id);
-          const selected = ui.proj === p.id;
-
-          return '<div class="proj' + (selected ? ' psel' : '') + '" id="proj-' + esc(p.id) + '">' +
-            '<div class="rrow">' +
-            '<button type="button" class="linkbtn" data-act="selectProject" data-id="' + esc(p.id) + '">' +
-            esc(p.name) + '</button>' +
-            (p.due ? '<span class="duetag">' + fmt(p.due) + '</span>' : '') +
-            (acts.length ? '<span class="chip">' + acts.filter(isOpen).length + ' open</span>' : '') +
-            '</div>' +
-            '<div class="seg-tgl" role="group" aria-label="Status for ' + esc(p.name) + '">' + buttons + '</div>' +
-            (p.note ? '<p class="why">' + esc(p.note) + '</p>' : '') +
-            (seeDetails ? projectDetailsPanel(snap, ui, env, p) : '') +
-            '</div>';
-        }).join('')
+      ? '<ul class="items">' + mine.map(function (p) {
+          return projectRow(snap, ui, env, p, seeDetails);
+        }).join('') + '</ul>'
       : '<p class="none">No current projects.</p>';
 
     const formKey = 'pj:' + id;
@@ -317,6 +310,66 @@ function stageProjects(snap, ui, env, tab, d) {
   }).join('');
 
   return rows || '<p class="none">Add people to this meeting in Settings first.</p>';
+}
+
+/**
+ * One project in the Current Projects segment.
+ *
+ * The markup is dictated by the stylesheet, and getting it wrong is how the status
+ * control ended up invisible:
+ *
+ *   - `.proj` is the grid. It also needs `ps-<status>` for the per-status treatment
+ *     (a gold outline while new, struck through when cancelled) and `sel` — not
+ *     `psel` — when this project's actions are being shown in the rail.
+ *   - `.pname` is the clickable name button, holding `.it-t` and `.meta`.
+ *   - `.stat` is the status control: plain buttons, each carrying `data-v` and
+ *     `aria-pressed`. The colour of the selected status comes from a CSS rule that
+ *     matches on BOTH of those attributes, so a button that omits either simply
+ *     never looks selected.
+ *
+ * @param {Snapshot} snap
+ * @param {any} ui
+ * @param {any} env
+ * @param {any} p
+ * @param {boolean} seeDetails
+ */
+function projectRow(snap, ui, env, p, seeDetails) {
+  const open = openActsFor(snap, p.id);
+  const selected = ui.proj === p.id;
+
+  const meta =
+    (p.status === 'new'
+      ? '<span class="chip new">New</span> ' +
+        (p.fromOpp
+          ? 'From ' + (p.start ? fmt(addDays(p.start, -7)) : 'last week') +
+            '’s opportunities · set a status'
+          : 'Set a status') + ' · '
+      : '') +
+    (p.due ? 'Due <span class="mono">' + fmt(p.due) + '</span>' : 'No due date') +
+    ' · ' + (open ? open + ' open action' + (open > 1 ? 's' : '') : 'no open actions') +
+    (p.status === 'off'
+      ? (open ? ' · recovery underway' : ' · <b class="warnt">no path yet, in Issues</b>')
+      : '') +
+    (p.note ? '<br>Challenge: ' + esc(p.note) : '');
+
+  const status = STATUSES.map(function (v) {
+    return '<button type="button" data-act="projStatus" data-id="' + esc(p.id) +
+      '" data-v="' + v + '" aria-pressed="' + (p.status === v) + '"' + dis(env) + '>' +
+      STATUS_LABELS[v] + '</button>';
+  }).join('');
+
+  return '<li class="proj ps-' + esc(p.status) + (selected ? ' sel' : '') +
+    '" id="proj-' + esc(p.id) + '">' +
+    '<button type="button" class="pname" data-act="selectProject" data-id="' + esc(p.id) +
+    '" aria-pressed="' + selected + '" title="' +
+    (selected ? 'Show all actions' : 'Show only this project’s actions') + '">' +
+    '<span class="it-t">' + esc(p.name) + '</span>' +
+    '<span class="meta">' + meta + '</span></button>' +
+    '<button class="x edit-only" type="button" data-act="delProject" data-id="' + esc(p.id) +
+    '" aria-label="Remove project"' + dis(env) + '>×</button>' +
+    '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' + status + '</div>' +
+    (seeDetails ? projectDetailsPanel(snap, ui, env, p) : '') +
+    '</li>';
 }
 
 /**
