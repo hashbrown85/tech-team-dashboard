@@ -25,6 +25,7 @@ import { segmentsFor } from './domain/constants.js';
 import { byId } from './lib/seq.js';
 import { demoBoard } from './demo-data.js';
 import { identify } from './identity.js';
+import { renderPreservingForms } from './lib/formstate.js';
 
 /**
  * Work out which backing store to use, and sign in if it needs one.
@@ -129,11 +130,16 @@ export async function start(options) {
         ui.person = identity.person.name;
       }
 
-      root.innerHTML = renderApp(snap, ui, {
+      // NOT `root.innerHTML = ...`. What somebody has half-typed into a form exists
+      // only in the DOM - there is no record behind it yet - so replacing the HTML
+      // throws it away, and the 60-second idle poll then empties an open form
+      // mid-sentence for no reason the person typing can see.
+      renderPreservingForms(root, renderApp(snap, ui, {
         today: todayString(),
         modes: store.modes(),
         identity: identity
-      });
+      }), document.activeElement);
+
       saveUi(ui);
       tickTimer();
     } finally {

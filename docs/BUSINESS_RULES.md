@@ -361,6 +361,17 @@ extraction is finished.
 
 ### Fixed since
 
+- **An open form emptied itself mid-entry.** The board reloads and redraws every 60
+  seconds (`IDLE_POLL_MS`), and again whenever the window regains focus. `draw()`
+  replaced the page with `root.innerHTML = ...`, and anything typed into a form that
+  had not been submitted lived *only* in the DOM — so it went. Reported against the
+  new-opportunity form, which is the first one long enough to reliably outlast a
+  minute; every other form had the same hole and it just rarely showed. Fields
+  carrying `data-edit` were never affected, because they write on change and the
+  next render puts them back from the store. Fixed by `renderPreservingForms` in
+  `src/lib/formstate.js`, which reads the open forms before the replace and puts
+  them back after, caret included.
+
 - **The Project Details panel was shown to everyone.** The gate was
   `Array.isArray(snap.projectDetails)`, which a refused reader also passes — see rule
   13. Both the meeting view and the project page now ask `detailsArrived(snap)`, and
