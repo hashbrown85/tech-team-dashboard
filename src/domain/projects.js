@@ -259,11 +259,6 @@ export function projectSummary(snap, p, today, withValue) {
         Math.round(Number(details.estValue)).toLocaleString('en-US') + ' per year');
     }
     if (details.winPct != null) L.push('\u2022 Confidence: ' + details.winPct + '%');
-    if (details.estValue != null && details.winPct != null) {
-      L.push('\u2022 Weighted: $' +
-        Math.round(Number(details.estValue) * Number(details.winPct) / 100)
-          .toLocaleString('en-US'));
-    }
     if (details.winReason) L.push('\u2022 Why we win: ' + details.winReason);
   }
 

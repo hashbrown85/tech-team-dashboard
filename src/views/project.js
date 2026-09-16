@@ -46,12 +46,6 @@ function dis(env) {
   return env.areaReadonly ? ' disabled' : '';
 }
 
-/** Money in full, grouped: 180000 -> "$180,000". */
-export function money(n) {
-  if (n == null || n === '' || isNaN(Number(n))) return '—';
-  return '$' + Math.round(Number(n)).toLocaleString('en-US');
-}
-
 /**
  * Money abbreviated, for the KPI strip: 180000 -> "$180k", 1250000 -> "$1.2M".
  *
@@ -87,10 +81,6 @@ export function renderProject(snap, ui, env, p) {
   const open = acts.filter(isOpen);
   const overdue = open.filter(function (a) { return isOverdue(a, today); });
 
-  const weighted = details && details.estValue != null && details.winPct != null
-    ? Number(details.estValue) * (Number(details.winPct) / 100)
-    : null;
-
   /* ------------------------------------------------------------------ header */
 
   const sub = (p.customer ? '<b>' + esc(p.customer) + '</b> · ' : '') +
@@ -121,18 +111,36 @@ export function renderProject(snap, ui, env, p) {
     .map(function (a) { return a.due; })
     .sort()[0];
 
+  /*
+   * `.kpis` is `repeat(4, minmax(0,1fr))` - four slots, no more. A fifth stat does
+   * not error, it wraps onto a second row and leaves three empty cells.
+   *
+   * Value and confidence are shown SEPARATELY and never multiplied together here.
+   * The product of dollars and a percentage is not dollars, and printing it with a
+   * $ in front invites somebody to add a column of them up and quote the total as
+   * money. Whoever wants a risk-adjusted pipeline figure can weight it themselves,
+   * in the roll-up where the convention can be stated once - see Power BI report 8
+   * in the port plan.
+   *
+   * Days in status loses its slot to them: the Status panel header a few lines below
+   * already says "34 days as off track", so nothing is actually lost.
+   */
   const numbers = '<section class="kpis" aria-label="At a glance">' +
     kpi('', open.length, 'Open actions',
       acts.length ? (acts.length - open.length) + ' closed' : 'none yet') +
     kpi(overdue.length ? 'crit' : 'good', overdue.length, 'Overdue',
       overdue.length ? 'past their date' : 'nothing late') +
-    kpi(daysInStatus != null && daysInStatus > 60 ? 'warn' : '',
-      daysInStatus == null ? '—' : daysInStatus, 'Days in status',
-      STATUS_LABELS[p.status] || p.status) +
     (canSeeCommercial
-      ? kpi('', weighted == null ? '—' : moneyShort(weighted), 'Weighted value',
-          'value × confidence')
-      : kpi('', nextDue ? fmt(nextDue) : '—', 'Next due', 'the soonest action')) +
+      ? kpi('',
+          details && details.estValue != null ? moneyShort(details.estValue) : '—',
+          'Annual value', 'dollars per year') +
+        kpi('',
+          details && details.winPct != null ? details.winPct + '%' : '—',
+          'Win confidence', 'how likely we are to land it')
+      : kpi(daysInStatus != null && daysInStatus > 60 ? 'warn' : '',
+          daysInStatus == null ? '—' : daysInStatus, 'Days in status',
+          STATUS_LABELS[p.status] || p.status) +
+        kpi('', nextDue ? fmt(nextDue) : '—', 'Next due', 'the soonest action')) +
     '</section>';
 
   /* --------------------------------------------------- status, dates, origin */
@@ -200,8 +208,7 @@ export function renderProject(snap, ui, env, p) {
         '<input class="fld pnum" type="number" min="0" max="100" value="' +
         esc(details && details.winPct != null ? details.winPct : '') +
         '" data-edit="pdWin" data-id="' + esc(p.id) + '" aria-label="Confidence percent"' +
-        dis(env) + '><span class="why">Per cent' +
-        (weighted != null ? ' · weighted ' + money(weighted) : '') + '</span>') +
+        dis(env) + '><span class="why">Per cent</span>') +
       row('Why we win',
         '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
         '" placeholder="What makes this ours to lose."' + dis(env) + '>' +

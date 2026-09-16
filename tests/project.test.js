@@ -21,7 +21,7 @@
 
 import { group, test, ok, notOk, eq } from './harness.js';
 import { renderApp } from '../src/views/render.js';
-import { money, moneyShort } from '../src/views/project.js';
+import { moneyShort } from '../src/views/project.js';
 import { projectSummary } from '../src/domain/projects.js';
 import { demoBoard } from '../src/demo-data.js';
 import { loadUi } from '../src/ui.js';
@@ -158,14 +158,58 @@ test('The numbers themselves never reach a refused page', () => {
   notOk(html.indexOf(String(value)) > 0, 'the estimated value is not in the HTML');
 });
 
-test('Weighted value is value times confidence', () => {
+test('Value and confidence are shown separately, never multiplied', () => {
+  // The product of dollars and a percentage is not dollars. Printing "$175,000" for
+  // 250k at 70% invites somebody to add a column of them up and quote the total as
+  // money. Anyone wanting a risk-adjusted pipeline number can weight it in the
+  // roll-up, where the convention gets stated once.
   const snap = demoBoard();
   const d = snap.projectDetails.find(function (x) { return x.id === 'pr1'; });
   d.estValue = 250000;
   d.winPct = 70;
   const html = page('pr1', { snap: snap });
 
-  ok(html.indexOf(money(175000)) > 0, 'shows ' + money(175000));
+  ok(html.indexOf('Annual value') > 0, 'the dollars, on their own');
+  ok(html.indexOf('$250k') > 0, 'abbreviated to fit the KPI cell');
+  ok(html.indexOf('Win confidence') > 0, 'the percentage, on its own');
+  ok(html.indexOf('>70%<') > 0, 'shown as a percentage');
+
+  notOk(html.indexOf('175,000') > 0, 'and no weighted dollar figure');
+  notOk(html.indexOf('$175k') > 0, 'not abbreviated either');
+  notOk(html.indexOf('Weighted') > 0, 'nor the label');
+});
+
+test('The copy summary carries no weighted figure either', () => {
+  const snap = demoBoard();
+  const d = snap.projectDetails.find(function (x) { return x.id === 'pr1'; });
+  d.estValue = 250000;
+  d.winPct = 70;
+  const text = projectSummary(snap, project(snap, 'pr1'), TODAY, true);
+
+  ok(text.indexOf('250,000') >= 0, 'the value is there');
+  ok(text.indexOf('70%') >= 0, 'and the confidence');
+  notOk(text.indexOf('175,000') >= 0, 'but not the product of them');
+  notOk(text.indexOf('Weighted') >= 0, 'nor the label');
+});
+
+test('The strip shows the four stats its grid has room for, and no more', () => {
+  // `.kpis` is repeat(4, minmax(0,1fr)). A fifth does not error - it wraps onto a
+  // second row and leaves three empty cells.
+  eq((page('pr1').match(/<div class="kpi /g) || []).length, 4, 'with commercial access');
+  const snap = demoBoard();
+  snap.denied = ['projectDetails'];
+  eq((page('pr1', { snap: snap }).match(/<div class="kpi /g) || []).length, 4, 'without');
+});
+
+test('Without commercial access the strip falls back to dates, not blanks', () => {
+  const snap = demoBoard();
+  snap.denied = ['projectDetails'];
+  const html = page('pr2', { snap: snap });
+
+  notOk(html.indexOf('Annual value') > 0, 'no value stat');
+  notOk(html.indexOf('Win confidence') > 0, 'no confidence stat');
+  ok(html.indexOf('Days in status') > 0, 'days in status takes the slot back');
+  ok(html.indexOf('Next due') > 0, 'and the next date');
 });
 
 test('Money is abbreviated in the KPI strip and written out in the row', () => {
@@ -174,8 +218,7 @@ test('Money is abbreviated in the KPI strip and written out in the row', () => {
   eq(moneyShort(1250000), '$1.3M');
   eq(moneyShort(1000000), '$1M', 'no trailing .0');
   eq(moneyShort(940), '$940');
-  eq(money(180000), '$180,000');
-  eq(money(null), '—', 'nothing to show reads as a dash, not NaN');
+  eq(moneyShort(null), '—', 'nothing to show reads as a dash, not NaN');
   eq(moneyShort(undefined), '—');
 });
 
@@ -280,15 +323,28 @@ group('The rest of the page');
 
 test('Days in status is counted, and never negative', () => {
   // Meetings are routinely viewed a week or two ahead of today, so the date a status
-  // was set really can be in the future. "-14 days in status" helps nobody - this is
-  // the same mistake that put work due in three days into "Already Owed".
+  // was set really can be in the future. "-14 days as on track" helps nobody - the
+  // same mistake that put work due in three days into "Already Owed".
+  //
+  // It reads in the Status panel header rather than the KPI strip, which only has
+  // four slots and gives two of them to value and confidence.
   const snap = demoBoard();
   project(snap, 'pr1').statusMeeting = addDays(TODAY, 14);
   const html = page('pr1', { snap: snap });
 
-  ok(html.indexOf('Days in status') > 0, 'the number is on the page');
-  notOk(/>-\d+</.test(html), 'and a meeting in the future does not make it negative');
-  ok(/<span class="n">0<\/span>/.test(html), 'it reads zero instead');
+  ok(/\d+ days as /.test(html), 'the count is on the page');
+  notOk(/-\d+ days as /.test(html), 'a meeting in the future does not make it negative');
+  ok(html.indexOf('0 days as ') > 0, 'it reads zero instead');
+});
+
+test('Days in status is still counted when it is a KPI', () => {
+  const snap = demoBoard();
+  snap.denied = ['projectDetails'];
+  project(snap, 'pr1').statusMeeting = addDays(TODAY, 14);
+  const html = page('pr1', { snap: snap });
+
+  ok(html.indexOf('Days in status') > 0, 'the stat is there');
+  notOk(/<span class="n">-\d+<\/span>/.test(html), 'and not negative there either');
 });
 
 test('A project raised as an opportunity says where it came from', () => {
