@@ -239,21 +239,28 @@ test('Walking every agenda step leaves the app renderable', async () => {
 
 group('Picking products, chemistries and resources');
 
-/** Fire the picker the way a click on a chip does. */
-function pick(a, projectId, field, value) {
-  a.H.clicks.projPick(/** @type {any} */ ({ dataset: { f: field } }), projectId, value);
+/** Choose something from one of the dropdowns. */
+function add(a, projectId, field, value) {
+  a.H.edits.projAdd(/** @type {any} */ ({
+    dataset: { f: field, id: projectId }, value: value
+  }));
+}
+
+/** Click the x on a chosen chip. */
+function drop(a, projectId, field, value) {
+  a.H.clicks.projDrop(/** @type {any} */ ({ dataset: { f: field } }), projectId, value);
 }
 
 function proj(a, id) {
   return a.snap().projects.find(function (p) { return p.id === id; });
 }
 
-test('Picking a value adds it without disturbing the others', async () => {
+test('Choosing a product adds it without disturbing the others', async () => {
   const a = await app();
   const before = (proj(a, 'pr1').products || []).slice();
   ok(before.length >= 2, 'pr1 starts with a couple');
 
-  pick(a, 'pr1', 'products', 'Demo-Seal HT');
+  add(a, 'pr1', 'products', 'Demo-Seal HT');
   await settle();
 
   const after = proj(a, 'pr1').products;
@@ -262,11 +269,23 @@ test('Picking a value adds it without disturbing the others', async () => {
   eq(after.length, before.length + 1, 'exactly one added');
 });
 
-test('Picking a chosen value takes it off again, and only it', async () => {
+test('The placeholder option adds nothing', async () => {
+  // The dropdown sits at "+ Add a product" until something is picked, and that
+  // fires a change of its own in some browsers.
+  const a = await app();
+  const before = (proj(a, 'pr1').products || []).slice();
+
+  add(a, 'pr1', 'products', '');
+  await settle();
+
+  eq(proj(a, 'pr1').products, before, 'untouched');
+});
+
+test('Removing a chip takes off that one and only that one', async () => {
   const a = await app();
   const before = proj(a, 'pr1').products.slice();
 
-  pick(a, 'pr1', 'products', before[0]);
+  drop(a, 'pr1', 'products', before[0]);
   await settle();
 
   const after = proj(a, 'pr1').products;
@@ -274,9 +293,31 @@ test('Picking a chosen value takes it off again, and only it', async () => {
   eq(after.length, before.length - 1, 'and nothing else moved');
 });
 
+test('Adding something already chosen changes nothing', async () => {
+  // The dropdown only offers what is not yet chosen, so this is unreachable from
+  // the page - but add must not quietly toggle if it is reached another way.
+  const a = await app();
+  const before = proj(a, 'pr1').products.slice();
+
+  add(a, 'pr1', 'products', before[0]);
+  await settle();
+
+  eq(proj(a, 'pr1').products, before, 'still there, not removed');
+});
+
+test('Removing something that is not chosen changes nothing', async () => {
+  const a = await app();
+  const before = proj(a, 'pr1').products.slice();
+
+  drop(a, 'pr1', 'products', 'Demo-Seal HT');
+  await settle();
+
+  eq(proj(a, 'pr1').products, before);
+});
+
 test('Chemistries and resources are separate lists', async () => {
   const a = await app();
-  pick(a, 'pr1', 'chemistries', 'Epoxy');
+  add(a, 'pr1', 'chemistries', 'Epoxy');
   await settle();
 
   const p = proj(a, 'pr1');
@@ -289,7 +330,7 @@ test('A field name that is not one of the three is refused', async () => {
   // data-f comes off the page, so it is worth not trusting. Without the guard this
   // writes an arbitrary key onto the project - here, one that would cancel it.
   const a = await app();
-  pick(a, 'pr1', 'status', 'cancelled');
+  add(a, 'pr1', 'status', 'cancelled');
   await settle();
 
   eq(proj(a, 'pr1').status, 'on', 'the project is untouched');
@@ -297,7 +338,7 @@ test('A field name that is not one of the three is refused', async () => {
 
 test('Picking on a project that is not there does nothing', async () => {
   const a = await app();
-  pick(a, 'no-such-project', 'products', 'Demo-Seal HT');
+  add(a, 'no-such-project', 'products', 'Demo-Seal HT');
   await settle();
   ok(true, 'did not throw');
 });

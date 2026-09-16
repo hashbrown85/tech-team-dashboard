@@ -57,12 +57,13 @@
   .pname-open:hover { text-decoration: underline; }
   .pfilter { margin-left: 2px; }
 
-  /* Chips that are buttons: the product / chemistry / resource pickers. `.pchip`
-     was only ever a span, so it has no pointer and no pressed feedback. `.m` and
-     `.o` already carry the chosen / not-chosen look. */
-  button.pchip { cursor: pointer; }
-  button.pchip:hover { border-color: var(--ink); }
-  button.pchip:disabled { cursor: not-allowed; opacity: .55; }
+  /* The x on a chip. `.x` is a 26px control sized for a list row, which makes a
+     chip half again as tall as it needs to be. This also tidies the same chips on
+     the People & settings screen, which had the problem first. */
+  .pchip .x {
+    width: 18px; height: 18px; font-size: 15px;
+    margin-left: 5px; margin-right: -4px; vertical-align: -3px;
+  }
 
   /* `<details>` blocks (project details, closed actions) had no styling at all. */
   .dtl > summary { cursor: pointer; padding: 6px 0; }

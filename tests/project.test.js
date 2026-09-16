@@ -223,54 +223,95 @@ test('Without commercial access only the value slot changes', () => {
 
 group('Product selection, chemistries and resources');
 
-test('The pickers offer every option and mark the chosen ones', () => {
+test('Chosen values are chips, and the dropdown offers the rest', () => {
+  // pr1 picks Testex 12 clear and Demo-Bond 7 out of four products.
   const snap = demoBoard();
-  const html = page('pr1', { snap: snap });   // pr1 picks Testex 12 clear + Demo-Bond 7
+  const html = page('pr1', { snap: snap });
+  const chosen = project(snap, 'pr1').products;
 
-  snap.settings.products.items.forEach(function (v) {
-    ok(html.indexOf('data-v="' + v + '"') > 0, v + ' is offered');
+  chosen.forEach(function (v) {
+    ok(html.indexOf('>' + v + '<button class="x"') > 0, v + ' is a chip');
   });
-  ok(/data-v="Testex 12 clear" aria-pressed="true"/.test(html), 'a chosen one is pressed');
-  ok(/data-v="Demo-Seal HT" aria-pressed="false"/.test(html), 'an unchosen one is not');
+  snap.settings.products.items
+    .filter(function (v) { return chosen.indexOf(v) < 0; })
+    .forEach(function (v) {
+      ok(html.indexOf('<option value="' + v + '">') > 0, v + ' is offered');
+    });
 });
 
-test('Chosen chips are styled differently from unchosen ones', () => {
-  // .pchip.m is the filled chip, .pchip.o the dashed one. Both already exist in the
-  // stylesheet, so this needs no new colours - but getting the classes the wrong way
-  // round would look fine in the markup and wrong on the page.
+test('The dropdown never offers something already chosen', () => {
+  // Picking it again would either do nothing or silently take it off, and neither
+  // is what choosing it looks like.
+  const snap = demoBoard();
+  const html = page('pr1', { snap: snap });
+
+  project(snap, 'pr1').products.forEach(function (v) {
+    notOk(html.indexOf('<option value="' + v + '">') > 0, v + ' is not in the list');
+  });
+});
+
+test('The dropdown leads with an add prompt, not a real value', () => {
+  // Without a blank first option the select shows a product that is not chosen,
+  // which reads as though it were.
   const html = page('pr1');
-  ok(/class="pchip m"[^>]*data-v="Testex 12 clear"/.test(html), 'chosen is .m');
-  ok(/class="pchip o"[^>]*data-v="Demo-Seal HT"/.test(html), 'unchosen is .o');
+  ok(/<option value="">\+ Add a product<\/option>/.test(html), 'products');
+  ok(/<option value="">\+ Add a chemistry<\/option>/.test(html), 'chemistries');
+  ok(/<option value="">\+ Add a resource<\/option>/.test(html), 'resources');
 });
 
-test('Every picker names the field it writes to', () => {
-  // data-v is already carrying the value, so the field rides on data-f. Miss it and
+test('Every control names the field it writes to, and the project', () => {
+  // data-v carries the value on a chip, so the field rides on data-f. Miss it and
   // the handler silently does nothing.
   const html = page('pr1');
-  ['products', 'chemistries', 'resources'].forEach(function (f) {
-    ok(html.indexOf('data-f="' + f + '"') > 0, f + ' has a picker');
+
+  const adders = html.match(/<select[^>]*data-edit="projAdd"[^>]*>/g) || [];
+  eq(adders.length, 3, 'one dropdown per list');
+  adders.forEach(function (el) {
+    ok(/data-f="(products|chemistries|resources)"/.test(el), 'names its field: ' + el);
+    ok(el.indexOf('data-id="pr1"') > 0, 'and its project: ' + el);
   });
-  const buttons = html.match(/<button[^>]*data-act="projPick"[^>]*>/g) || [];
-  ok(buttons.length > 0, 'found pickers');
-  buttons.forEach(function (b) {
-    ok(/data-f="(products|chemistries|resources)"/.test(b), 'names its field: ' + b);
-    ok(b.indexOf('data-id="pr1"') > 0, 'and its project: ' + b);
+
+  const droppers = html.match(/<button[^>]*data-act="projDrop"[^>]*>/g) || [];
+  ok(droppers.length > 0, 'found chips to remove');
+  droppers.forEach(function (el) {
+    ok(/data-f="(products|chemistries|resources)"/.test(el), 'names its field: ' + el);
+    ok(el.indexOf('data-v="') > 0, 'and its value: ' + el);
   });
+});
+
+test('A field with nothing chosen says so rather than showing an empty row', () => {
+  const snap = demoBoard();
+  project(snap, 'pr1').products = [];
+  const html = page('pr1', { snap: snap });
+
+  ok(html.indexOf('None chosen yet') > 0, 'says none');
+  ok(html.indexOf('+ Add a product') > 0, 'and still offers the dropdown');
+});
+
+test('When everything is chosen the dropdown goes rather than sitting empty', () => {
+  const snap = demoBoard();
+  project(snap, 'pr1').products = snap.settings.products.items.slice();
+  const html = page('pr1', { snap: snap });
+
+  ok(html.indexOf('Every product on the list is chosen') > 0, 'says so');
+  notOk(/data-f="products"[^>]*>\s*<option value="">/.test(html), 'no empty dropdown');
 });
 
 test('An empty list says where to fill it in rather than showing nothing', () => {
   const snap = demoBoard();
   snap.settings.products = { items: [] };
   const html = page('pr1', { snap: snap });
+
   ok(html.indexOf('Product selection') > 0, 'the row is still there');
   ok(html.indexOf('maintained on the People') > 0, 'and says where the list lives');
 });
 
-test('A read-only board disables the pickers', () => {
+test('A read-only board offers no way to change any of them', () => {
   const html = page('pr1', { modes: { content: 'read', settings: 'read' } });
-  const buttons = html.match(/<button[^>]*data-act="projPick"[^>]*>/g) || [];
-  ok(buttons.length > 0, 'still shown');
-  buttons.forEach(function (b) { ok(b.indexOf('disabled') > 0, 'disabled: ' + b); });
+
+  notOk(/data-edit="projAdd"/.test(html), 'no dropdown');
+  notOk(/data-act="projDrop"/.test(html), 'and no remove buttons');
+  ok(html.indexOf('Testex 12 clear') > 0, 'but the chosen values still read');
 });
 
 group('Notes on the page');group('Notes on the page');

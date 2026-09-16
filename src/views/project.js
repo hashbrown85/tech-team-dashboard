@@ -226,9 +226,9 @@ export function renderProject(snap, ui, env, p) {
       '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
       '" placeholder="What makes this ours to lose."' + dis(env) + '>' +
       esc(p.winReason || '') + '</textarea>') +
-    picker(snap, env, p, 'products', 'Product selection') +
-    picker(snap, env, p, 'chemistries', 'Chemistries') +
-    picker(snap, env, p, 'resources', 'Resources') +
+    picker(snap, env, p, 'products', 'Product selection', 'product', 'products') +
+    picker(snap, env, p, 'chemistries', 'Chemistries', 'chemistry', 'chemistries') +
+    picker(snap, env, p, 'resources', 'Resources', 'resource', 'resources') +
     '</section>';
 
   /* ----------------------------------------------------------------- actions */
@@ -263,35 +263,61 @@ function row(label, body) {
 }
 
 /**
- * Tick-list of one of the project's multi-value fields, as chips.
+ * One of the project's multi-value fields: what is chosen, and a way to add more.
  *
- * These three fields have been stored since the split but were editable nowhere -
- * the meeting row never offered them and the project page only printed them. So
- * this is the first place any of them can actually be set.
+ * Chosen values are chips with an ×. Adding is a dropdown of what is NOT yet
+ * chosen, whose first option reads "+ Add a product".
  *
- * `.pchip.m` is the filled chip and `.pchip.o` the dashed one, both already in the
- * stylesheet, so chosen and not-chosen read differently without new colours.
+ * It is a dropdown rather than a grid of togglable chips because of where the
+ * product list is going to come from. Four demo products fit on a line; the real
+ * list lives in Dataverse and will not, and a picker that renders every option is
+ * unusable at that size. Chemistries and resources get the same control so all
+ * three behave alike.
  *
- * The options come from `settings`. For products that row stands in for a list that
- * really lives in Dataverse; swapping the source later changes nothing here,
- * because the project stores the chosen values either way.
+ * Both halves come from the stylesheet as it stands - `.pchip` with an `.x` is what
+ * the People screen already uses for exactly this, and `select.fld` is the dropdown
+ * used everywhere else.
+ *
+ * @param {string} noun - singular, for the add control: "product"
+ * @param {string} plural - for the message when there is nothing left to add
  */
-function picker(snap, env, p, field, label) {
+function picker(snap, env, p, field, label, noun, plural) {
   const chosen = p[field] || [];
   const options = (snap.settings[field] && snap.settings[field].items) || [];
 
   if (!options.length) {
-    return row(label, '<span class="why">Nothing in this list yet — it is ' +
+    return row(label, '<span class="why">Nothing in this list yet \u2014 it is ' +
       'maintained on the People &amp; settings screen.</span>');
   }
 
-  return row(label, '<div class="mchips">' + options.map(function (v) {
-    const on = chosen.indexOf(v) >= 0;
-    return '<button type="button" class="pchip ' + (on ? 'm' : 'o') +
-      '" data-act="projPick" data-id="' + esc(p.id) + '" data-f="' + field +
-      '" data-v="' + esc(v) + '" aria-pressed="' + on + '"' + dis(env) + '>' +
-      esc(v) + '</button>';
-  }).join('') + '</div>');
+  const chips = chosen.length
+    ? '<div class="mchips">' + chosen.map(function (v) {
+        return '<span class="pchip">' + esc(v) +
+          (env.areaReadonly ? ''
+            : '<button class="x" type="button" data-act="projDrop" data-id="' + esc(p.id) +
+              '" data-f="' + field + '" data-v="' + esc(v) +
+              '" aria-label="Remove ' + esc(v) + '">\u00d7</button>') +
+          '</span>';
+      }).join('') + '</div>'
+    : '<span class="why">None chosen yet.</span>';
+
+  // Only what is not already on. Offering a chosen value again would either do
+  // nothing or silently take it off, and neither is what picking it looks like.
+  const available = options.filter(function (v) { return chosen.indexOf(v) < 0; });
+
+  let add = '';
+  if (!env.areaReadonly) {
+    add = available.length
+      ? '<select class="fld" data-edit="projAdd" data-id="' + esc(p.id) +
+        '" data-f="' + field + '" aria-label="Add a ' + noun + '">' +
+        '<option value="">+ Add a ' + noun + '</option>' +
+        available.map(function (v) {
+          return '<option value="' + esc(v) + '">' + esc(v) + '</option>';
+        }).join('') + '</select>'
+      : '<span class="why">Every ' + noun + ' on the list is chosen.</span>';
+  }
+
+  return row(label, chips + add);
 }
 
 /**

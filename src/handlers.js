@@ -291,29 +291,12 @@ export function createHandlers(app) {
     delProduct: function (el, id, v) { removeFromList('products', v); },
 
     /**
-     * Tick or untick one value in a project's products, chemistries or resources.
+     * Take one value off a project's products, chemistries or resources.
      *
      * The field name rides on `data-f` because `data-v` is already carrying the
-     * value. Not silent: these are chips, so the page has to redraw for the tick
-     * to appear, and there is no caret to lose.
+     * value. Adding is `edits.projAdd`, from the dropdown beside these chips.
      */
-    projPick: function (el, id, v) {
-      const field = el.dataset.f;
-      if (['products', 'chemistries', 'resources'].indexOf(field) < 0) return;
-
-      const p = byId(store.snapshot().projects, id);
-      if (!p) return;
-
-      const chosen = (p[field] || []).slice();
-      const at = chosen.indexOf(v);
-      if (at >= 0) chosen.splice(at, 1);
-      else chosen.push(v);
-
-      const patch = {};
-      patch[field] = chosen;
-      store.update('projects', id, patch).then(render);
-      render();
-    },
+    projDrop: function (el, id, v) { pickValue(id, el.dataset.f, v, false); },
 
     /* --- ratings and the summary --- */
 
@@ -412,6 +395,19 @@ export function createHandlers(app) {
 
     /* --- project fields, from the project page --- */
 
+    /**
+     * Add a value from one of the project's pickers.
+     *
+     * Fires on the dropdown's change. Not silent: the chip has to appear, and a
+     * select has no caret to lose.
+     */
+    projAdd: function (el) {
+      const value = el.value;
+      if (!value) return;          // the "+ Add a product" placeholder
+      el.value = '';
+      pickValue(el.dataset.id, el.dataset.f, value, true);
+    },
+
     projMission: function (el) {
       // Silent, like every other free-text field: a redraw mid-sentence would take
       // the caret with it. See the note on actionDue.
@@ -493,6 +489,36 @@ export function createHandlers(app) {
     personTitle: function (el) { store.update('people', el.dataset.id, { title: el.value }); },
     personHome: function (el) { store.update('people', el.dataset.id, { home: el.value }); }
   };
+
+  /**
+   * Put a value on, or take it off, one of a project's list fields.
+   *
+   * The field name comes off the page, so it is checked against the three that
+   * exist rather than trusted - otherwise a crafted attribute writes an arbitrary
+   * key onto the project, which the schema then silently drops.
+   *
+   * @param {string} id - project id
+   * @param {string} field - 'products' | 'chemistries' | 'resources'
+   * @param {string} value
+   * @param {boolean} add - true to add, false to remove
+   */
+  function pickValue(id, field, value, add) {
+    if (['products', 'chemistries', 'resources'].indexOf(field) < 0) return;
+
+    const p = byId(store.snapshot().projects, id);
+    if (!p) return;
+
+    const chosen = (p[field] || []).slice();
+    const at = chosen.indexOf(value);
+    if (add && at < 0) chosen.push(value);
+    else if (!add && at >= 0) chosen.splice(at, 1);
+    else return;                   // already in the state asked for
+
+    const patch = {};
+    patch[field] = chosen;
+    store.update('projects', id, patch).then(render);
+    render();
+  }
 
   function numberOrNull(v) {
     return v === '' || v == null ? null : Number(v);

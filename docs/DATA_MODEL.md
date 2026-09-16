@@ -118,8 +118,12 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 The **dollar value** is not here. It is the one field that lives in
 `projectDetails`, on its own permissioned list.
 
-`products` names the products this project is proposing. The authoritative list
-lives in **Dataverse**; nothing in the app can reach it yet, so the picker is fed
+`products` names the products this project is proposing. It is picked from a
+dropdown of what is not yet chosen, with each choice shown as a removable chip —
+rather than a grid of togglable chips, which stops scaling the moment the list is
+longer than a line. `chemistries` and `resources` use the same control.
+
+The authoritative product list lives in **Dataverse**; nothing in the app can reach it yet, so the picker is fed
 from a `products` row in `settings`, maintained by hand on the People & settings
 screen. When Dataverse becomes reachable only the *source* of that list changes —
 the project stores the chosen values either way, so no migration follows.
