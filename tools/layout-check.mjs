@@ -637,34 +637,76 @@ function longTokens(html) {
  * why it needs a check rather than a comment. Each entry is the element chain a
  * label sits in; the existing selector matcher decides which rules reach it.
  */
-const NAMED_LABELS = [
+const APP = { tag: 'div', classes: ['app'] };
+const APP_SLIM = { tag: 'div', classes: ['app', 'slim'] };
+const SIDE = { tag: 'aside', classes: ['side'] };
+const NAV = { tag: 'nav', classes: ['nav'] };
+
+/** Every element here must still generate a box - see above. */
+const MUST_SHOW = [
   {
     what: 'a nav item label in the collapsed sidebar',
-    chain: [
-      { tag: 'div', classes: ['app', 'slim'] },
-      { tag: 'aside', classes: ['side'] },
-      { tag: 'nav', classes: ['nav'] },
-      { tag: 'button', classes: ['ni'] },
-      { tag: 'span', classes: ['ni-t'] }
-    ]
+    why: 'the button would be left with no accessible name at all',
+    chain: [APP_SLIM, SIDE, NAV, { tag: 'button', classes: ['ni'] },
+      { tag: 'span', classes: ['ni-t'] }]
   },
   {
     what: 'the group heading that carries the add-a-meeting button',
-    chain: [
-      { tag: 'div', classes: ['app', 'slim'] },
-      { tag: 'aside', classes: ['side'] },
-      { tag: 'nav', classes: ['nav'] },
-      { tag: 'div', classes: ['ng'] },
-      { tag: 'span', classes: ['ng-t'] }
-    ]
+    why: 'the + would lose its only label',
+    chain: [APP_SLIM, SIDE, NAV, { tag: 'div', classes: ['ng'] },
+      { tag: 'span', classes: ['ng-t'] }]
+  },
+  {
+    what: "the toggle's chevron, with the sidebar expanded",
+    why: 'the button renders as an empty outlined box - this shipped',
+    chain: [APP, SIDE, { tag: 'div', classes: ['brand'] },
+      { tag: 'div', classes: ['brand-b'] }, { tag: 'button', classes: ['side-tog'] },
+      { tag: 'span', classes: ['nicon'] }]
+  },
+  {
+    what: "the toggle's chevron, with the sidebar collapsed",
+    why: 'the same button, in the state you press to get back',
+    chain: [APP_SLIM, SIDE, { tag: 'div', classes: ['brand'] },
+      { tag: 'div', classes: ['brand-b'] }, { tag: 'button', classes: ['side-tog'] },
+      { tag: 'span', classes: ['nicon'] }]
   }
 ];
 
-function hidesOutright(rules, chain) {
-  return rules.filter(function (r) {
-    if (!/display\s*:\s*none/.test(r.body)) return false;
-    return r.selectors.some(function (sel) { return selectorMatches(sel, chain); });
+/** (ids, classes/attrs/pseudo-classes, tags/pseudo-elements) as one number. */
+function specificity(selector) {
+  const sel = selector.replace(/\s*>\s*/g, ' ');
+  const ids = (sel.match(/#[-\w]+/g) || []).length;
+  const cls = (sel.match(/\.[-\w]+|\[[^\]]*\]|:[a-z-]+(\([^)]*\))?/g) || [])
+    .filter(function (t) { return t.indexOf('::') !== 0; }).length;
+  const tags = (sel.match(/(^|[\s])[a-zA-Z][-\w]*/g) || []).length;
+  return ids * 10000 + cls * 100 + tags;
+}
+
+/**
+ * What `display` actually resolves to for this chain.
+ *
+ * A plain "is there a display:none rule" search is not good enough: `.nicon` is
+ * display:none by default and `.side-tog .nicon` turns it back on, so a search
+ * would flag a correct stylesheet. This is a cascade for ONE property - important
+ * first, then specificity, then source order - which is small enough to be right
+ * and is the least that makes the check trustworthy.
+ */
+function computedDisplay(rules, chain) {
+  let best = null;
+  rules.forEach(function (r, i) {
+    const m = /(?:^|;)\s*display\s*:\s*([^;!]+)(!important)?/i.exec(r.body);
+    if (!m) return;
+    r.selectors.forEach(function (sel) {
+      if (!selectorMatches(sel, chain)) return;
+      const rank = [m[2] ? 1 : 0, specificity(sel), i];
+      if (!best || rank[0] > best.rank[0] ||
+        (rank[0] === best.rank[0] && rank[1] > best.rank[1]) ||
+        (rank[0] === best.rank[0] && rank[1] === best.rank[1] && rank[2] > best.rank[2])) {
+        best = { value: m[1].trim(), rank: rank, sel: sel };
+      }
+    });
   });
+  return best;
 }
 
 function checkStylesheets() {
@@ -883,16 +925,16 @@ function main() {
     PLACEMENT.map(function (p) { return '.' + p.grid + ' ' + shapes[p.grid].size; }).join(', ') +
     ' distinct shapes, text column never shared');
 
-  /* --- (g) a label that names a button must be clipped, not removed --- */
-  NAMED_LABELS.forEach(function (n) {
-    const killers = hidesOutright(rules, n.chain);
-    if (!killers.length) return;
-    fail('display:none on ' + n.what,
-      killers.map(function (r) { return r.selectors.join(', '); }).join('\n    ') +
-      '\n    That removes the text from the accessibility tree as well as the screen,' +
-      '\n    and the button is left with no accessible name at all - a screen reader' +
-      '\n    reads out a column of unnamed buttons. Clip it instead (the .sr-only' +
-      '\n    pattern: position absolute, 1px, clip rect(0 0 0 0)).');
+  /* --- (g) things that must still generate a box --- */
+  MUST_SHOW.forEach(function (n) {
+    const d = computedDisplay(rules, n.chain);
+    if (!d || d.value !== 'none') return;
+    fail('display:none wins on ' + n.what,
+      'the rule that wins is `' + d.sel + '`' +
+      '\n    ' + n.why + '.' +
+      '\n    To hide something visually while keeping it, clip it (the .sr-only' +
+      '\n    pattern: position absolute, 1px, clip rect(0 0 0 0)) - display:none' +
+      '\n    removes it from the accessibility tree and from the layout entirely.');
   });
 
   /* --- (f) long unbroken text must land where it can break --- */

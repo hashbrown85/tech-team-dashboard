@@ -255,9 +255,12 @@ export function renderSide(snap, ui, env) {
     icon(slim ? 'show' : 'hide') + '</button>';
 
   const side = '<aside class="side" aria-label="Navigation">' +
-    '<div class="brand">' + tog + '<div class="mark"><span class="shield" aria-hidden="true"></span>' +
+    '<div class="brand"><div class="mark"><span class="shield" aria-hidden="true"></span>' +
     '<div class="wm" role="img" aria-label="Perfex Chemical Solutions"><i class="pf"></i><i class="cs"></i></div></div>' +
-    '<div class="appname">Technical Operations<br>&amp; Innovation</div></div>' +
+    // The toggle shares a row with the app name rather than floating over the
+    // brand block, where it sat on top of the wordmark.
+    '<div class="brand-b"><div class="appname">Technical Operations<br>&amp; Innovation</div>' +
+    tog + '</div></div>' +
     '<nav class="nav">' + item('overview', 'Overview', 'Overview') +
     (areas.length
       ? '<div class="ng ng-plain"><span class="ng-t">Area meetings</span></div>' +
