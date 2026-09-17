@@ -21,7 +21,7 @@
  * or the wrong number of children for a grid — and that class IS mechanically
  * checkable. This checks it.
  *
- * Five checks, each earning its place by having already shipped as a bug:
+ * Six checks, each earning its place by having already shipped as a bug:
  *
  *   a. `overflow-wrap: anywhere` is gone and stays gone. It reduces min-content width
  *      to one character, so any track floored at zero can collapse onto it. NOTE:
@@ -34,6 +34,9 @@
  *   d. The two hand-duplicated dark palettes still match.
  *   e. A wrapping-text child never shares its grid row with an uncapped `auto`
  *      sibling. See PLACEMENT.
+ *   f. Free text that arrives as one long unbroken token lands somewhere that can
+ *      break it. The customer name on a project tile could not, so it overflowed
+ *      its column and overlapped the tools beside it.
  *
  * It renders through the real views, so what it inspects is what the browser gets.
  *
@@ -291,6 +294,10 @@ function matrix() {
     ['big: timeline', { view: 'timeline' }],
     ['big: projects list', { view: 'projects', projStatus: 'all' }],
     ['big: project page', { view: 'project', project: 'bhz2' }],
+    // bhz1 carries the planted hazards: a 73-character product code as its name and
+    // a 62-character customer. bhz2 is long but breakable, so on its own it leaves
+    // check (f) with nothing to find on this screen.
+    ['big: project page, hazards', { view: 'project', project: 'bhz1' }],
     ['big: people & settings', { view: 'people' }],
     ['big: empty meeting', { view: 'tab', tab: 'techdir', steps: { techdir: 2 } }]
   ].forEach(function (s) {
@@ -406,8 +413,12 @@ const PLACEMENT = [
 function cssRules(text) {
   const out = [];
   let m;
+  // Comments first, or the prose above a rule becomes part of its selector - and
+  // a comma in that prose splits into fragments that match nothing. That failure
+  // reads exactly like a missing rule, which cost a round trip to work out.
+  const src = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
   const re = /([^{}]+)\{([^{}]*)\}/g;
-  while ((m = re.exec(text))) {
+  while ((m = re.exec(src))) {
     const sel = m[1].trim();
     if (sel.charAt(0) === '@') continue;
     out.push({ selectors: sel.split(',').map(function (x) { return x.trim(); }), body: m[2] });
@@ -456,6 +467,124 @@ function placeRows(kinds, cols) {
   });
 
   return rows;
+}
+
+/*
+ * (f) Free text that arrives as one long unbroken token must land somewhere that
+ * can break it.
+ *
+ * This is the other half of the vertical-text family, and it shipped too: the
+ * customer name on a project tile had no break rule at all, so it could not wrap,
+ * overflowed column 1 and overlapped the tools. A track floor guarantees the
+ * COLUMN is wide enough. It never guarantees the CONTENT fits in it.
+ *
+ * No hand-written list here - tools/bigboard.mjs already plants the hazards (a
+ * 73-character product code, a 62-character customer), so the check finds where
+ * they actually land. A new field carrying user text is covered the day someone
+ * puts a planted value in it.
+ *
+ * `overflow-wrap` inherits, so an ancestor may provide the protection - which is
+ * why this matches selectors against the whole element chain rather than against
+ * a class name. Matching on the class alone reported the Projects table as safe
+ * because `.att-list .t` exists and the table cells are `table.t`. Two unrelated
+ * rules, one class name, and a green check over a real defect.
+ */
+const BREAKS = /(overflow-wrap|word-break)\s*:\s*(break-word|anywhere|break-all)/;
+
+/** The shortest token worth worrying about. Real words do not reach this. */
+const LONG_TOKEN = 35;
+
+/** A compound like `table.t` or `.ph` -> {tag, classes}. Pseudos and attrs dropped. */
+function compound(part) {
+  const bare = part.replace(/::?[a-z-]+(\([^)]*\))?/g, '').replace(/\[[^\]]*\]/g, '');
+  const classes = (bare.match(/\.[-\w]+/g) || []).map(function (c) { return c.slice(1); });
+  const tag = /^[a-zA-Z][-\w]*/.exec(bare);
+  return { tag: tag ? tag[0].toLowerCase() : null, classes: classes };
+}
+
+function compoundMatches(c, node) {
+  if (c.tag && c.tag !== '*' && c.tag !== node.tag) return false;
+  return c.classes.every(function (cl) { return node.classes.indexOf(cl) >= 0; });
+}
+
+/**
+ * Does `selector` match the last node of `chain`? Right-to-left, with descendant
+ * combinators allowed to skip and `>` required to be adjacent.
+ */
+function selectorMatches(selector, chain) {
+  const parts = selector.trim().split(/\s*(>)\s*|\s+/).filter(Boolean);
+  if (!parts.length) return false;
+
+  let ci = chain.length - 1;
+  let pi = parts.length - 1;
+  if (!compoundMatches(compound(parts[pi]), chain[ci])) return false;
+  pi--; ci--;
+
+  while (pi >= 0) {
+    const child = parts[pi] === '>';
+    if (child) pi--;
+    if (pi < 0) return false;
+    const c = compound(parts[pi]);
+
+    if (child) {
+      if (ci < 0 || !compoundMatches(c, chain[ci])) return false;
+      ci--;
+    } else {
+      while (ci >= 0 && !compoundMatches(c, chain[ci])) ci--;
+      if (ci < 0) return false;
+      ci--;
+    }
+    pi--;
+  }
+  return true;
+}
+
+/** Can this element, or anything it inherits from, break inside a word? */
+function chainCanBreak(rules, chain) {
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const sub = chain.slice(0, i + 1);
+    const hit = rules.some(function (r) {
+      if (!BREAKS.test(r.body)) return false;
+      return r.selectors.some(function (sel) { return selectorMatches(sel, sub); });
+    });
+    if (hit) return true;
+  }
+  return false;
+}
+
+const VOID_TAG = /^(br|img|input|hr|meta|link|source|col|area|base|wbr)$/;
+
+/** Long unbreakable tokens in rendered text, each with the element chain it sits in. */
+function longTokens(html) {
+  const out = [];
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:"[^"]*"|[^>])*?)(\/?)>/g;
+  const stack = [];
+  let last = 0, m;
+
+  while ((m = re.exec(html))) {
+    const text = html.slice(last, m.index);
+    last = re.lastIndex;
+
+    if (text.trim() && stack.length) {
+      // Split on every break opportunity a browser would take on its own.
+      text.split(/[\s\u00b7]+/).forEach(function (tok) {
+        const clean = tok.replace(/&[a-z]+;|&#\d+;/g, '');
+        clean.split(/[-\u2013\u2014/\\]/).forEach(function (piece) {
+          if (piece.length >= LONG_TOKEN) {
+            out.push({ token: piece, chain: stack.slice() });
+          }
+        });
+      });
+    }
+
+    const tag = m[2].toLowerCase();
+    if (m[1]) { stack.pop(); continue; }
+    if (m[4] || VOID_TAG.test(tag)) continue;
+    const cm = /class="([^"]*)"/.exec(m[3]);
+    stack.push({ tag: tag, classes: cm && cm[1].trim() ? cm[1].trim().split(/\s+/) : [] });
+  }
+
+  return out;
 }
 
 function checkStylesheets() {
@@ -527,6 +656,7 @@ function main() {
   const empties = [];
   const observed = {};
   const shapes = {};
+  const unbreakable = new Map();
   GRID_CHILDREN.forEach(function (g) { observed[g[0]] = new Set(); });
   PLACEMENT.forEach(function (p) { shapes[p.grid] = new Map(); });
 
@@ -559,6 +689,15 @@ function main() {
 
     GRID_CHILDREN.forEach(function (g) {
       childShapes(html, g[0]).forEach(function (kids) { observed[g[0]].add(kids.length); });
+    });
+
+    longTokens(html).forEach(function (t) {
+      const sig = t.chain.map(function (n) {
+        return n.tag + (n.classes.length ? '.' + n.classes.join('.') : '');
+      }).join(' > ');
+      if (!unbreakable.has(sig)) {
+        unbreakable.set(sig, { token: t.token, chain: t.chain, where: label });
+      }
     });
 
     // Distinct shapes only - the big board alone has hundreds of identical rows.
@@ -663,6 +802,33 @@ function main() {
   notes.push('grid placement \u2014 ' +
     PLACEMENT.map(function (p) { return '.' + p.grid + ' ' + shapes[p.grid].size; }).join(', ') +
     ' distinct shapes, text column never shared');
+
+  /* --- (f) long unbroken text must land where it can break --- */
+  if (!unbreakable.size) {
+    fail('no long unbreakable token was rendered anywhere',
+      'tools/bigboard.mjs plants them on purpose and the matrix should reach them.' +
+      '\n    Either the big board stopped being rendered or plantHazards() changed.' +
+      '\n    Without them this check proves nothing.');
+  }
+
+  const exposed = [];
+  unbreakable.forEach(function (t, sig) {
+    if (!chainCanBreak(rules, t.chain)) {
+      exposed.push('.' + t.token.slice(0, 28) + '\u2026 (' + t.token.length + ' chars)' +
+        '\n      on ' + t.where + '\n      in ' + sig);
+    }
+  });
+
+  if (exposed.length) {
+    fail('free text can arrive unbreakable, and this has nowhere to break',
+      exposed.join('\n    ') +
+      '\n    Nothing in the chain sets overflow-wrap: break-word, so the token cannot' +
+      '\n    wrap. It overflows its column and overlaps whatever is beside it. A track' +
+      '\n    floor guarantees the COLUMN is wide enough, never that the CONTENT fits.');
+  } else {
+    notes.push('unbreakable text \u2014 ' + unbreakable.size +
+      ' site(s) reached, all able to break');
+  }
 
   /* --- (c) grid child counts --- */
   GRID_CHILDREN.forEach(function (g) {
