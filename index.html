@@ -123,6 +123,20 @@
   table.t td.c { width: auto; min-width: 64px; }
   .filters + .scope-note { margin-top: 10px; }
 
+  /* Action items table. The register was a seven-child grid row that deliberately
+     wrapped - fine at three rows, a wall at forty. */
+  table.t .atx { font-weight: 500; }
+  table.t tr.done td { color: var(--muted); }
+  table.t tr.done .atx { text-decoration: line-through; }
+  /* An issue title can be a sentence. Capped, or one long origin widens the whole
+     table and the action text gets the crumbs. */
+  table.t td.orig { max-width: 22em; }
+  table.t td.duec { white-space: nowrap; }
+  table.t td.duec .k { display: block; margin-top: 3px; }
+  table.t td.duec .k.over { color: var(--crit); font-weight: 600; }
+  table.t td.duec .k.soon { color: var(--gold-ink); }
+  table.t input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--good); margin: 0; }
+
   /* Sortable column headers. The th owns the brand background and the label
      typography, so the button must inherit all of it or it renders as a default
      grey control on red. The padding moves onto the button so the whole cell is

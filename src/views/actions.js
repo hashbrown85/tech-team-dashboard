@@ -14,10 +14,13 @@
 
 import { esc } from '../lib/dom.js';
 import { byId } from '../lib/seq.js';
-import { isOpen } from '../domain/queries.js';
+import { isOpen, parentRef, matchesActionQuery } from '../domain/queries.js';
 import { dueClass, dueLabel, isOverdue, isDueSoon, personOk, inScope } from '../domain/dueness.js';
-import { actionLabel } from '../domain/actions.js';
-import { pageHeader } from './shell.js';
+import {
+  actionLabel, ACTION_SORT_COLUMNS, actionSorter, byActionWorkOrder
+} from '../domain/actions.js';
+import { projectTitle } from '../domain/projects.js';
+import { pageHeader, sortableTh } from './shell.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -58,17 +61,22 @@ export function renderActions(snap, ui, env) {
       (ui.projFilter === 'all' || (a.parent && a.parent.id === ui.projFilter));
   });
 
-  const counts = {};
-  FILTERS.forEach(function (f) {
-    counts[f[0]] = scoped.filter(function (a) { return matches(a, f[0], today); }).length;
+  // The search narrows before the chips are counted: a chip promises "clicking me
+  // shows N", and saying 23 above a three-row table makes the control a liar.
+  const narrowed = scoped.filter(function (a) {
+    return matchesActionQuery(snap, a, ui.actQuery);
   });
 
-  const rows = scoped
+  const counts = {};
+  FILTERS.forEach(function (f) {
+    counts[f[0]] = narrowed.filter(function (a) { return matches(a, f[0], today); }).length;
+  });
+
+  const sortCol = ACTION_SORT_COLUMNS[ui.actSort] ? ui.actSort : null;
+
+  const rows = narrowed
     .filter(function (a) { return matches(a, ui.filter, today); })
-    .sort(function (a, b) {
-      if (isOpen(a) !== isOpen(b)) return isOpen(a) ? -1 : 1;
-      return (a.due || '9') < (b.due || '9') ? -1 : 1;
-    });
+    .sort(sortCol ? actionSorter(sortCol, ui.actSortDir) : byActionWorkOrder);
 
   const chips = FILTERS.map(function (f) {
     return '<button type="button" class="fchip' + (ui.filter === f[0] ? ' sel' : '') +
@@ -81,6 +89,28 @@ export function renderActions(snap, ui, env) {
     return '<option value="' + esc(t.id) + '"' +
       (ui.regTab === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>';
   }).join('');
+
+  /*
+   * The form exists only so `restoreForms` gives the caret back after the redraw
+   * that every keystroke causes. Keep it to ONE field: restoreForms abandons a form
+   * whose field count changed, and the meeting select beside it is data-derived.
+   */
+  const search = '<form class="psearch" data-form="actSearch" role="search">' +
+    '<label class="sr-only" for="act-q">Search actions</label>' +
+    '<input class="fld" id="act-q" type="search" data-input="actQuery" ' +
+    'placeholder="Search actions, owners, origins" value="' + esc(ui.actQuery || '') + '">' +
+    '</form>';
+
+  const proj = ui.projFilter !== 'all' ? byId(snap.projects, ui.projFilter) : null;
+  const projNote = proj
+    ? '<button type="button" class="fchip" data-act="clearProjFilter" aria-pressed="true">' +
+      esc(projectTitle(proj)) + ' ×</button>'
+    : '';
+
+  const dirty = sortCol || ui.actQuery || ui.projFilter !== 'all';
+  const reset = dirty
+    ? '<button type="button" class="fchip reset" data-act="actReset">Reset</button>'
+    : '';
 
   const scopeNote = ui.person !== 'all'
     ? '<p class="scope-note">Showing only work owned or supported by <b>' + esc(ui.person) +
@@ -99,25 +129,28 @@ export function renderActions(snap, ui, env) {
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="action"' + dis(env) + '>+ Action</button>';
 
+  // The header emitter is shared with the Projects table (views/shell.js).
+  function th(col, label, cls) {
+    return sortableTh({
+      columns: ACTION_SORT_COLUMNS, col: col, label: label, cls: cls,
+      sortCol: sortCol, dir: ui.actSortDir, act: 'actSort'
+    });
+  }
+
   const list = rows.length
-    ? '<ul class="alist">' + rows.map(function (a) {
-        const tab = byId(snap.tabs, a.tab);
-        return '<li class="arow ' + dueClass(a, today) + (isOpen(a) ? '' : ' done-row') +
-          '" id="row-' + esc(a.id) + '">' +
-          '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
-          (isOpen(a) ? '' : ' checked') + dis(env) + '>' +
-          '<span class="aid">' + actionLabel(a) + '</span></label>' +
-          '<span class="atext">' + esc(a.text) + '</span>' +
-          '<span class="own">' + esc(a.owner || 'No owner') +
-          (a.support ? ' <span class="muted">(with ' + esc(a.support) + ')</span>' : '') + '</span>' +
-          '<span class="m">' + esc(tab ? tab.name : '') + '</span>' +
-          '<input class="fld dt" type="date" value="' + esc(a.due || '') +
-          '" data-edit="actionDue" data-id="' + esc(a.id) + '" aria-label="Due date for ' + actionLabel(a) + '"' + dis(env) + '>' +
-          '<span class="adue ' + dueClass(a, today) + '">' + dueLabel(a, today) + '</span>' +
-          '<button class="x edit-only" type="button" data-act="delAction" data-id="' + esc(a.id) +
-          '" aria-label="Delete ' + actionLabel(a) + '"' + dis(env) + '>×</button></li>';
-      }).join('') + '</ul>'
-    : '<p class="none">Nothing here.</p>';
+    ? '<div class="tbl-scroll"><table class="t">' +
+      '<thead><tr>' +
+      '<th class="c"><span class="sr-only">Done</span></th>' +
+      th('num', 'ID', '') +
+      '<th>Action</th><th>Origin</th>' +
+      th('owner', 'Owner', '') +
+      '<th>Meeting</th>' +
+      th('due', 'Due', '') +
+      '<th class="c"><span class="sr-only">Remove</span></th>' +
+      '</tr></thead><tbody>' +
+      rows.map(function (a) { return actionRow(snap, env, a, today); }).join('') +
+      '</tbody></table></div>'
+    : '<p class="none">' + emptyMessage(ui, scoped.length, narrowed.length) + '</p>';
 
   const follow = ui.follow
     ? '<div class="follow"><div class="pan-h"><h2>Follow-up text</h2>' +
@@ -125,9 +158,74 @@ export function renderActions(snap, ui, env) {
       '<textarea class="fld mono" rows="12" readonly>' + esc(followText(snap, rows, today)) + '</textarea></div>'
     : '<button class="btn ghost sm" type="button" data-act="toggleFollow">Follow-up text</button>';
 
-  return pageHeader('Action items', 'One owner each, always a date',
-    '<select class="fld" data-edit="regTab" aria-label="Filter by meeting">' + tabOpts + '</select>') +
-    '<div class="filters">' + chips + '</div>' + scopeNote + addForm + list + follow;
+  return pageHeader('Action items', 'One owner each, always a date') +
+    '<div class="filters">' + chips + '</div>' +
+    '<div class="filters">' + search +
+    '<select class="fld" data-edit="regTab" aria-label="Filter by meeting">' + tabOpts + '</select>' +
+    projNote + '<span class="sp"></span>' + reset + '</div>' +
+    scopeNote + addForm + list + follow;
+}
+
+/**
+ * One row. `id="row-<id>"` is load-bearing: `focusAction` (handlers.js) scrolls to
+ * it and flashes it when you arrive from the Overview or the Timeline.
+ */
+function actionRow(snap, env, a, today) {
+  const tab = byId(snap.tabs, a.tab);
+  const open = isOpen(a);
+
+  return '<tr id="row-' + esc(a.id) + '"' + (open ? '' : ' class="done"') + '>' +
+    '<td class="c"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
+    (open ? '' : ' checked') + ' aria-label="Mark ' + actionLabel(a) + ' done"' + dis(env) + '></td>' +
+    '<td class="mono' + (isOverdue(a, today) ? ' overdue' : '') + '">' + actionLabel(a) + '</td>' +
+    '<td><span class="atx">' + esc(a.text) + '</span></td>' +
+    '<td class="orig">' + originCell(snap, a) + '</td>' +
+    '<td>' + esc(a.owner || 'No owner') +
+    (a.support ? ' <span class="k">(with ' + esc(a.support) + ')</span>' : '') + '</td>' +
+    '<td class="k">' + esc(tab ? tab.name : '') + '</td>' +
+    '<td class="duec"><input class="fld" type="date" id="due-' + esc(a.id) + '" value="' +
+    esc(a.due || '') + '" data-edit="actionDue" data-id="' + esc(a.id) +
+    '" aria-label="Due date for ' + actionLabel(a) + '"' + dis(env) + '>' +
+    '<span class="k ' + dueClass(a, today) + '">' + dueLabel(a, today) + '</span></td>' +
+    '<td class="c"><button class="x edit-only" type="button" data-act="delAction" data-id="' +
+    esc(a.id) + '" aria-label="Delete ' + actionLabel(a) + '"' + dis(env) + '>\u00d7</button></td>' +
+    '</tr>';
+}
+
+/**
+ * Where the action came from, as a link to it.
+ *
+ * `parentText` resolved this for the meeting summary and the register lost the use
+ * of it in the port (board.html:1119 had it). Scanning forty actions, the origin is
+ * the column that tells you whether a thing still matters.
+ */
+function originCell(snap, a) {
+  const ref = parentRef(snap, a);
+  if (!ref) return '<span class="k">\u2014</span>';
+
+  if (ref.type === 'issue') {
+    return '<button type="button" class="linkbtn" data-act="openIssue" data-id="' +
+      esc(a.tab) + '" data-v="iss-' + esc(ref.id) + '">' + esc(ref.issue.text) + '</button>';
+  }
+  return '<button type="button" class="linkbtn" data-act="openProject" data-id="' +
+    esc(ref.id) + '">' + esc(projectTitle(ref.project)) + '</button>';
+}
+
+/**
+ * Why the list is short, naming the control responsible.
+ *
+ * It used to say "Nothing here." for every reason, which sends people looking for
+ * the wrong problem - the same complaint as a filter chip that lies about its count.
+ */
+function emptyMessage(ui, scopedCount, narrowedCount) {
+  if (narrowedCount === 0 && scopedCount > 0) {
+    if (ui.actQuery) return 'No actions match that search.';
+    if (ui.projFilter !== 'all') return 'No actions on that project.';
+  }
+  if (narrowedCount > 0) return 'No actions match this filter.';
+  if (ui.regTab !== 'all') return 'No actions in this meeting.';
+  if (ui.person !== 'all') return 'No actions owned by this person.';
+  return 'No actions yet.';
 }
 
 /**

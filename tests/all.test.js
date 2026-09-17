@@ -28,6 +28,7 @@ import './queries.test.js';
 import './projects.test.js';
 import './issues.test.js';
 import './actions.test.js';
+import './register.test.js';
 import './meetings.test.js';
 import './notes.test.js';
 import './formstate.test.js';

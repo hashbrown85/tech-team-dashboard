@@ -187,6 +187,113 @@ export function toggleDone(snap, action, done, { today, issueMeetingDate }) {
  * @param {string} due
  * @returns {any | null}
  */
+/**
+ * The sortable columns on the Action items table.
+ *
+ * Same shape as SORT_COLUMNS in domain/projects.js, and here for the same reason:
+ * the handler validates against it and the header markup reads its labels, and
+ * handlers never import from views/.
+ */
+export const ACTION_SORT_COLUMNS = {
+  num: { first: 'asc', label: 'Number', asc: 'oldest first', desc: 'newest first' },
+  owner: { first: 'asc', label: 'Owner', asc: 'A to Z', desc: 'Z to A' },
+  due: { first: 'asc', label: 'Due', asc: 'soonest first', desc: 'latest first' }
+};
+
+/**
+ * Which way an actions column sorts on the first click.
+ *
+ * @param {string} col
+ * @returns {string}
+ */
+export function firstActionDirFor(col) {
+  return ACTION_SORT_COLUMNS[col] ? ACTION_SORT_COLUMNS[col].first : 'asc';
+}
+
+/**
+ * One column's value, or null when the action has none.
+ *
+ * null is "nobody has said", not zero and not the empty string - see actionSorter.
+ *
+ * @param {any} a
+ * @param {string} col
+ * @returns {number | string | null}
+ */
+export function actionSortKey(a, col) {
+  if (col === 'num') return typeof a.num === 'number' && !isNaN(a.num) ? a.num : null;
+  if (col === 'owner') return a.owner ? String(a.owner).trim().toLowerCase() : null;
+  if (col === 'due') return a.due || null;
+  return null;
+}
+
+/**
+ * The last resort when everything else ties. Never reversed, whatever the
+ * direction - see actionSorter.
+ *
+ * @param {any} a
+ * @param {any} b
+ */
+export function byNum(a, b) {
+  const na = typeof a.num === 'number' ? a.num : 0;
+  const nb = typeof b.num === 'number' ? b.num : 0;
+  if (na !== nb) return na < nb ? -1 : 1;
+  return String(a.id) < String(b.id) ? -1 : 1;
+}
+
+/**
+ * The default order: open work first, then by due date, then by number.
+ *
+ * This lived in views/actions.js and was NOT a valid comparator - it returned 1 for
+ * ties, which is not transitive, and so leaned on Array.sort being stable over an
+ * array the adapter rebuilds on every 60-second poll. Stability preserves the INPUT
+ * order; the input is not stable. Same argument as projectSorter.
+ *
+ * @param {any} a
+ * @param {any} b
+ */
+export function byActionWorkOrder(a, b) {
+  if (isOpenAction(a) !== isOpenAction(b)) return isOpenAction(a) ? -1 : 1;
+  const da = a.due || '';
+  const db = b.due || '';
+  // No date sorts last among open work, the same rule the columns use.
+  if (!da !== !db) return da ? -1 : 1;
+  if (da !== db) return da < db ? -1 : 1;
+  return byNum(a, b);
+}
+
+function isOpenAction(a) {
+  return a.status !== 'done';
+}
+
+/**
+ * A total comparator for one column and direction.
+ *
+ * Absent values sort last in BOTH directions: no owner means nobody has been asked,
+ * and no date means nobody has committed - neither is a small value. Direction
+ * applies only among actions that have one.
+ *
+ * @param {string} col
+ * @param {string} dir - 'asc' | 'desc'
+ * @returns {(a: any, b: any) => number}
+ */
+export function actionSorter(col, dir) {
+  const flip = dir === 'desc' ? -1 : 1;
+
+  return function (a, b) {
+    const ka = actionSortKey(a, col);
+    const kb = actionSortKey(b, col);
+
+    if (ka == null || kb == null) {
+      if (ka != null) return -1;
+      if (kb != null) return 1;
+    } else if (ka !== kb) {
+      return (ka < kb ? -1 : 1) * flip;
+    }
+
+    return byNum(a, b);
+  };
+}
+
 export function changeDue(action, due) {
   if (!action) return null;
   const x = JSON.parse(JSON.stringify(action));

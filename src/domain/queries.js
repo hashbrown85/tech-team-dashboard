@@ -109,6 +109,63 @@ export function parentText(snap, action) {
 }
 
 /**
+ * What an action came from, resolved to the record itself.
+ *
+ * Returns the RECORD rather than a formatted label on purpose. A project's display
+ * name is `projectTitle` (customer and name together), which lives in
+ * domain/projects.js - and projects.js already imports from this file, so importing
+ * it back would be a cycle. The caller formats; this only answers "which one".
+ *
+ * `parentText` beside this stays as it is: it builds a one-line plain-text label for
+ * the meeting summary, where "(project)" disambiguates in a way a table column does
+ * not need.
+ *
+ * @param {Snapshot} snap
+ * @param {any} action
+ * @returns {{type: string, id: string, issue: any, project: any} | null}
+ */
+export function parentRef(snap, action) {
+  const p = action && action.parent;
+  if (!p || !p.id) return null;
+  if (p.type === 'issue') {
+    const i = byId(snap.issues, p.id);
+    return i ? { type: 'issue', id: p.id, issue: i, project: null } : null;
+  }
+  const pj = byId(snap.projects, p.id);
+  return pj ? { type: 'project', id: p.id, issue: null, project: pj } : null;
+}
+
+/**
+ * Does this action match what somebody typed into the search box?
+ *
+ * Multi-term AND over one joined haystack, so "psi rig" finds the action owned by
+ * Psi Redding about rig time. The separator keeps a term from matching across the
+ * join between two fields. No regex is built from user input.
+ *
+ * Searches the text, the owner, the support person and the ORIGIN - the issue or
+ * project it came from - because that is the column people scan a long list by.
+ *
+ * @param {Snapshot} snap
+ * @param {any} a
+ * @param {string} query
+ * @returns {boolean}
+ */
+export function matchesActionQuery(snap, a, query) {
+  const terms = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return true;
+
+  const ref = parentRef(snap, a);
+  const hay = [
+    a.text || '',
+    a.owner || '',
+    a.support || '',
+    ref ? (ref.type === 'issue' ? ref.issue.text : ref.project.name) : ''
+  ].join('\u0001').toLowerCase();
+
+  return terms.every(function (t) { return hay.indexOf(t) >= 0; });
+}
+
+/**
  * Is this action still outstanding?
  *
  * Note: anything that isn't the exact string 'done' counts as open, including an

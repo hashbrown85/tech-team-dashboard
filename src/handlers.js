@@ -27,7 +27,8 @@ import {
   newIssue, resolveIssue, reopenIssue, reorderQueue
 } from './domain/issues.js';
 import {
-  newAction, toggleDone, changeDue, parseParentRef, wouldGainPath, actionLabel
+  newAction, toggleDone, changeDue, parseParentRef, wouldGainPath, actionLabel,
+  ACTION_SORT_COLUMNS, firstActionDirFor
 } from './domain/actions.js';
 import {
   deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab,
@@ -181,6 +182,35 @@ export function createHandlers(app) {
       render();
     },
     tlGroup: function (el, id, v) { ui.tlGroup = v; render(); },
+
+    /*
+     * Three-click cycle: the column's first direction, then reversed, then back to
+     * the default work order. Validated against ACTION_SORT_COLUMNS before use —
+     * the rule pickValue set, of never trusting a field name read off the page.
+     */
+    actSort: function (el, id, v) {
+      if (!ACTION_SORT_COLUMNS[v]) return;
+      const first = firstActionDirFor(v);
+      if (ui.actSort !== v) { ui.actSort = v; ui.actSortDir = first; }
+      else if (ui.actSortDir === first) { ui.actSortDir = first === 'asc' ? 'desc' : 'asc'; }
+      else { ui.actSort = null; ui.actSortDir = first; }
+      render();
+    },
+
+    actReset: function () {
+      ui.actSort = null;
+      ui.actSortDir = 'asc';
+      ui.actQuery = '';
+      ui.projFilter = 'all';
+      render();
+    },
+
+    /*
+     * `ui.projFilter` scopes the register to one project and is set by
+     * showProjActions. Since the port it has had no control at all, so arriving
+     * from a project page left a filter on with nothing on screen saying so.
+     */
+    clearProjFilter: function () { ui.projFilter = 'all'; render(); },
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
     toggleSummary: function () { ui.sumShow = !ui.sumShow; render(); },
@@ -1023,6 +1053,11 @@ export function createHandlers(app) {
   const inputs = {
     projQuery: function (el) {
       ui.projQuery = el.value;
+      render();
+    },
+
+    actQuery: function (el) {
+      ui.actQuery = el.value;
       render();
     }
   };

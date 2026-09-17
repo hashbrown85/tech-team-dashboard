@@ -28,6 +28,11 @@ function defaults() {
     person: 'all',      // scope everything to one person's work
     regTab: 'all',      // action register meeting filter
     projFilter: 'all',  // action register project filter
+    actQuery: '',       // Action items: the search box
+    // Which column the Action items table is sorted by, or null for the default
+    // work order. Two scalars, for the reason given above projSort.
+    actSort: null,
+    actSortDir: 'asc',
     projStatus: 'live', // Projects list: which statuses to show
     projTab: 'all',     // Projects list: meeting filter
     projQuery: '',      // Projects list: the search box

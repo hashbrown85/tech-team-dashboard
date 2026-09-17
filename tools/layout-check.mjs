@@ -346,10 +346,11 @@ const GRID_CHILDREN = [
    * a user twice. A varying count is still a KNOWN SET, and a number outside it
    * means somebody added a child without looking at the grid.
    *
-   *   .arow  3,4,5,7 — the register emits seven into a four-column grid on purpose
-   *                    and lets them wrap; the project page emits four; the rail
-   *                    four and the already-owed block five, both since they gained
-   *                    the push/re-date controls (.afix, placed in column 2).
+   *   .arow  3, 4, 5 — the rail emits three, the project page four, and the
+   *                    already-owed block five since it gained the push/re-date
+   *                    controls (.afix, placed in column 2). The register used to
+   *                    send SEVEN into this four-column grid and let them wrap;
+   *                    it is a table now, so that shape is gone.
    *   .is-h  3       — but the CSS declares FOUR columns (auto auto minmax(0,1fr)
    *                    auto) and its mobile rules style `.is-h .it-t`, which is
    *                    never emitted inside .is-h: the title lives in a sibling
@@ -361,7 +362,7 @@ const GRID_CHILDREN = [
    * The count alone is NOT sufficient - the rail collapsed at three children in a
    * four-column grid. See PLACEMENT below for the check that catches that.
    */
-  ['arow', [3, 4, 5, 7], 'four-column grid; the register emits more and lets them wrap'],
+  ['arow', [3, 4, 5], 'four-column grid: the rail three, project page four, already-owed five'],
   ['is-h', [3], 'declares four columns; emits three children — see above'],
   ['item', [2, 3, 4, 5], 'auto minmax(0,1fr) auto, with conditional children']
 ];
@@ -926,6 +927,29 @@ function main() {
   notes.push('grid placement \u2014 ' +
     PLACEMENT.map(function (p) { return '.' + p.grid + ' ' + shapes[p.grid].size; }).join(', ') +
     ' distinct shapes, text column never shared');
+
+  /*
+   * The other direction: styled, but nothing wears it.
+   *
+   * Check (b) asks "is every emitted class styled". It cannot see the reverse, and
+   * the reverse is where six dead rules accumulated - `.adue input` styling an input
+   * that is emitted as a SIBLING of .adue, `.duechk .act` describing board.html's
+   * markup, the whole `.act`/`.a-t`/`.a-m` group with no emitter since the port. The
+   * register's date box went unstyled for three change sets because of the first.
+   *
+   * Reported, never asserted. Coverage equals the matrix, so a class can be absent
+   * here because no state reached it rather than because it is dead - and an
+   * allowlist to tell those apart would rot faster than the rules it guarded.
+   * Printed on every run, it would have caught all six.
+   */
+  const styledNotWorn = Array.from(defined).filter(function (c) {
+    return !emitted.has(c);
+  }).sort();
+
+  if (styledNotWorn.length) {
+    notes.push('styled but never worn \u2014 ' + styledNotWorn.length +
+      ' class(es), reported only:\n      ' + styledNotWorn.join(' '));
+  }
 
   /* --- (g) things that must still generate a box --- */
   MUST_SHOW.forEach(function (n) {

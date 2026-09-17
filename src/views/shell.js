@@ -57,6 +57,57 @@ export function connPill(modes, areaReadonly) {
  * @param {string} [right]
  * @param {string} [eyebrow]
  */
+/**
+ * A sortable column header.
+ *
+ * Lifted out of views/projects.js, which built the first sortable table and owned
+ * this privately; the Action items table is the second, and two copies of the
+ * aria-label wording would have drifted within a change set.
+ *
+ * `aria-sort` goes on the `th` and ONLY on the sorted column - `aria-sort="none"`
+ * elsewhere would advertise sortability that the plain headers do not have. The
+ * button is real, because a `th` is not focusable and has no Enter/Space behaviour,
+ * and `type="button"` matters on a page that also has a form. The arrow is
+ * decorative; the state and what the NEXT press does live in the aria-label, which
+ * is where the three-click cycle becomes discoverable.
+ *
+ * @param {object} o
+ * @param {any} o.columns - the SORT_COLUMNS map for this table
+ * @param {string} o.col
+ * @param {string} o.label
+ * @param {string} [o.cls] - extra class on the th
+ * @param {string | null} o.sortCol - the column currently sorted, if any
+ * @param {string | null} o.dir - 'asc' | 'desc'
+ * @param {string} o.act - the data-act the button carries
+ */
+export function sortableTh(o) {
+  const spec = o.columns[o.col];
+  const active = o.sortCol === o.col;
+  const dir = active ? o.dir : null;
+
+  let aria;
+  let arrow;
+  if (!active) {
+    aria = 'Sort by ' + spec.label.toLowerCase() + ', ' + spec[spec.first];
+    arrow = '\u2195';
+  } else if (dir === spec.first) {
+    // Second click reverses.
+    const other = spec.first === 'asc' ? 'desc' : 'asc';
+    aria = spec.label + ', sorted ' + spec[dir] + '. Sort ' + spec[other] + '.';
+    arrow = dir === 'asc' ? '\u25b2' : '\u25bc';
+  } else {
+    // Third click goes back to the default order.
+    aria = spec.label + ', sorted ' + spec[dir] + '. Return to the default order.';
+    arrow = dir === 'asc' ? '\u25b2' : '\u25bc';
+  }
+
+  return '<th class="' + (o.cls ? o.cls + ' ' : '') + 'sortable"' +
+    (active ? ' aria-sort="' + (dir === 'asc' ? 'ascending' : 'descending') + '"' : '') +
+    '><button type="button" class="th-sort" data-act="' + o.act + '" data-v="' + o.col +
+    '" aria-label="' + esc(aria) + '">' + o.label +
+    '<span class="sarr" aria-hidden="true">' + arrow + '</span></button></th>';
+}
+
 export function pageHeader(title, sub, right, eyebrow) {
   return '<header class="ph"><div>' +
     (eyebrow ? '<div class="lbl">' + eyebrow + '</div>' : '') +

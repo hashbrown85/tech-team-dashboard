@@ -317,7 +317,7 @@ function stageProjects(snap, ui, env, tab, d) {
  *
  *   - `.proj` is the grid. It also needs `ps-<status>` for the per-status treatment
  *     (a gold outline while new, struck through when cancelled) and `sel` — not
- *     `psel` — when this project's actions are being shown in the rail.
+ *     `sel` — when this project's actions are being shown in the rail.
  *   - `.pname` is the clickable name button, holding `.it-t` and `.meta`.
  *   - `.stat` is the status control: plain buttons, each carrying `data-v` and
  *     `aria-pressed`. The colour of the selected status comes from a CSS rule that

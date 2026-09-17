@@ -37,7 +37,7 @@ import {
   projectTitle, byTitleThenId, projectSorter, matchesQuery, matchesValue,
   distinctValues, SORT_COLUMNS
 } from '../domain/projects.js';
-import { pageHeader, kpi } from './shell.js';
+import { pageHeader, kpi, sortableTh } from './shell.js';
 import { moneyShort } from './project.js';
 
 /**
@@ -252,15 +252,24 @@ export function renderProjects(snap, ui, env) {
     (ui.projStatus === 'all' ? '' : ' · ' + labelOf(ui.projStatus).toLowerCase()),
     '', 'Across every meeting');
 
+  // The header emitter is shared with the Action items table (views/shell.js);
+  // this binds the parts that are the same on every call.
+  function th(col, label, cls) {
+    return sortableTh({
+      columns: SORT_COLUMNS, col: col, label: label, cls: cls,
+      sortCol: sortCol, dir: ui.projSortDir, act: 'projSort'
+    });
+  }
+
   const table = rows.length
     ? '<div class="tbl-scroll"><table class="t">' +
       '<thead><tr>' +
       '<th>Project</th><th>Field</th><th>Type</th>' +
       '<th>Meeting</th><th>Owner</th><th>Status</th>' +
-      sortableTh(ui, sortCol, 'due', 'Due', '') +
+      th('due', 'Due', '') +
       '<th class="c">Open</th>' +
-      sortableTh(ui, sortCol, 'win', 'Win', 'c') +
-      (showValue ? sortableTh(ui, sortCol, 'value', 'Value', '') : '') +
+      th('win', 'Win', 'c') +
+      (showValue ? th('value', 'Value', '') : '') +
       '</tr></thead><tbody>' +
       rows.map(function (p) { return projectRow(snap, env, p, showValue); }).join('') +
       '</tbody></table></div>'
@@ -299,57 +308,6 @@ function valueSelect(edit, label, allLabel, options, chosen) {
         (o.value === chosen ? ' selected' : '') + '>' +
         esc(o.label) + ' (' + o.n + ')</option>';
     }).join('') + orphan + '</select>';
-}
-
-/**
- * A column header you can sort by.
- *
- * `aria-sort` goes on the `<th>`, never on the button - it is a property of the
- * header cell - and only on the column actually sorted. Putting `aria-sort="none"`
- * on the others would advertise sortability that Project, Meeting, Owner, Status and
- * Open do not have.
- *
- * The control is a real `<button type="button">` inside the cell rather than
- * `data-act` on the `<th>`: the delegated listener would fire from a `th` happily
- * enough, but a `th` is not focusable and has no Enter or Space behaviour. The
- * `type="button"` matters now this page contains a form.
- *
- * The arrow is decorative and hidden from assistive tech; the state lives in the
- * label, which also says what the NEXT click does. That is the only place the
- * third-click-resets rule is discoverable.
- *
- * @param {any} ui
- * @param {string | null} sortCol - the column in force, after the permission guard
- * @param {string} col
- * @param {string} label
- * @param {string} cls - extra class for the th, '' or 'c'
- */
-function sortableTh(ui, sortCol, col, label, cls) {
-  const spec = SORT_COLUMNS[col];
-  const active = sortCol === col;
-  const dir = active ? ui.projSortDir : null;
-
-  let aria;
-  let arrow;
-  if (!active) {
-    aria = 'Sort by ' + spec.label.toLowerCase() + ', ' + spec[spec.first];
-    arrow = '\u2195';
-  } else if (dir === spec.first) {
-    // Second click reverses.
-    const other = spec.first === 'asc' ? 'desc' : 'asc';
-    aria = spec.label + ', sorted ' + spec[dir] + '. Sort ' + spec[other] + '.';
-    arrow = dir === 'asc' ? '\u25b2' : '\u25bc';
-  } else {
-    // Third click goes back to the default order.
-    aria = spec.label + ', sorted ' + spec[dir] + '. Return to the default order.';
-    arrow = dir === 'asc' ? '\u25b2' : '\u25bc';
-  }
-
-  return '<th class="' + (cls ? cls + ' ' : '') + 'sortable"' +
-    (active ? ' aria-sort="' + (dir === 'asc' ? 'ascending' : 'descending') + '"' : '') +
-    '><button type="button" class="th-sort" data-act="projSort" data-v="' + col +
-    '" aria-label="' + esc(aria) + '">' + label +
-    '<span class="sarr" aria-hidden="true">' + arrow + '</span></button></th>';
 }
 
 function labelOf(value) {
