@@ -27,8 +27,19 @@ to point it at real SharePoint lists.
 <http://localhost:8000/tests/tests.html> — or, without a browser:
 
 ```
-node -e "globalThis.document={getElementById:()=>null};import('./tests/all.test.js')"
+node tests/all.test.js
+node tools/layout-check.mjs
 ```
+
+Two commands, not one. The second reads `assets/theme.css` and `index.html` off disk
+and checks the markup against them — a class nothing styles, a grid row with the wrong
+number of children, `overflow-wrap: anywhere` creeping back. It **cannot** live in the
+first, because that suite also runs in a browser via `tests/tests.html` and nothing it
+imports may touch `node:fs`.
+
+`?board=big` renders a deliberately oversized board of invented data — 20 people, 10
+meetings, 56 projects — for checking a layout at realistic size. See
+[`docs/REHEARSAL.md`](docs/REHEARSAL.md) before running the board in a real meeting.
 
 ## What's where
 
@@ -36,6 +47,9 @@ node -e "globalThis.document={getElementById:()=>null};import('./tests/all.test.
 |---|---|
 | `docs/DATA_MODEL.md` | every collection and field — the only schema that exists |
 | `docs/BUSINESS_RULES.md` | the rules, in prose. **Read before changing `src/domain/`** |
+| `docs/REHEARSAL.md` | what to check before a meeting is run from this |
+| `tools/layout-check.mjs` | markup vs stylesheet; the checks the test suite cannot make |
+| `tools/bigboard.mjs` | an oversized board of invented data, for `?board=big` |
 | `src/domain/` | the rules as code. No DOM, no store — pure functions over a snapshot |
 | `src/views/` | HTML-string builders. Pure functions, so every screen is testable |
 | `src/adapters/` | where the data lives: in memory, or SharePoint via Graph |

@@ -205,7 +205,32 @@
 
 <script type="module">
   import { start } from './src/main.js';
-  start().catch(function (err) {
+
+  /*
+   * `?board=big` renders a deliberately oversized board of invented data, for
+   * rehearsing a layout before a real meeting. See tools/bigboard.mjs.
+   *
+   * It goes through the adapter seam start() already has rather than through
+   * config.js - `mode` is 'demo' | 'sharepoint' and a third value would mean
+   * touching isConfigured, missingConfig, chooseAdapter and their tests for a
+   * throwaway. Dynamically imported, so ordinary use downloads none of it.
+   *
+   * The title changes so nobody demonstrates the fake board to a room by accident.
+   */
+  async function boot() {
+    if (new URLSearchParams(location.search).get('board') !== 'big') return start();
+
+    const [{ bigBoard }, { createMemoryAdapter }] = await Promise.all([
+      import('./tools/bigboard.mjs'),
+      import('./src/adapters/memoryAdapter.js')
+    ]);
+    document.title = 'BIG BOARD (invented data) — Technical Operations';
+    return start({
+      adapter: createMemoryAdapter({ seed: bigBoard(), startActionNum: 9999 })
+    });
+  }
+
+  boot().catch(function (err) {
     console.error(err);
     // start() paints its own explanation for the failures it understands. This is
     // the fallback for everything else.

@@ -44,6 +44,7 @@ import { dirname, join } from 'node:path';
 import { renderApp } from '../src/views/render.js';
 import { demoBoard } from '../src/demo-data.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
+import { bigBoard } from './bigboard.mjs';
 import { loadUi } from '../src/ui.js';
 import { today } from '../src/lib/dates.js';
 import { STATUSES, SEVERITIES } from '../src/domain/constants.js';
@@ -231,6 +232,27 @@ function matrix() {
 
   // An empty board still has to render.
   out.push(['empty board', { view: 'overview' }, blankSnapshot(), LIVE, { personId: null }]);
+
+  /*
+   * And the big board, on the screens where volume and long values actually bite.
+   * The small demo board is too tidy to collapse anything: every layout bug found
+   * so far needed either a long unbroken token or a lot of rows, and it has neither.
+   */
+  const big = bigBoard();
+  [
+    ['big: overview', { view: 'overview' }],
+    ['big: projects stage', { view: 'tab', tab: 'bt0', steps: { bt0: 2 } }],
+    ['big: issues', { view: 'tab', tab: 'bt0', steps: { bt0: 3 } }],
+    ['big: rate', { view: 'tab', tab: 'bt0', steps: { bt0: 4 } }],
+    ['big: register', { view: 'actions' }],
+    ['big: timeline', { view: 'timeline' }],
+    ['big: projects list', { view: 'projects', projStatus: 'all' }],
+    ['big: project page', { view: 'project', project: 'bhz2' }],
+    ['big: people & settings', { view: 'people' }],
+    ['big: empty meeting', { view: 'tab', tab: 'techdir', steps: { techdir: 2 } }]
+  ].forEach(function (s) {
+    out.push([s[0], s[1], big, LIVE, { personId: 'bp0', displayName: 'Kappa Feldspar' }]);
+  });
 
   return out;
 }
