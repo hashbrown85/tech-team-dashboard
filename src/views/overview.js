@@ -102,8 +102,11 @@ export function renderOverview(snap, ui, env) {
       '<span class="ppl">' + esc(reporting || 'No one reporting yet') + '</span>' +
       '<span class="row">' +
       '<span>Open<b>' + st.open + '</b></span>' +
-      '<span>Overdue<b class="' + (st.over ? 'crit' : '') + '">' + st.over + '</b></span>' +
-      '<span>Stoppers<b class="' + (st.stop ? 'crit' : '') + '">' + st.stop + '</b></span>' +
+      // No class attribute at all when the count is zero, rather than an empty
+      // one: `class=""` is always a conditional that lost, and it is the shape
+      // a broken class expression leaves behind.
+      '<span>Overdue<b' + (st.over ? ' class="crit"' : '') + '>' + st.over + '</b></span>' +
+      '<span>Stoppers<b' + (st.stop ? ' class="crit"' : '') + '>' + st.stop + '</b></span>' +
       '<span>Score<b>' + (ls ? ls.avg.toFixed(1) : '—') + '</b></span>' +
       '</span></button>';
   }

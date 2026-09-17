@@ -92,7 +92,9 @@ export function renderTimeline(snap, ui, env) {
       due: p.due,
       tab: p.tab,
       who: personName(snap, p.personId),
-      cls: 'proj' + (p.status === 'off' ? ' off' : '') + (p.due < today ? ' over' : ''),
+      // `pdot`, not `proj`: that name belongs to the project row in a meeting,
+      // and sharing it made every dot inherit that row's grid.
+      cls: 'pdot' + (p.status === 'off' ? ' off' : '') + (p.due < today ? ' over' : ''),
       tip: 'Project · ' + p.name + ' · ' + personName(snap, p.personId) + ' · ' +
         (p.status === 'off' ? 'off track' : 'due') + ' ' + fmtDay(p.due)
     };
@@ -184,7 +186,7 @@ export function renderTimeline(snap, ui, env) {
     return '<div class="tl-lab"><b>' + esc(lane.label) + '</b>' +
       '<span>' + esc(lane.sub || '') + '</span></div>' +
       '<div class="tl-over">' +
-      over.map(function (i) { return dot(i, '', 'over' + (i.kind === 'p' ? ' proj' : '')); }).join('') +
+      over.map(function (i) { return dot(i, '', 'over' + (i.kind === 'p' ? ' pdot' : '')); }).join('') +
       '</div>' +
       '<div><div class="tl-in">' + gridLines() + place(within) + '</div></div>' +
       '<div class="tl-later"' +

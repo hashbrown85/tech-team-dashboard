@@ -68,7 +68,7 @@ export function renderMeetingSettings(snap, ui, env, tab) {
     '</section>';
 
   const grid = people.length
-    ? '<div class="tbl-scroll"><table class="tbl"><thead><tr><th>Person</th>' +
+    ? '<div class="tbl-scroll"><table class="t"><thead><tr><th>Person</th>' +
       ROLES.map(function (r) { return '<th>' + r[1] + '</th>'; }).join('') +
       '</tr></thead><tbody>' +
       people.map(function (p) {

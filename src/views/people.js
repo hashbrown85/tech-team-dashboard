@@ -60,7 +60,7 @@ export function renderPeople(snap, ui, env) {
         '" aria-label="Remove ' + esc(p.name) + '">×</button>') + '</td></tr>';
   }).join('');
 
-  const table = '<div class="tbl-scroll"><table class="tbl">' +
+  const table = '<div class="tbl-scroll"><table class="t">' +
     '<thead><tr><th>Name</th><th>Title</th><th>Area</th><th>In meetings</th>' +
     '<th></th></tr></thead>' +
     '<tbody>' + (rows || '<tr><td colspan="5"><p class="none">Nobody on the roster yet.</p></td></tr>') +

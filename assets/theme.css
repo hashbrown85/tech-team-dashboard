@@ -160,7 +160,14 @@ button.kpi:hover{background:var(--surface-2)}
 .att-list li:first-child{border-top:0}
 .att-list button{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;width:100%;text-align:left;border:0;background:transparent;padding:10px 4px}
 .att-list button:hover{background:var(--surface-2)}
-.att-list .t{font-weight:500;overflow-wrap:anywhere}
+/* break-word, never `anywhere`, anywhere in this file. `anywhere` reduces an
+   element's MIN-CONTENT WIDTH to a single character, so any grid or flex track
+   floored at zero - minmax(0,...) or a bare 1fr, which is most of them here -
+   can collapse onto it and the text renders one letter per line. `break-word`
+   still breaks a genuinely unbreakable string but does not move min-content, so
+   a track cannot shrink past the longest word. tools/layout-check.mjs fails if
+   `anywhere` comes back. */
+.att-list .t{font-weight:500;overflow-wrap:break-word}
 .att-list .m{grid-column:2;font-size:13px;color:var(--muted)}
 .mgroup + .mgroup{margin-top:16px}
 .mgroup .lbl{margin:0 0 8px}
@@ -220,8 +227,8 @@ button.kpi:hover{background:var(--surface-2)}
 @media (max-width:640px){.rp{grid-template-columns:minmax(0,1fr)}}
 .items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;width:100%}
 .item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 6px 8px 10px;background:var(--surface-2);border-radius:5px}
-.it-t{font-weight:500;overflow-wrap:anywhere}
-.why{color:var(--ink-2);font-size:13.5px;margin-top:2px;overflow-wrap:anywhere}
+.it-t{font-weight:500;overflow-wrap:break-word}
+.why{color:var(--ink-2);font-size:13.5px;margin-top:2px;overflow-wrap:break-word}
 .why span{font:600 11px var(--f-label);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:6px}
 .why.own span{color:var(--brand)}
 .chip{font:700 11px/1 var(--f-label);text-transform:uppercase;letter-spacing:.07em;padding:5px 7px;border-radius:3px;white-space:nowrap;display:inline-block;margin-top:1px}
@@ -234,7 +241,13 @@ button.kpi:hover{background:var(--surface-2)}
 .chip.done{background:var(--good-soft);color:var(--good)}
 .chip.tab{background:var(--sunk);color:var(--ink-2)}
 
-.proj{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px 12px;align-items:center;padding:8px 6px 8px 10px;background:var(--surface-2);border-radius:5px}
+/* ONE place decides this row's columns. There used to be three, two of them
+   dead: a three-column track here, a two-column !important below it, and a
+   third in index.html that quietly beat both. The floor is deliberate - the
+   name column carries `.it-t`, and a zero floor lets it collapse. `.stat`
+   spans both columns onto its own row, so a row has three children, or two
+   when `.ro .edit-only` hides the tools. */
+.proj{display:grid;grid-template-columns:minmax(11em,1fr) auto;gap:8px 12px;align-items:start;padding:8px 6px 8px 10px;background:var(--surface-2);border-radius:5px}
 .proj .meta{font-size:13px;color:var(--muted)}
 .proj .meta a{color:var(--gold-ink);font-weight:600}
 .proj.done-row .it-t{text-decoration:line-through;color:var(--muted)}
@@ -246,7 +259,6 @@ button.kpi:hover{background:var(--surface-2)}
 .stat button[aria-pressed="true"][data-v="done"]{background:var(--ink);color:var(--on-ink)}
 .stat button[aria-pressed="true"][data-v="hold"]{background:var(--sunk);color:var(--ink)}
 .stat button[aria-pressed="true"][data-v="cancelled"]{background:var(--crit-soft);color:var(--crit)}
-.proj{grid-template-columns:minmax(0,1fr) auto!important;align-items:start!important}
 .proj .stat{grid-column:1 / -1;justify-self:start;flex-wrap:wrap}
 .pname{border:0;background:transparent;padding:0;text-align:left;display:flex;flex-direction:column;gap:3px;min-width:0;cursor:pointer}
 .pname:hover .it-t{text-decoration:underline}
@@ -261,10 +273,11 @@ button.kpi:hover{background:var(--surface-2)}
 .moved{margin-top:16px;padding-top:12px;border-top:1px dashed var(--line)}
 .moved ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
 .moved li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;align-items:start;font-size:14px;color:var(--ink-2)}
+.moved .mv-t{font-weight:500}
 .moved .mv-a{grid-column:2;font-size:12.5px;color:var(--muted)}
 .psel{box-shadow:inset 0 0 0 2px var(--brand)}
 .psel-n{font-weight:700;margin:-4px 0 8px}
-@media (max-width:560px){.proj{grid-template-columns:minmax(0,1fr) auto}.proj .stat{grid-column:1 / -1;justify-self:start}}
+@media (max-width:560px){.proj{grid-template-columns:minmax(7em,1fr) auto}.proj .stat{grid-column:1 / -1;justify-self:start}}
 
 .issue{border:1px solid var(--line);border-radius:6px;padding:12px 14px}
 .issue + .issue{margin-top:10px}
@@ -285,7 +298,7 @@ button.kpi:hover{background:var(--surface-2)}
 .act{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:start;padding:7px 0;border-top:1px dashed var(--line)}
 .act:first-child{border-top:0}
 .act input[type="checkbox"]{width:16px;height:16px;accent-color:var(--good);margin:3px 0 0}
-.act .a-t{overflow-wrap:anywhere}
+.act .a-t{overflow-wrap:break-word}
 .act .a-t .aid{margin-right:6px}
 .act .a-m{grid-column:2;font-size:12.5px;color:var(--muted)}
 .act .a-m b{color:var(--ink-2);font-weight:600}
@@ -378,9 +391,9 @@ textarea.fld{display:block;width:100%;min-height:62px;padding:8px 10px;height:au
 .alist{list-style:none;margin:12px 0 0;padding:0;border-top:1px solid var(--line)}
 .arow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:4px 12px;align-items:start;padding:11px 0;border-bottom:1px solid var(--line)}
 .arow > input[type="checkbox"]{margin-top:4px;width:16px;height:16px;accent-color:var(--good)}
-.arow .atext{font-weight:500;overflow-wrap:anywhere}
+.arow .atext{font-weight:500;overflow-wrap:break-word}
 .arow .atext .aid{margin-right:7px}
-.arow .ameta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.arow .ameta{font-size:13px;color:var(--muted);overflow-wrap:break-word}
 .arow .ameta b{font-weight:600;color:var(--ink-2)}
 .arow.done .atext{text-decoration:line-through;color:var(--muted)}
 .adue{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
@@ -413,9 +426,14 @@ textarea.fld{display:block;width:100%;min-height:62px;padding:8px 10px;height:au
 .dot{position:absolute;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:var(--ink-2);border:2px solid var(--surface);padding:0;box-shadow:0 0 0 1px var(--ink-2)}
 .dot.soon{background:var(--gold);box-shadow:0 0 0 1px var(--gold)}
 .dot.over{position:static;margin:0;background:var(--crit);box-shadow:0 0 0 1px var(--crit)}
-.dot.proj{border-radius:1px;transform:rotate(45deg);background:var(--surface);box-shadow:0 0 0 2px var(--ink-2);width:10px;height:10px;margin-left:-5px}
-.dot.proj.off{box-shadow:0 0 0 2px var(--gold);background:var(--gold-soft)}
-.dot.proj.over{background:var(--crit-soft);box-shadow:0 0 0 2px var(--crit)}
+/* `pdot`, not `proj`. A timeline dot used to carry the same class name as a
+   project ROW, and `.proj` is a grid with a floored first column - so every
+   dot silently inherited display:grid and a grid-template-columns meant for a
+   different element. Nothing visible on a 10px empty button, but it was an
+   accident waiting to matter. */
+.dot.pdot{border-radius:1px;transform:rotate(45deg);background:var(--surface);box-shadow:0 0 0 2px var(--ink-2);width:10px;height:10px;margin-left:-5px}
+.dot.pdot.off{box-shadow:0 0 0 2px var(--gold);background:var(--gold-soft)}
+.dot.pdot.over{background:var(--crit-soft);box-shadow:0 0 0 2px var(--crit)}
 .dot:hover{z-index:2;outline:2px solid var(--brand);outline-offset:1px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);align-items:center}
 .legend i{display:inline-block;vertical-align:-1px;margin-right:5px}
