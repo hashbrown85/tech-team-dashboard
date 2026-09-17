@@ -226,9 +226,37 @@ button.kpi:hover{background:var(--surface-2)}
 .rp-b{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0}
 @media (max-width:640px){.rp{grid-template-columns:minmax(0,1fr)}}
 .items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;width:100%}
+/* THE RULE, stated once for the whole stylesheet.
+
+   A wrapping-text child sitting in a zero-floored track - minmax(0,1fr) - must
+   not share its row with an uncapped `auto` sibling. Grid grows `auto` tracks to
+   their max-content BEFORE flexible tracks get anything, so the neighbour eats
+   the width first and the 1fr takes the crumbs. Squeezed far enough,
+   overflow-wrap breaks inside a word and the title renders one letter per line.
+
+   Neither the text property nor the floor is the lever - the sibling is. Two
+   fixes, and nothing else: place the sibling on its own row with `grid-column`,
+   or cap it with `max-width` (which clamps the item's max-content contribution,
+   and so the auto track's growth limit). Do NOT floor the text track instead:
+   a magic minmax(Xem,1fr) can force the page wider than the window, which is the
+   failure that made the timeline unusable.
+
+   Precedents already doing this: .att-list .m, .proj .stat, .moved .mv-a,
+   .act .a-m, .ri .m. .item and .arow are where it was forgotten. */
 .item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 6px 8px 10px;background:var(--surface-2);border-radius:5px}
+/* Every child placed explicitly, so the count stops mattering. These rows emit
+   between two and five children (why and the conclusion are conditional, and
+   `.ro .edit-only` removes the x), and auto-placement used to wrap the extras
+   into column 1 or park them beside the title. Now column 1 only ever holds the
+   chip and column 3 only the x - both nowrap, both tiny. */
+.item > .it-t{grid-column:2}
+.item > .why,.item > .it-c{grid-column:2}
+.item > .x{grid-column:3;grid-row:1}
 .it-t{font-weight:500;overflow-wrap:break-word}
 .why{color:var(--ink-2);font-size:13.5px;margin-top:2px;overflow-wrap:break-word}
+/* Not `.concl` - that is the Rate segment's two-column page grid further down,
+   and this inline label was silently being rendered as one. */
+.it-c{color:var(--muted);font-size:12.5px;overflow-wrap:break-word}
 .why span{font:600 11px var(--f-label);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:6px}
 .why.own span{color:var(--brand)}
 .chip{font:700 11px/1 var(--f-label);text-transform:uppercase;letter-spacing:.07em;padding:5px 7px;border-radius:3px;white-space:nowrap;display:inline-block;margin-top:1px}
@@ -389,7 +417,19 @@ textarea.fld{display:block;width:100%;min-height:62px;padding:8px 10px;height:au
 .filters select{height:30px;border:1px solid var(--line-strong);border-radius:15px;background:var(--surface);padding:0 10px;font-size:13.5px}
 .filters .sp{flex:1 1 auto}
 .alist{list-style:none;margin:12px 0 0;padding:0;border-top:1px solid var(--line)}
+/* Four emitters, three different child counts: the register sends seven
+   (actions.js), the meeting rail three (meeting.js), the project page and the
+   already-owed block four. See THE RULE above .item - `.atext` is the victim
+   here, so every sibling that can share its row is either placed or capped. */
 .arow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:4px 12px;align-items:start;padding:11px 0;border-bottom:1px solid var(--line)}
+.arow > .atext{grid-column:2}
+/* The rail is a fixed 340px track (.mgrid) and cannot hold three columns of
+   text, so owner-and-due drops beneath the action instead of beside it. */
+.arow > .ameta{grid-column:2}
+/* The register has room for these as real columns - they just need a ceiling.
+   Uncapped, an owner's name took its full max-content before .atext was
+   considered at all. */
+.arow > .own,.arow > .m{max-width:14em;overflow-wrap:break-word}
 .arow > input[type="checkbox"]{margin-top:4px;width:16px;height:16px;accent-color:var(--good)}
 .arow .atext{font-weight:500;overflow-wrap:break-word}
 .arow .atext .aid{margin-right:7px}

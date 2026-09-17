@@ -83,6 +83,6 @@ export function renderApp(snap, ui, env) {
 
   return '<div class="app' + (full.areaReadonly ? ' ro' : '') + '">' +
     renderSide(snap, ui, full) +
-    '<main class="main" id="main"><div class="page">' + main + '</div></main>' +
+    '<main class="mainarea" id="main"><div class="page">' + main + '</div></main>' +
     '</div>';
 }

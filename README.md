@@ -33,9 +33,12 @@ node tools/layout-check.mjs
 
 Two commands, not one. The second reads `assets/theme.css` and `index.html` off disk
 and checks the markup against them — a class nothing styles, a grid row with the wrong
-number of children, `overflow-wrap: anywhere` creeping back. It **cannot** live in the
-first, because that suite also runs in a browser via `tests/tests.html` and nothing it
-imports may touch `node:fs`.
+number of children, a wrapping title sharing its row with an uncapped neighbour. It
+**cannot** live in the first, because that suite also runs in a browser via
+`tests/tests.html` and nothing it imports may touch `node:fs`.
+
+Its coverage is only as good as the state matrix inside it. If it is green and a
+screen is still wrong, suspect the matrix before the check.
 
 `?board=big` renders a deliberately oversized board of invented data — 20 people, 10
 meetings, 56 projects — for checking a layout at realistic size. See

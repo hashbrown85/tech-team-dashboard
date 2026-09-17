@@ -729,6 +729,63 @@ test('The rendered rows really come out in priority order', () => {
   eq(rendered, wanted, 'rows appear in the order priority asks for');
 });
 
+group('The rows that used to go vertical');
+
+/*
+ * Wins, losses and opportunities are only rendered on the meeting they were raised
+ * in, and the board opens on the NEXT meeting - which is empty by definition. That
+ * is correct behaviour, and it is also why these rows went unrendered by the tests
+ * AND by tools/layout-check.mjs while a layout bug in them reached a user twice.
+ * So: look at the meeting the entries are actually on.
+ */
+function pastMeeting(uiOverrides) {
+  const s2 = demoBoard();
+  const e = s2.entries.filter(function (x) { return x.tab === 't1'; });
+  const when = e.length ? e[0].meeting : today();
+  return renderApp(s2,
+    Object.assign({}, base, { view: 'tab', tab: 't1', dates: { t1: when } }, uiOverrides),
+    { today: today(), modes: MODES });
+}
+
+test('A win carrying a why and a change renders both, as sub-lines of its own', () => {
+  const html = pastMeeting({ steps: { t1: 0 } });
+  ok(html.indexOf('class="it-t"') >= 0, 'the entry title is rendered at all');
+  ok(html.indexOf('class="why"') >= 0, 'the why is rendered');
+  ok(html.indexOf('class="it-c"') >= 0, 'the conclusion is rendered');
+});
+
+test('The conclusion is not `.concl` - that class is a two-column page grid', () => {
+  // theme.css defines .concl as the Rate segment's layout
+  // (grid-template-columns: minmax(0,1.3fr) minmax(0,1fr); gap: 18px 28px). Used as
+  // an inline label inside .item it silently became a wide two-column grid, which is
+  // half of why the title beside it collapsed. The name is the bug.
+  [0, 1].forEach(function (step) {
+    const html = pastMeeting({ steps: { t1: step } });
+    notOk(html.indexOf('class="concl"') >= 0,
+      'step ' + step + ' does not put .concl on an inline label');
+  });
+});
+
+test('An opportunity row keeps title, challenge and start date in that order', () => {
+  // The order is what makes the placement rules in theme.css land as intended:
+  // the title in column 2 of row 1, each sub-line on a row beneath it.
+  const html = pastMeeting({ steps: { t1: 1 } });
+  const row = /<li class="item opp">[\s\S]*?<\/li>/.exec(html);
+  ok(row, 'an opportunity row is rendered');
+  if (!row) return;
+  const t = row[0].indexOf('class="it-t"');
+  const w = row[0].indexOf('class="why"');
+  ok(t >= 0 && w > t, 'the challenge follows the title');
+});
+
+test('Neither stage leaks a value or unbalances a tag', () => {
+  [0, 1].forEach(function (step) {
+    const html = pastMeeting({ steps: { t1: step } });
+    eq(leaks(html), [], 'step ' + step + ' renders no undefined/NaN');
+    eq(unbalanced(html), [], 'step ' + step + ' closes its tags');
+  });
+});
+
 group('Raising an opportunity');
 
 function oppForm() {

@@ -200,7 +200,7 @@ function stageWins(snap, ui, env, tab, d, ents) {
             (e.kind === 'win' ? 'Win' : 'Loss') + '</span>' +
             '<span class="it-t">' + esc(e.text) + '</span>' +
             (e.why ? '<span class="why">Why: ' + esc(e.why) + '</span>' : '') +
-            (e.change ? '<span class="concl">' + (e.kind === 'loss' ? 'Doing differently: ' : 'Keep doing: ') + esc(e.change) + '</span>' : '') +
+            (e.change ? '<span class="it-c">' + (e.kind === 'loss' ? 'Doing differently: ' : 'Keep doing: ') + esc(e.change) + '</span>' : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'
@@ -240,7 +240,7 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
             '<span class="chip">Opportunity</span>' +
             '<span class="it-t">' + esc(e.text) + '</span>' +
             (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
-            (pj && pj.start ? '<span class="concl">Joins Current Projects ' + fmtDay(pj.start) + '</span>' : '') +
+            (pj && pj.start ? '<span class="it-c">Joins Current Projects ' + fmtDay(pj.start) + '</span>' : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'

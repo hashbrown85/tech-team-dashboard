@@ -107,6 +107,13 @@ the big board did not hide a small-data problem.
 
 Worth a look while you are there, rather than a surprise on the day.
 
+**Vertical text should now be gone for good.** It was diagnosed wrongly the first
+time: the cause is not the text property but the row. A title sitting in a track
+floored at zero collapses when an uncapped neighbour shares its row, because grid
+gives that neighbour its full width first. The opportunity rows and the action rows
+now place their sub-lines underneath instead of beside, and `layout-check.mjs` fails
+if that is ever undone. Step 2 and the side rail at step 5 are where to confirm it.
+
 **The issue header.** The stylesheet lays out four columns and expects the issue title
 in the third — but the markup only puts three things there and the title sits
 underneath instead. The effect is that the toolbar on each issue hugs the severity chip

@@ -21,20 +21,30 @@
  * or the wrong number of children for a grid — and that class IS mechanically
  * checkable. This checks it.
  *
- * Four checks, each earning its place by having already shipped as a bug:
+ * Five checks, each earning its place by having already shipped as a bug:
  *
  *   a. `overflow-wrap: anywhere` is gone and stays gone. It reduces min-content width
- *      to one character, so any track floored at zero can collapse onto it and render
- *      text one letter per line. That shipped; the fix was swept through the whole
- *      stylesheet, and this keeps it swept.
+ *      to one character, so any track floored at zero can collapse onto it. NOTE:
+ *      removing it was NOT sufficient - see (e), which is the actual mechanism.
  *   b. Every class the views emit is defined SOMEWHERE. `.tgl`, `.sel`, `.block`,
  *      `.dtl` and `.done-row` all shipped as classes nothing styled.
  *   c. Grid containers have the number of children their layout assumes. `.mv` on a
  *      26px button, a fourth child in a three-column row: neither errors, neither
  *      looks wrong in the markup, both wreck the screen.
  *   d. The two hand-duplicated dark palettes still match.
+ *   e. A wrapping-text child never shares its grid row with an uncapped `auto`
+ *      sibling. See PLACEMENT.
  *
  * It renders through the real views, so what it inspects is what the browser gets.
+ *
+ * ## The limit worth knowing
+ *
+ * Coverage equals the matrix. Twice now a check has passed because the matrix never
+ * reached the shape that breaks: `.item` reported `2, 3` for a whole change set while
+ * Wins & Losses and New Opportunities rendered EMPTY, because the demo entries are
+ * dated and the meeting a tab is viewed at moves with the calendar. A green run means
+ * "nothing wrong in what was rendered", so when a bug is reported anyway, suspect
+ * `matrix()` and `fullBoard()` before trusting the result.
  */
 
 import { readFileSync } from 'node:fs';
@@ -43,6 +53,7 @@ import { dirname, join } from 'node:path';
 
 import { renderApp } from '../src/views/render.js';
 import { demoBoard } from '../src/demo-data.js';
+import { meetingDate } from '../src/domain/meetings.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
 import { bigBoard } from './bigboard.mjs';
 import { loadUi } from '../src/ui.js';
@@ -107,7 +118,7 @@ function hasClass(attrs, cls) {
  *
  * @returns {number[]} one entry per occurrence
  */
-function childCounts(html, cls) {
+function childShapes(html, cls) {
   const out = [];
   const all = Array.from(tags(html));
 
@@ -115,18 +126,25 @@ function childCounts(html, cls) {
     if (t.kind !== 'open' || !hasClass(t.attrs, cls)) return;
 
     let depth = 0;
-    let n = 0;
+    const kids = [];
     for (let j = i + 1; j < all.length; j++) {
       const k = all[j];
-      if (k.kind === 'void') { if (depth === 0) n++; continue; }
-      if (k.kind === 'open') { if (depth === 0) n++; depth++; continue; }
+      if (k.kind === 'void') { if (depth === 0) kids.push(classesOf(k.attrs)); continue; }
+      if (k.kind === 'open') { if (depth === 0) kids.push(classesOf(k.attrs)); depth++; continue; }
       if (depth === 0) break;          // the container's own closing tag
       depth--;
     }
-    out.push(n);
+    out.push(kids);
   });
 
   return out;
+}
+
+/** The class tokens on one tag, as an array. */
+function classesOf(attrs) {
+  const m = /class="([^"]*)"/.exec(attrs || '');
+  if (!m || !m[1].trim()) return [];
+  return m[1].trim().split(/\s+/);
 }
 
 /** Every class actually emitted, and whether any element got an empty one. */
@@ -154,6 +172,31 @@ function fullBoard() {
   // variant needs to render or check (b) never sees it.
   STATUSES.concat(['new']).forEach(function (st, i) {
     if (s.projects[i]) s.projects[i].status = st;
+  });
+
+  /*
+   * Wins & Losses and New Opportunities rendered EMPTY on every run until now.
+   * The demo board's entries are dated 2026-09-14, the meeting a tab is viewed at
+   * is derived from today's date, and the two drift apart the moment the calendar
+   * moves - so `renderMeeting` filtered every entry out and the tool reported
+   * `.item 2, 3` from the rail and the business review alone. I read that as
+   * reassurance. It was the hole the vertical-text bug lived in.
+   *
+   * Stamp them onto the date each tab is actually viewed at, so the stage renders
+   * what a person sees, and cover the conditional children: `.item` emits two to
+   * five and only the four- and five-child shapes collapse.
+   */
+  s.tabs.forEach(function (t) {
+    const d = meetingDate(t, TODAY, null);
+    const mine = s.entries.filter(function (e) { return e.tab === t.id; });
+    mine.forEach(function (e, i) {
+      e.meeting = d;
+      if (e.kind === 'win' || e.kind === 'loss') {
+        e.why = 'Why it went the way it did';
+        if (i % 2) e.change = 'What we will do differently next time';
+      }
+      if (e.kind === 'opp') e.why = 'The challenge we still have to clear';
+    });
   });
 
   SEVERITIES.forEach(function (sev, i) {
@@ -280,24 +323,140 @@ const GRID_CHILDREN = [
   ['proj', [4], 'name, tools, status, details — see meeting.js projectRow'],
 
   /*
-   * Reported, not asserted. These three legitimately vary with their content, and
-   * pinning a set today would mostly record what the demo board happens to contain.
-   * Their numbers are printed on every run so a change is visible, and two of them
-   * are worth a human look during the rehearsal:
+   * These three vary with their content, which is why they were reported and not
+   * asserted. That was a mistake: it is exactly how the vertical-text bug reached
+   * a user twice. A varying count is still a KNOWN SET, and a number outside it
+   * means somebody added a child without looking at the grid.
    *
    *   .arow  3, 4, 7 — the register emits seven into a four-column grid on purpose
-   *                    and lets them wrap; the project page emits four.
+   *                    and lets them wrap; the rail emits three, the project page
+   *                    and the already-owed block four.
    *   .is-h  3       — but the CSS declares FOUR columns (auto auto minmax(0,1fr)
    *                    auto) and its mobile rules style `.is-h .it-t`, which is
    *                    never emitted inside .is-h: the title lives in a sibling
    *                    .is-body. So the toolbar sits in the flexible column rather
    *                    than being pushed right, and two rules target nothing.
-   *   .item  2, 3    — children are conditional (why, change, delete).
+   *   .item  2..5    — chip and title always; why, the conclusion and the delete
+   *                    button conditionally.
+   *
+   * The count alone is NOT sufficient - the rail collapsed at three children in a
+   * four-column grid. See PLACEMENT below for the check that catches that.
    */
-  ['arow', null, 'four-column grid; the register emits more and lets them wrap'],
-  ['is-h', null, 'declares four columns; emits three children — see above'],
-  ['item', null, 'auto minmax(0,1fr) auto, with conditional children']
+  ['arow', [3, 4, 7], 'four-column grid; the register emits more and lets them wrap'],
+  ['is-h', [3], 'declares four columns; emits three children — see above'],
+  ['item', [2, 3, 4, 5], 'auto minmax(0,1fr) auto, with conditional children']
 ];
+
+
+/*
+ * (e) THE RULE, checked.
+ *
+ * A wrapping-text child in a zero-floored track - minmax(0,1fr) - collapses when
+ * it shares its row with an UNCAPPED `auto` sibling, because grid grows auto
+ * tracks to max-content before flexible tracks get anything at all. Squeezed far
+ * enough, overflow-wrap breaks inside a word: one letter per line.
+ *
+ * Counting children does not catch this. The meeting rail collapsed at three
+ * children in a four-column grid, which is a perfectly legal count. What matters
+ * is what lands in the text child's ROW, so that is what this simulates.
+ *
+ * Hand-written, like GRID_CHILDREN, and for the same reason: in every one of
+ * these bugs the CSS was right and the markup was wrong, so deriving the
+ * expectation from the CSS would have caught none of them. Every `placed` and
+ * `capped` claim below is verified against the stylesheet, so this table cannot
+ * quietly outlive the rule it describes.
+ *
+ *   placed:N  pinned to column N by a grid-column rule
+ *   capped    carries a max-width, which clamps the auto track's growth limit
+ *   safe      short and non-wrapping: a chip, an id, a button, a fixed control
+ *   text      the victim - the wrapping text in the zero-floored track
+ */
+const PLACEMENT = [
+  {
+    grid: 'item', cols: 3,
+    kids: {
+      chip:   'safe',
+      'it-t': 'text placed:2',
+      why:    'placed:2',
+      'it-c': 'placed:2',
+      x:      'placed:3'
+    }
+  },
+  {
+    grid: 'arow', cols: 4,
+    kids: {
+      ax:      'safe',
+      aid:     'safe',
+      atext:   'text placed:2',
+      ameta:   'placed:2',
+      own:     'capped',
+      m:       'capped',
+      adue:    'safe',
+      fld:     'safe',
+      x:       'safe'
+    }
+  }
+];
+
+/**
+ * CSS rules as {selectors, body}. Innermost-first, so a rule inside @media is
+ * found and its prelude ignored - deliberately over-permissive, because this
+ * only ever asks "does a rule claiming this exist", never "does it win".
+ */
+function cssRules(text) {
+  const out = [];
+  let m;
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  while ((m = re.exec(text))) {
+    const sel = m[1].trim();
+    if (sel.charAt(0) === '@') continue;
+    out.push({ selectors: sel.split(',').map(function (x) { return x.trim(); }), body: m[2] });
+  }
+  return out;
+}
+
+/** Does the stylesheet pin `.grid > .cls` to a column, or cap its width? */
+function claimIsReal(rules, grid, cls, want) {
+  const re = new RegExp('\\.' + grid + '\\b[^,]*\\.' + cls + '\\b\\s*$');
+  return rules.some(function (r) {
+    if (!r.selectors.some(function (sel) { return re.test(sel); })) return false;
+    return want.test(r.body);
+  });
+}
+
+/**
+ * Auto-placement for 1x1 items, per CSS Grid 8.5. Two passes: items locked to a
+ * column, then everything else, both sparse. Returns a row number per child.
+ */
+function placeRows(kinds, cols) {
+  const taken = {};
+  const rows = new Array(kinds.length);
+  const free = function (r, c) { return !taken[r + ':' + c]; };
+  const take = function (r, c) { taken[r + ':' + c] = true; };
+
+  let cr = 1, cc = 1;
+  kinds.forEach(function (k, i) {
+    if (k.col === null) return;
+    if (k.col < cc) cr++;
+    cc = k.col;
+    while (!free(cr, cc)) cr++;
+    take(cr, cc);
+    rows[i] = cr;
+  });
+
+  cr = 1; cc = 1;
+  kinds.forEach(function (k, i) {
+    if (k.col !== null) return;
+    while (!free(cr, cc)) {
+      cc++;
+      if (cc > cols) { cc = 1; cr++; }
+    }
+    take(cr, cc);
+    rows[i] = cr;
+  });
+
+  return rows;
+}
 
 function checkStylesheets() {
   // (a) the foot-gun, swept and staying swept
@@ -367,7 +526,9 @@ function main() {
   const emitted = new Set();
   const empties = [];
   const observed = {};
+  const shapes = {};
   GRID_CHILDREN.forEach(function (g) { observed[g[0]] = new Set(); });
+  PLACEMENT.forEach(function (p) { shapes[p.grid] = new Map(); });
 
   const states = matrix();
   const statuses = new Set();
@@ -397,7 +558,15 @@ function main() {
     });
 
     GRID_CHILDREN.forEach(function (g) {
-      childCounts(html, g[0]).forEach(function (n) { observed[g[0]].add(n); });
+      childShapes(html, g[0]).forEach(function (kids) { observed[g[0]].add(kids.length); });
+    });
+
+    // Distinct shapes only - the big board alone has hundreds of identical rows.
+    PLACEMENT.forEach(function (p) {
+      childShapes(html, p.grid).forEach(function (kids) {
+        const sig = kids.map(function (c) { return c.join('.'); }).join(' | ');
+        if (!shapes[p.grid].has(sig)) shapes[p.grid].set(sig, { kids: kids, where: label });
+      });
     });
   });
 
@@ -421,6 +590,79 @@ function main() {
       empties.length + ' occurrence(s), e.g. ' + empties[0] +
       '\n    Always a conditional that lost. Emit no class attribute instead.');
   }
+
+  /* --- (e) the text child must not share its row with an uncapped sibling --- */
+  const rules = cssRules(THEME + '\n' + STYLE_BLOCK);
+
+  PLACEMENT.forEach(function (p) {
+    if (!shapes[p.grid].size) {
+      fail('.' + p.grid + ' is never rendered, so its placement is unchecked',
+        'Add a state to the matrix that reaches it.');
+      return;
+    }
+
+    // The table must not describe protection the stylesheet no longer provides.
+    Object.keys(p.kids).forEach(function (cls) {
+      const spec = p.kids[cls];
+      const col = /placed:(\d+)/.exec(spec);
+      if (col && !claimIsReal(rules, p.grid, cls, new RegExp('grid-column\\s*:\\s*' + col[1] + '\\b'))) {
+        fail('PLACEMENT claims .' + cls + ' is pinned, and it is not',
+          '.' + p.grid + ' > .' + cls + ' is listed as ' + spec + ', but no rule in the' +
+          '\n    stylesheet puts it in column ' + col[1] + '. Either restore the rule or' +
+          '\n    reclassify it here - silently, it is back to auto-placement.');
+      }
+      if (spec.indexOf('capped') >= 0 && !claimIsReal(rules, p.grid, cls, /max-width/)) {
+        fail('PLACEMENT claims .' + cls + ' is capped, and it is not',
+          '.' + p.grid + ' > .' + cls + ' has no max-width, so its auto track grows to' +
+          '\n    max-content and takes the width from the text column beside it.');
+      }
+    });
+
+    shapes[p.grid].forEach(function (inst, sig) {
+      const unknown = [];
+      const kinds = inst.kids.map(function (tokens) {
+        const cls = tokens.filter(function (c) { return p.kids[c]; })[0];
+        if (!cls) { unknown.push(tokens.join('.') || '(no class)'); return null; }
+        const spec = p.kids[cls];
+        const col = /placed:(\d+)/.exec(spec);
+        return { cls: cls, col: col ? +col[1] : null, spec: spec };
+      });
+
+      if (unknown.length) {
+        fail('.' + p.grid + ' has a child PLACEMENT does not know about',
+          unknown.join(', ') + '  (seen on: ' + inst.where + ')' +
+          '\n    Classify it in PLACEMENT: safe, capped, or placed. An unclassified' +
+          '\n    child is auto-placed, and an auto-placed child beside the text is' +
+          '\n    exactly how this row collapses.');
+        return;
+      }
+
+      const rows = placeRows(kinds, p.cols);
+      let ti = -1;
+      kinds.forEach(function (k, i) { if (ti < 0 && k.spec.indexOf('text') >= 0) ti = i; });
+      if (ti < 0) return;              // no text child in this shape; nothing to protect
+
+      const bad = kinds.filter(function (k, i) {
+        return i !== ti && rows[i] === rows[ti] &&
+          k.spec.indexOf('safe') < 0 && k.spec.indexOf('capped') < 0;
+      });
+
+      if (bad.length) {
+        fail('.' + p.grid + ' puts an uncapped sibling beside its text',
+          '.' + kinds[ti].cls + ' shares row ' + rows[ti] + ' with ' +
+          bad.map(function (k) { return '.' + k.cls; }).join(', ') +
+          '\n    shape: ' + sig + '\n    seen on: ' + inst.where +
+          '\n    The text sits in a track floored at zero; an auto sibling is sized to' +
+          '\n    max-content FIRST and leaves it the crumbs. Place the sibling on its' +
+          '\n    own row with grid-column, or give it a max-width. Do not floor the' +
+          '\n    text track - that can force the page wider than the window.');
+      }
+    });
+  });
+
+  notes.push('grid placement \u2014 ' +
+    PLACEMENT.map(function (p) { return '.' + p.grid + ' ' + shapes[p.grid].size; }).join(', ') +
+    ' distinct shapes, text column never shared');
 
   /* --- (c) grid child counts --- */
   GRID_CHILDREN.forEach(function (g) {
