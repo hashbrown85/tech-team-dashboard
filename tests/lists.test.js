@@ -252,7 +252,11 @@ group('People & settings');
 test('The screen is named for both halves of what it holds', () => {
   const html = page();
   ok(html.indexOf('<h1>People &amp; settings</h1>') > 0, 'the heading');
-  ok(/data-v="people"[^>]*>[\s\S]{0,40}People &amp; settings/.test(html), 'the nav item');
+  // Pinned to the label element, not to a character window after the attribute:
+  // the nav items carry an inline icon now, and a distance-based match would go
+  // vacuous the moment anything else is added between the two.
+  ok(/data-v="people"[\s\S]{0,400}?<span class="ni-t">People &amp; settings<\/span>/.test(html),
+    'the nav item');
 });
 
 test('The route id is unchanged, so a remembered session still lands here', () => {

@@ -42,9 +42,39 @@
  * @param {any} [active] - the focused element, if any
  */
 export function renderPreservingForms(root, html, active) {
+  /*
+   * captureForms only looks inside `form[data-form]`, so a focused element anywhere
+   * else - a toggle button, a nav item - is invisible to it and focus lands on
+   * <body> after the redraw. For a button whose own click causes the redraw that is
+   * a trap: press it by keyboard and you have to tab from the top of the page to
+   * press it again.
+   *
+   * An id is the only stable handle a full-string render leaves behind, so that is
+   * what we re-find it by. Elements without one are unchanged from before.
+   */
+  const focusId = idOf(active);
   const typed = captureForms(root, active);
   root.innerHTML = html;
   restoreForms(root, typed);
+  if (focusId) refocusById(root, focusId);
+}
+
+/** A plain, selector-safe id. Anything else is not worth escaping for. */
+function idOf(el) {
+  const id = el && el.id ? String(el.id) : '';
+  return /^[A-Za-z][\w-]*$/.test(id) ? id : '';
+}
+
+/**
+ * Put focus back on the element that had it, unless restoreForms already placed it
+ * somewhere - a form field always wins, because that is where a caret lives.
+ */
+function refocusById(root, id) {
+  const doc = root && root.ownerDocument;
+  const now = doc && doc.activeElement;
+  if (now && doc.body && now !== doc.body && root.contains && root.contains(now)) return;
+  const el = root.querySelector && root.querySelector('#' + id);
+  if (el && typeof el.focus === 'function') el.focus();
 }
 
 /**

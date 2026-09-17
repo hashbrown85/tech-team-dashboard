@@ -37,8 +37,11 @@ number of children, a wrapping title sharing its row with an uncapped neighbour.
 **cannot** live in the first, because that suite also runs in a browser via
 `tests/tests.html` and nothing it imports may touch `node:fs`.
 
-Its coverage is only as good as the state matrix inside it. If it is green and a
-screen is still wrong, suspect the matrix before the check.
+Both exit non-zero on a failure, so a script can tell. Read the exit code, not the
+printed count.
+
+Their coverage is only as good as the state matrix inside them. If they are green and
+a screen is still wrong, suspect the matrix before the check.
 
 `?board=big` renders a deliberately oversized board of invented data — 20 people, 10
 meetings, 56 projects — for checking a layout at realistic size. See

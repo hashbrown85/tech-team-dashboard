@@ -51,7 +51,7 @@ a{color:var(--brand)}
 .lbl{font:600 11.5px/1.2 var(--f-label);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 
 /* ---------- shell ---------- */
-.app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100vh}
+.app{display:grid;grid-template-columns:var(--side-w,236px) minmax(0,1fr);min-height:100vh}
 .side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column}
 .brand{position:relative;isolation:isolate;padding:20px 18px 16px;border-bottom:1px solid var(--line)}
 .brand::before{content:'';position:absolute;inset:0;z-index:-1;background:url(data:image/jpeg;base64,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) left top/cover no-repeat;opacity:var(--hex-op)}
@@ -81,6 +81,48 @@ a{color:var(--brand)}
 .savepill{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);min-height:26px;flex-wrap:wrap}
 .savepill .dotc{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 .savepill.ok .dotc{background:var(--good)} .savepill.dirty .dotc{background:var(--gold)} .savepill.ro .dotc{background:var(--line-strong)}
+/* ---------- the collapsed sidebar (ui.sideSlim -> .app.slim) ----------
+
+   The markup is IDENTICAL either way - same buttons, same labels, same identity
+   block - and only these rules decide what shows. That is what stops a collapse
+   stranding the six controls that live nowhere else: Projects, Timeline, People,
+   the + that adds a meeting, the person filter and the demo-data marker.
+
+   Labels are CLIPPED, not display:none. A button whose text is display:none has no
+   accessible name, so a screen reader would announce a column of unnamed buttons. */
+.side-tog{position:absolute;top:10px;right:8px;z-index:1;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);border-radius:4px;width:24px;height:24px;display:grid;place-items:center;padding:0}
+.side-tog:hover{border-color:var(--brand);color:var(--brand)}
+.nicon{flex:none;display:none;width:18px;height:18px}
+.nicon svg{display:block;width:18px;height:18px}
+.nini{font:700 10px/1 var(--f-label);letter-spacing:.02em;width:28px;height:22px;border-radius:4px;background:var(--sunk);color:var(--ink-2);place-items:center}
+.iam-flag{display:none;font:700 10px/1 var(--f-label);letter-spacing:.06em;padding:4px 5px;border-radius:3px;background:var(--gold-soft);color:var(--gold-ink);text-align:center}
+.iam-flag.warn{background:var(--crit-soft);color:var(--crit)}
+
+.app.slim{--side-w:56px}
+/* Without this the width goes nowhere on a wide screen: .page is capped at 1240px
+   and centred, so the 180px freed up would just become more whitespace. */
+.app.slim .page{max-width:1600px}
+.app.slim .wm,.app.slim .appname,.app.slim .ng-plain,.app.slim .ni-s,
+.app.slim .iam-name,.app.slim .iam-note,.app.slim .side-foot .lbl,
+.app.slim #f-person,.app.slim .cnt.n{display:none}
+.app.slim .ni-t,.app.slim .ng-t{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.app.slim .nicon{display:block}
+.app.slim .nicon.nini{display:grid}
+.app.slim .brand{padding:10px 6px 12px;text-align:center}
+.app.slim .mark{justify-content:center}
+.app.slim .side-tog{position:static;margin:0 auto 10px}
+.app.slim .nav{padding:10px 4px;align-items:center}
+.app.slim .ni{position:relative;justify-content:center;padding:8px 0;gap:0}
+.app.slim .ng{justify-content:center;padding:10px 0 4px;min-height:0}
+.app.slim .ni[aria-current="page"] .nini{background:var(--brand);color:var(--on-brand)}
+/* A number will not fit, but "there is something here" has to survive. */
+.app.slim .cnt{position:absolute;top:4px;right:8px;min-width:8px;width:8px;height:8px;padding:0;border-radius:50%;font-size:0;overflow:hidden}
+.app.slim .side-foot{padding:12px 4px;align-items:center}
+.app.slim .savepill{justify-content:center}
+.app.slim .savepill span{display:none}
+.app.slim .iam{margin-bottom:0}
+.app.slim .iam-flag{display:block}
+
 .mnav{display:none}
 .mainarea{min-width:0;padding-inline:clamp(16px,3vw,40px);padding-block:26px 64px}
 .page{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:18px}

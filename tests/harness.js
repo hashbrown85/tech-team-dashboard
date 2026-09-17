@@ -117,6 +117,21 @@ export async function report(into) {
   // Also print it, so running this in a headless browser or CI is useful later.
   results.filter((r) => !r.ok).forEach((r) => console.error('FAIL: ' + r.name + '\n  ' + r.detail));
   console.log(passed + ' passed, ' + failed + ' failed');
+
+  /*
+   * Exit non-zero on a failure, so a script can tell.
+   *
+   * Until now this always exited 0 and the count was only ever read by eye, which
+   * works right up until something automates it: a mutation check that reverts a
+   * rule and reruns the suite read "caught" from a green exit code while the run
+   * underneath it was printing FAIL. `tools/layout-check.mjs` has always done this;
+   * the suite quietly did not.
+   *
+   * Guarded, because this same file runs in a browser via tests/tests.html where
+   * there is no `process` at all.
+   */
+  if (failed && typeof process !== 'undefined' && process) process.exitCode = 1;
+
   return { passed, failed };
 }
 

@@ -185,6 +185,14 @@ export function createHandlers(app) {
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
     toggleSummary: function () { ui.sumShow = !ui.sumShow; render(); },
 
+    /*
+     * Collapse the sidebar to the icon strip, for width during a meeting. Purely a
+     * ui flag - the markup renders the same either way and CSS decides what shows,
+     * so collapsing can never stranded a control that lives only in the sidebar
+     * (Projects, Timeline, People, the + that adds a meeting, the demo-data marker).
+     */
+    toggleSide: function () { ui.sideSlim = !ui.sideSlim; render(); },
+
     openProject: function (el, id) {
       ui.project = id;
       goView('project');

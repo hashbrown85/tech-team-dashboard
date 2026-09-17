@@ -81,7 +81,10 @@ export function renderApp(snap, ui, env) {
     main = renderOverview(snap, ui, full);
   }
 
-  return '<div class="app' + (full.areaReadonly ? ' ro' : '') + '">' +
+  // `slim` collapses the sidebar to the icon strip. It goes here rather than on
+  // `.side`, because the grid track it changes is declared on `.app`.
+  return '<div class="app' + (full.areaReadonly ? ' ro' : '') +
+    (ui.sideSlim ? ' slim' : '') + '">' +
     renderSide(snap, ui, full) +
     '<main class="mainarea" id="main"><div class="page">' + main + '</div></main>' +
     '</div>';

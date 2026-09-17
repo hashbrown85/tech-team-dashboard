@@ -280,6 +280,17 @@ function matrix() {
   out.push(['empty board', { view: 'overview' }, blankSnapshot(), LIVE, { personId: null }]);
 
   /*
+   * The collapsed sidebar. A new ui boolean defaults to false everywhere, so without
+   * a state that sets it every class it introduces renders in NO state and check (b)
+   * cannot see them. Two screens: a meeting, which is what it is for, and the people
+   * screen, which is where the identity block and the demo flag live.
+   */
+  out.push(['sidebar slim',
+    { view: 'tab', tab: 't1', steps: { t1: 2 }, sideSlim: true }, full, LIVE, { kind: 'demo', displayName: 'Alex Morgan', personId: 'p1' }]);
+  out.push(['sidebar slim, people',
+    { view: 'people', sideSlim: true }, full, LIVE, { kind: 'demo', displayName: 'Alex Morgan', personId: 'p1' }]);
+
+  /*
    * And the big board, on the screens where volume and long values actually bite.
    * The small demo board is too tidy to collapse anything: every layout bug found
    * so far needed either a long unbroken token or a lot of rows, and it has neither.
@@ -494,16 +505,37 @@ const BREAKS = /(overflow-wrap|word-break)\s*:\s*(break-word|anywhere|break-all)
 /** The shortest token worth worrying about. Real words do not reach this. */
 const LONG_TOKEN = 35;
 
-/** A compound like `table.t` or `.ph` -> {tag, classes}. Pseudos and attrs dropped. */
+/**
+ * A compound like `table.t`, `#f-person` or `.ph:hover` -> {tag, id, classes, attr}.
+ *
+ * The `attr` flag matters. Stripping `[hidden]` out of a selector used to leave an
+ * EMPTY compound - no tag, no classes - and an empty compound matched every element,
+ * so `[hidden]{display:none}` appeared to apply to everything. Ids had the same
+ * problem, because nothing extracted them. That silently weakened every check built
+ * on this matcher: a single `#id{overflow-wrap:break-word}` anywhere would have made
+ * check (f) believe all text was safe to wrap.
+ */
 function compound(part) {
+  const attr = /\[[^\]]*\]/.test(part);
   const bare = part.replace(/::?[a-z-]+(\([^)]*\))?/g, '').replace(/\[[^\]]*\]/g, '');
   const classes = (bare.match(/\.[-\w]+/g) || []).map(function (c) { return c.slice(1); });
+  const id = /#([-\w]+)/.exec(bare);
   const tag = /^[a-zA-Z][-\w]*/.exec(bare);
-  return { tag: tag ? tag[0].toLowerCase() : null, classes: classes };
+  return {
+    tag: tag ? tag[0].toLowerCase() : null,
+    id: id ? id[1] : null,
+    classes: classes,
+    attr: attr
+  };
 }
 
 function compoundMatches(c, node) {
+  // An attribute condition cannot be evaluated from a rendered string, so a selector
+  // carrying one is treated as not matching rather than as matching everything.
+  if (c.attr) return false;
+  if (!c.tag && !c.id && !c.classes.length) return false;
   if (c.tag && c.tag !== '*' && c.tag !== node.tag) return false;
+  if (c.id && c.id !== node.id) return false;
   return c.classes.every(function (cl) { return node.classes.indexOf(cl) >= 0; });
 }
 
@@ -581,10 +613,58 @@ function longTokens(html) {
     if (m[1]) { stack.pop(); continue; }
     if (m[4] || VOID_TAG.test(tag)) continue;
     const cm = /class="([^"]*)"/.exec(m[3]);
-    stack.push({ tag: tag, classes: cm && cm[1].trim() ? cm[1].trim().split(/\s+/) : [] });
+    const im = /id="([^"]*)"/.exec(m[3]);
+    stack.push({
+      tag: tag,
+      id: im ? im[1] : null,
+      classes: cm && cm[1].trim() ? cm[1].trim().split(/\s+/) : []
+    });
   }
 
   return out;
+}
+
+/*
+ * (g) A label that gives a button its accessible name must never be display:none.
+ *
+ * The collapsed sidebar hides its labels visually. Doing that with `display:none`
+ * removes them from the accessibility tree too, and a button with no text and no
+ * aria-label has NO accessible name - a screen reader then announces a column of
+ * "button, button, button". Clipping (the .sr-only pattern) hides it from the eye
+ * and keeps the name.
+ *
+ * The difference is one declaration and is invisible on screen, which is exactly
+ * why it needs a check rather than a comment. Each entry is the element chain a
+ * label sits in; the existing selector matcher decides which rules reach it.
+ */
+const NAMED_LABELS = [
+  {
+    what: 'a nav item label in the collapsed sidebar',
+    chain: [
+      { tag: 'div', classes: ['app', 'slim'] },
+      { tag: 'aside', classes: ['side'] },
+      { tag: 'nav', classes: ['nav'] },
+      { tag: 'button', classes: ['ni'] },
+      { tag: 'span', classes: ['ni-t'] }
+    ]
+  },
+  {
+    what: 'the group heading that carries the add-a-meeting button',
+    chain: [
+      { tag: 'div', classes: ['app', 'slim'] },
+      { tag: 'aside', classes: ['side'] },
+      { tag: 'nav', classes: ['nav'] },
+      { tag: 'div', classes: ['ng'] },
+      { tag: 'span', classes: ['ng-t'] }
+    ]
+  }
+];
+
+function hidesOutright(rules, chain) {
+  return rules.filter(function (r) {
+    if (!/display\s*:\s*none/.test(r.body)) return false;
+    return r.selectors.some(function (sel) { return selectorMatches(sel, chain); });
+  });
 }
 
 function checkStylesheets() {
@@ -802,6 +882,18 @@ function main() {
   notes.push('grid placement \u2014 ' +
     PLACEMENT.map(function (p) { return '.' + p.grid + ' ' + shapes[p.grid].size; }).join(', ') +
     ' distinct shapes, text column never shared');
+
+  /* --- (g) a label that names a button must be clipped, not removed --- */
+  NAMED_LABELS.forEach(function (n) {
+    const killers = hidesOutright(rules, n.chain);
+    if (!killers.length) return;
+    fail('display:none on ' + n.what,
+      killers.map(function (r) { return r.selectors.join(', '); }).join('\n    ') +
+      '\n    That removes the text from the accessibility tree as well as the screen,' +
+      '\n    and the button is left with no accessible name at all - a screen reader' +
+      '\n    reads out a column of unnamed buttons. Clip it instead (the .sr-only' +
+      '\n    pattern: position absolute, 1px, clip rect(0 0 0 0)).');
+  });
 
   /* --- (f) long unbroken text must land where it can break --- */
   if (!unbreakable.size) {

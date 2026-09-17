@@ -43,6 +43,7 @@ function defaults() {
     tlGroup: 'meeting', // timeline grouping
     follow: false,      // showing the copyable follow-up text
     sumShow: false,     // showing the meeting summary preview
+    sideSlim: false,    // sidebar collapsed to the icon strip
     open: null,         // which inline form is open
     openDetails: {}     // project ids whose details panel is expanded
     // Who you are is NOT remembered here any more - it comes from the sign-in.

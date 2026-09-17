@@ -92,6 +92,7 @@ BOARD** so you cannot show it to anyone by mistake.
 | 8 | **Dark mode** | switch Windows to dark (or set `data-theme="dark"`) and repeat 1, 4 and 5 quickly. **Nothing has ever rendered this.** The brand colour changes from dark red to light red, so check the header, chips, the selected-project outline, and that focus outlines are still visible |
 | 9 | **Narrow** | drag the window to roughly 1100, 980, 700 and 560 px. Each is a point where the layout rearranges. You will not present narrow, but a laptop screen mid-meeting is one alt-tab away |
 | 10 | **Reload mid-flow** | with a timer running and a half-filled form open, press F5. The form should keep what you typed and the meeting should come back where you left it |
+| 11 | **The collapsed menu** | press the toggle at the top of the sidebar. Check the tiles actually get wider (see the note below), that the meeting initials read clearly at ten meetings, that the strip scrolls if it needs to, and that you can reach every screen from it without expanding. Tab to the toggle and press Space twice — focus must still be on it |
 
 **Keyboard check, at step 7:** press Tab until focus reaches a sortable column header
 on the Projects list. The outline there is set specially, because the normal one is
@@ -124,6 +125,13 @@ Decide whether it looks right at step 5; it is a design call, not a bug fix.
 **Dark mode is genuinely untested.** Not "lightly tested" — nothing in the app, the
 tests or the tools has ever rendered it. Step 8 is the first time. Allow for finding
 something.
+
+**Whether collapsing the menu gains you anything depends on your width.** The content
+column is capped, so on a wide screen the space freed up would otherwise just become
+more margin. Collapsing raises that cap to 1600px to compensate, but the effect is very
+different at 1280px (roughly +180px of tile) and at 1920px (the cap is what is binding,
+not the sidebar). This is the number from the console at the top of this page, and step
+11 is where it is worth actually measuring rather than assuming.
 
 ---
 

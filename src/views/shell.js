@@ -104,15 +104,77 @@ export function whoAmI(env) {
   const name = '<div class="lbl">Signed in as</div>' +
     '<div class="iam-name">' + esc(who.displayName) + '</div>';
 
+  /*
+   * The flag is what is left of this when the sidebar is collapsed to 56px. It is
+   * not decoration: the demo warning exists so an invented board is never presented
+   * to a room by mistake, and a collapse that quietly removed it would take the
+   * safeguard away at exactly the moment it is needed. The full sentence stays as
+   * the tooltip.
+   */
   if (who.kind === 'demo') {
     return '<div class="iam demo">' + name +
-      '<div class="iam-note">Demo data — not the real board</div></div>';
+      '<div class="iam-note">Demo data — not the real board</div>' +
+      '<span class="iam-flag" title="Demo data — not the real board">DEMO</span></div>';
   }
   if (who.kind === 'unknown-user') {
     return '<div class="iam warn">' + name +
-      '<div class="iam-note">You are not on the roster yet</div></div>';
+      '<div class="iam-note">You are not on the roster yet</div>' +
+      '<span class="iam-flag warn" title="You are not on the roster yet">?</span></div>';
   }
   return '<div class="iam">' + name + '</div>';
+}
+
+
+/*
+ * The nav icons, for the collapsed sidebar.
+ *
+ * Drawn here rather than pulled from an icon font or a CDN: `docs/REHEARSAL.md`
+ * already warns that the corporate network may block Google Fonts, and navigation
+ * that disappears on the meeting-room network is worse than no icons at all. These
+ * cost about 60 lines and cannot fail to load.
+ *
+ * Single stroke weight, currentColor, no fill, so they inherit the nav item's
+ * colour including the selected and hover states.
+ */
+const ICONS = {
+  overview: '<rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1"/>' +
+    '<rect x="10" y="2.5" width="5.5" height="5.5" rx="1"/>' +
+    '<rect x="2.5" y="10" width="5.5" height="5.5" rx="1"/>' +
+    '<rect x="10" y="10" width="5.5" height="5.5" rx="1"/>',
+  actions: '<rect x="2.5" y="2.5" width="13" height="13" rx="2.5"/>' +
+    '<path d="M5.8 9.2l2.3 2.3 4.4-4.6"/>',
+  projects: '<path d="M4 15.2V8.4M9 15.2V3.6M14 15.2v-4.4"/>',
+  timeline: '<path d="M2.5 4.5h7M5.5 9h10M2.5 13.5h6"/>',
+  people: '<circle cx="9" cy="6" r="3"/><path d="M3.4 15.4c0-3 2.5-4.9 5.6-4.9s5.6 1.9 5.6 4.9"/>',
+  hide: '<path d="M11.5 4L6.5 9l5 5"/>',
+  show: '<path d="M6.5 4l5 5-5 5"/>'
+};
+
+function icon(name) {
+  return '<span class="nicon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" ' +
+    'stroke-linejoin="round">' + ICONS[name] + '</svg></span>';
+}
+
+/**
+ * A meeting's two or three letters, for the collapsed strip.
+ *
+ * Meetings cannot have icons - there are eight to twelve of them with names nobody
+ * chose for a 56px column - so they get initials, the way a workspace switcher does.
+ * A trailing number is kept whole, because "Northern Area 1" and "Northern Area 2"
+ * differ only there and NA/NA would be useless.
+ *
+ * @param {string} name
+ */
+export function meetingInitials(name) {
+  const parts = String(name || '').trim().split(/[\s\-_/&]+/).filter(Boolean);
+  let out = '';
+  for (let i = 0; i < parts.length && out.length < 3; i++) {
+    out += /^\d+$/.test(parts[i])
+      ? parts[i].slice(0, 3 - out.length)
+      : parts[i].charAt(0).toUpperCase();
+  }
+  return out || '?';
 }
 
 /**
@@ -148,14 +210,21 @@ export function renderSide(snap, ui, env) {
       badge = '<span class="ni-s">' + fmtShort(meetingDate(t, env.today, ui.dates[t.id])) + '</span>';
     }
     return '<button type="button" class="ni" data-act="go" data-v="tab" data-id="' + esc(t.id) + '"' +
-      (isCurrent('tab', t.id) ? ' aria-current="page"' : '') + '>' +
+      (isCurrent('tab', t.id) ? ' aria-current="page"' : '') +
+      ' title="' + esc(t.name) + '">' +
+      '<span class="nicon nini" aria-hidden="true">' + esc(meetingInitials(t.name)) + '</span>' +
       '<span class="ni-t">' + esc(t.name) + '</span>' + badge + '</button>';
   }
 
-  function item(view, label, extra) {
+  /*
+   * `label` is already HTML (People & settings carries an entity), so `title` takes
+   * the plain text separately rather than being derived from it.
+   */
+  function item(view, label, title, extra) {
     return '<button type="button" class="ni" data-act="go" data-v="' + view + '"' +
       (isCurrent(view) ? ' aria-current="page"' : '') +
-      '><span class="ni-t">' + label + '</span>' + (extra || '') + '</button>';
+      ' title="' + esc(title) + '">' + icon(view) +
+      '<span class="ni-t">' + label + '</span>' + (extra || '') + '</button>';
   }
 
   const s = stats(snap, 'all', env.today);
@@ -170,21 +239,41 @@ export function renderSide(snap, ui, env) {
     ? '<button type="button" class="ng-add" data-act="addTab" aria-label="Add a meeting" title="Add a meeting">+</button>'
     : '';
 
+  /*
+   * Collapsed is a CLASS, not different markup. Every button, every label and the
+   * whole identity block are emitted either way and CSS decides what shows - so
+   * collapsing cannot strand a control, and the six that live only here (Projects,
+   * Timeline, People, the + above, the person filter, the demo-data marker) stay
+   * reachable. It also keeps the accessible name on each button: the labels are
+   * clipped, never `display:none`, which would leave a row of unnamed buttons.
+   */
+  const slim = !!ui.sideSlim;
+  const tog = '<button type="button" class="side-tog" id="side-toggle" data-act="toggleSide"' +
+    ' aria-expanded="' + (slim ? 'false' : 'true') + '"' +
+    ' title="' + (slim ? 'Show the menu' : 'Hide the menu, for more room') + '"' +
+    ' aria-label="' + (slim ? 'Show the menu' : 'Hide the menu') + '">' +
+    icon(slim ? 'show' : 'hide') + '</button>';
+
   const side = '<aside class="side" aria-label="Navigation">' +
-    '<div class="brand"><div class="mark"><span class="shield" aria-hidden="true"></span>' +
+    '<div class="brand">' + tog + '<div class="mark"><span class="shield" aria-hidden="true"></span>' +
     '<div class="wm" role="img" aria-label="Perfex Chemical Solutions"><i class="pf"></i><i class="cs"></i></div></div>' +
     '<div class="appname">Technical Operations<br>&amp; Innovation</div></div>' +
-    '<nav class="nav">' + item('overview', 'Overview') +
-    (areas.length ? '<div class="ng">Area meetings</div>' + areas.map(meetItem).join('') : '') +
-    '<div class="ng">Internal &amp; initiatives' + addTabBtn + '</div>' + other.map(meetItem).join('') +
+    '<nav class="nav">' + item('overview', 'Overview', 'Overview') +
+    (areas.length
+      ? '<div class="ng ng-plain"><span class="ng-t">Area meetings</span></div>' +
+        areas.map(meetItem).join('')
+      : '') +
+    '<div class="ng"><span class="ng-t">Internal &amp; initiatives</span>' + addTabBtn + '</div>' +
+    other.map(meetItem).join('') +
     '<div class="nsep"></div>' +
-    item('actions', 'Action items',
+    item('actions', 'Action items', 'Action items',
       s.over ? '<span class="cnt">' + s.over + '</span>' : '<span class="cnt n">' + s.open + '</span>') +
-    item('projects', 'Projects',
+    item('projects', 'Projects', 'Projects',
       '<span class="cnt n">' + snap.projects.filter(function (p) {
         return ACTIVE_STATUSES.indexOf(p.status) >= 0;
       }).length + '</span>') +
-    item('timeline', 'Timeline') + item('people', 'People &amp; settings') +
+    item('timeline', 'Timeline', 'Timeline') +
+    item('people', 'People &amp; settings', 'People & settings') +
     '</nav>' +
     '<div class="side-foot">' + whoAmI(env) +
     '<label class="lbl" for="f-person">Show items for</label>' +
@@ -203,6 +292,8 @@ export function renderSide(snap, ui, env) {
     }).join('') + '</optgroup>' : '') +
     '<optgroup label="Lists">' +
     opt('actions', 'Action items', ui.view === 'actions') +
+    // Was absent, so below 860px the Projects list could not be reached at all.
+    opt('projects', 'Projects', ui.view === 'projects') +
     opt('timeline', 'Timeline', ui.view === 'timeline') +
     opt('people', 'People &amp; settings', ui.view === 'people') +
     '</optgroup>';

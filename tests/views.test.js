@@ -19,6 +19,7 @@ import { blankSnapshot } from '../src/adapters/DataStore.js';
 import { today, addDays } from '../src/lib/dates.js';
 import { loadUi } from '../src/ui.js';
 import { spark } from '../src/views/spark.js';
+import { meetingInitials } from '../src/views/shell.js';
 import { confidencePoints } from '../src/domain/projects.js';
 
 const MODES = { content: 'live', settings: 'live' };
@@ -727,6 +728,77 @@ test('The rendered rows really come out in priority order', () => {
     .filter(function (id) { return wanted.indexOf(id) >= 0; });
 
   eq(rendered, wanted, 'rows appear in the order priority asks for');
+});
+
+group('Collapsing the sidebar');
+
+/*
+ * The rule this group exists to defend: collapsing is a CLASS, and the markup is
+ * identical either way. Six controls live in the sidebar and nowhere else - Projects,
+ * Timeline, People, the + that adds a meeting, the person filter and the demo-data
+ * marker - so a collapse that changed the markup could strand any of them silently.
+ */
+function side(slim) {
+  return render({ view: 'tab', tab: 't1', steps: { t1: 2 }, sideSlim: !!slim });
+}
+
+test('Collapsed is a class on .app, not different markup', () => {
+  ok(/<div class="app[^"]*\bslim\b/.test(side(true)), 'slim marks the app');
+  notOk(/<div class="app[^"]*\bslim\b/.test(side(false)), 'and only when asked');
+});
+
+test('Every route still reachable when collapsed', () => {
+  // The anti-stranding test. If any of these disappears, the only way to that screen
+  // is to expand the sidebar again - and Projects has no other button anywhere.
+  const html = side(true);
+  ['overview', 'actions', 'projects', 'timeline', 'people'].forEach(function (v) {
+    ok(html.indexOf('data-act="go" data-v="' + v + '"') >= 0, v + ' is still there');
+  });
+  ok(html.indexOf('data-act="addTab"') >= 0, 'and the + that adds a meeting');
+});
+
+test('Every nav button keeps a name when collapsed', () => {
+  // The labels are clipped by CSS, never removed. A button whose text is gone has no
+  // accessible name, and a screen reader would read out a column of unnamed buttons.
+  const html = side(true);
+  const buttons = html.match(/<button[^>]*class="ni"[\s\S]*?<\/button>/g) || [];
+  ok(buttons.length >= 5, 'the nav rendered');
+  buttons.forEach(function (b) {
+    const label = /<span class="ni-t">([\s\S]*?)<\/span>/.exec(b);
+    ok(label && label[1].replace(/<[^>]*>/g, '').trim().length > 0,
+      'a nav button carries its label: ' + b.slice(0, 60));
+  });
+});
+
+test('The demo-data marker survives the collapse', () => {
+  // It exists so an invented board is never presented to a room by mistake. A
+  // collapse that hid it would remove the safeguard exactly when it is relied on.
+  const html = renderApp(snap,
+    Object.assign({}, base, { view: 'overview', sideSlim: true }),
+    { today: today(), modes: MODES, identity: { displayName: 'Demo', kind: 'demo' } });
+  ok(html.indexOf('Demo data') >= 0, 'the full sentence is still in the markup');
+  ok(html.indexOf('class="iam-flag"') >= 0, 'and a marker that fits 56px');
+});
+
+test('The toggle says what the next press does', () => {
+  ok(/aria-expanded="true"[\s\S]{0,120}Hide the menu/.test(side(false)) ||
+     /Hide the menu[\s\S]{0,120}aria-expanded="true"/.test(side(false)), 'expanded');
+  ok(side(true).indexOf('Show the menu') >= 0, 'collapsed offers to show it');
+  ok(side(true).indexOf('aria-expanded="false"') >= 0, 'and says so');
+});
+
+test('The toggle has a stable id, so focus survives its own redraw', () => {
+  // renderPreservingForms only tracks fields inside form[data-form]; a bare button
+  // is re-found by id. Without one, pressing this by keyboard drops focus to <body>.
+  ok(side(false).indexOf('id="side-toggle"') >= 0);
+});
+
+test('Meeting initials are short, distinct and keep a trailing number', () => {
+  eq(meetingInitials('Northern Area 1'), 'NA1', 'a numbered area');
+  eq(meetingInitials('Northern Area 2'), 'NA2', 'and its neighbour differs');
+  eq(meetingInitials('Tech Directors'), 'TD', 'two words');
+  eq(meetingInitials(''), '?', 'a nameless meeting still gets a chip');
+  ok(meetingInitials('One Two Three Four Five').length <= 3, 'never more than three');
 });
 
 group('The rows that used to go vertical');
