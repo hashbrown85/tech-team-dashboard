@@ -914,4 +914,163 @@ test('Editing Field and Project Type writes to the project', async () => {
   eq(p.projectType, 'Qualification');
 });
 
+group('Fields and Project types grow as people type');
+
+/** A project-page Field box, as the change event delivers it. */
+function fieldBox(id, value) {
+  return /** @type {any} */ ({ dataset: { id: id }, value: value });
+}
+
+function items(a, key) {
+  const row = a.snap().settings[key];
+  return (row && row.items) || [];
+}
+
+test('A new value is stored on the project and joins the list', async () => {
+  const a = await app();
+  const before = items(a, 'field').slice();
+  notOk(before.indexOf('Polymers') >= 0, 'not there to begin with');
+
+  a.H.edits.projField(fieldBox('pr3', 'Polymers'));
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr3'; }).field, 'Polymers');
+  ok(items(a, 'field').indexOf('Polymers') >= 0, 'and the next person is offered it');
+});
+
+test('A different spelling adopts the list\'s and adds nothing', async () => {
+  // Otherwise the list fragments into case variants of itself and each one hides
+  // most of the rows behind the filter.
+  const a = await app();
+  const before = items(a, 'field').length;
+
+  const el = fieldBox('pr3', '  COATINGS  ');
+  a.H.edits.projField(el);
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr3'; }).field, 'Coatings');
+  eq(items(a, 'field').length, before, 'the list did not grow');
+  eq(el.value, 'Coatings', 'and the box was corrected on screen');
+});
+
+test('Clearing the box clears the project and leaves the list alone', async () => {
+  const a = await app();
+  const before = items(a, 'field').length;
+
+  a.H.edits.projField(fieldBox('pr1', '   '));
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr1'; }).field, '');
+  eq(items(a, 'field').length, before);
+});
+
+test('Project Type behaves the same way', async () => {
+  const a = await app();
+  a.H.edits.projType(fieldBox('pr3', 'Scale-up'));
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr3'; }).projectType,
+    'Scale-up');
+  ok(items(a, 'projectType').indexOf('Scale-up') >= 0);
+});
+
+test('The Add form on the settings screen cannot create a case variant either', async () => {
+  // The one door that does not go via a project. An exact-match de-dupe would let
+  // "coatings" in beside "Coatings", which is the fragmentation this prevents.
+  const a = await app();
+  const before = items(a, 'field').length;
+
+  a.H.forms.fieldVal(fields([['value', 'coatings']]));
+  await settle();
+
+  eq(items(a, 'field').length, before, 'no second entry');
+});
+
+test('The project write and the list growth are two calls, never a batch', async () => {
+  /*
+   * Structural, and worth it. store.batch reports a failure against ONE collection -
+   * commit(ops, ops[0].col) - and a refusal marks that whole permission AREA
+   * read-only. A projects-led batch refused because this person cannot write
+   * settings would mark `content` read-only, and the board would stop being editable
+   * because a list could not grow.
+   *
+   * The consequence is severe and awkward to provoke, so the decision is pinned here
+   * instead.
+   */
+  const a = await app();
+  let batches = 0;
+  let updates = 0;
+  let sets = 0;
+
+  const realBatch = a.store.batch;
+  const realUpdate = a.store.update;
+  const realSet = a.store.set;
+  a.store.batch = function () { batches++; return realBatch.apply(a.store, arguments); };
+  a.store.update = function () { updates++; return realUpdate.apply(a.store, arguments); };
+  a.store.set = function () { sets++; return realSet.apply(a.store, arguments); };
+
+  a.H.edits.projField(fieldBox('pr3', 'Polymers'));
+  await settle();
+
+  eq(batches, 0, 'not batched');
+  eq(updates, 1, 'one write to the project');
+  eq(sets, 1, 'one write to the list, on its own');
+});
+
+test('Somebody who cannot write the lists still gets their project saved', async () => {
+  /*
+   * The value is stored and still reaches everyone through the suggestions, because
+   * those union in what is already in use - it just never joins the curated list.
+   *
+   * Firing the write anyway would be worse than skipping it: a refusal calls
+   * reload(), which replaces the snapshot and can land before the project write is
+   * acknowledged, so the person watches their edit revert for an unrelated reason.
+   */
+  const a = await app();
+  a.store.canWrite = function (col) { return col !== 'settings'; };
+  const before = items(a, 'field').length;
+
+  a.H.edits.projField(fieldBox('pr3', 'Polymers'));
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr3'; }).field, 'Polymers',
+    'the project is saved');
+  eq(items(a, 'field').length, before, 'and the list was left alone');
+});
+
+group('Renaming a list value through the handlers');
+
+test('It renames the entry and every project using it, with undo', async () => {
+  const a = await app();
+  a.H.edits.projField(fieldBox('pr3', 'Coatngs'));
+  await settle();
+  ok(items(a, 'field').indexOf('Coatngs') >= 0, 'the typo is now shared vocabulary');
+
+  a.H.forms.renameListValue(fields([['value', 'Coatings']]),
+    /** @type {any} */ ({ dataset: { key: 'field', v: 'Coatngs' } }));
+  await settle();
+
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr3'; }).field, 'Coatings');
+  notOk(items(a, 'field').indexOf('Coatngs') >= 0, 'the typo is gone from the list');
+
+  await a.store.undo();
+  eq(a.snap().projects.find(function (p) { return p.id === 'pr3'; }).field, 'Coatngs',
+    'and undo puts it all back');
+});
+
+test('It closes the editor', async () => {
+  const a = await app({ open: 'listval:field:Coatings' });
+  a.H.forms.renameListValue(fields([['value', 'Ceramics']]),
+    /** @type {any} */ ({ dataset: { key: 'field', v: 'Coatings' } }));
+  await settle();
+  eq(a.ui.open, null);
+});
+
+test('Opening the editor targets one value on one list', async () => {
+  const a = await app();
+  a.H.clicks.editListVal(
+    /** @type {any} */ ({ dataset: { key: 'field' } }), '', 'Coatings');
+  eq(a.ui.open, 'listval:field:Coatings');
+});
+
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

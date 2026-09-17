@@ -116,11 +116,16 @@ export const SCHEMA = {
       /*
        * How the project is classified, to line up with the sheet these came from.
        *
-       * Free text, and deliberately not pickers like products and focus: the
-       * vocabulary is still settling, and the Projects-list dropdowns are built from
-       * whatever is actually in the data rather than from a list somebody maintains.
-       * The project page offers a <datalist> of the values already in use, which is
-       * what stops "Coatings", "coatings" and "Coating" becoming three of them.
+       * A SINGLE STRING, not an array like products and focus. That is deliberate:
+       * it keeps matchesValue and distinctValues working on a plain value, and it is
+       * what lets the project page use a combo box rather than a chip picker.
+       *
+       * They are picked from a curated list kept in `settings` under the same keys,
+       * but the box stays free text: type something that is not on the list and it is
+       * added, so the next person is offered it. See canonicalValue in
+       * domain/projects.js for how a typed value is settled against the list, and
+       * renameListValue in domain/cascade.js for how a mistake is corrected
+       * everywhere at once.
        *
        * `ProjectField` rather than `Field`: both are one word, which the column
        * naming rule requires, but `Field` is too generic to want in a SharePoint
@@ -296,7 +301,7 @@ export const SCHEMA = {
 
   settings: {
     /*
-     * Three rows: Key 'focus', 'resources' and 'products'.
+     * Five rows: Key 'field', 'projectType', 'focus', 'resources' and 'products'.
      *
      * 'products' is a placeholder for a list that really lives in Dataverse. See
      * the note on projects.products.

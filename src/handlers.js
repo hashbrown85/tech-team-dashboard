@@ -21,7 +21,7 @@ import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
-  recordConfidence, SORT_COLUMNS, firstDirFor
+  recordConfidence, SORT_COLUMNS, firstDirFor, canonicalValue
 } from './domain/projects.js';
 import {
   newIssue, resolveIssue, reopenIssue, reorderQueue
@@ -30,7 +30,8 @@ import {
   newAction, toggleDone, changeDue, parseParentRef, wouldGainPath, actionLabel
 } from './domain/actions.js';
 import {
-  deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab, deleteNote
+  deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab,
+  deleteNote, renameListValue
 } from './domain/cascade.js';
 import {
   meetingDate, toggleRating, setNote, documentId, meetingSummary
@@ -354,6 +355,15 @@ export function createHandlers(app) {
       render();
     },
 
+    /** Open the inline editor on one list value. */
+    editListVal: function (el, id, v) {
+      ui.open = 'listval:' + el.dataset.key + ':' + v;
+      render();
+      focusFirst();
+    },
+
+    delFieldVal: function (el, id, v) { removeFromList('field', v); },
+    delTypeVal: function (el, id, v) { removeFromList('projectType', v); },
     delFocus: function (el, id, v) { removeFromList('focus', v); },
     delResource: function (el, id, v) { removeFromList('resources', v); },
     delProduct: function (el, id, v) { removeFromList('products', v); },
@@ -518,13 +528,8 @@ export function createHandlers(app) {
      * Note these are projField/projType - the Projects-LIST filters above are
      * projFieldFilter/projTypeFilter. Different keys, same map, no collision.
      */
-    projField: function (el) {
-      store.update('projects', el.dataset.id, { field: el.value }, { silent: true });
-    },
-
-    projType: function (el) {
-      store.update('projects', el.dataset.id, { projectType: el.value }, { silent: true });
-    },
+    projField: function (el) { pickOrAdd(el, 'field'); },
+    projType: function (el) { pickOrAdd(el, 'projectType'); },
 
     projDue: function (el) {
       store.update('projects', el.dataset.id, { due: el.value }, { silent: true });
@@ -684,6 +689,42 @@ export function createHandlers(app) {
         toast(actionLabel({ num: num }) + ' added to the new opportunity.');
       });
     });
+  }
+
+  /**
+   * A combo box over a self-growing list: pick what is there, or type a new one.
+   *
+   * Three things happen here, and the order matters.
+   *
+   * The typed value is settled against the list first, so "coatings" becomes the
+   * list's "Coatings" and does NOT become a second entry. `el.value` is corrected on
+   * the spot, because the project write is silent and the box would otherwise keep
+   * showing what was typed rather than what was stored. Assigning `.value` does not
+   * re-fire `change`; `wlKind` is the precedent for a handler touching the DOM.
+   *
+   * Then TWO SEPARATE WRITES, never a batch. `store.batch` reports a failure against
+   * one collection - `commit(ops, ops[0].col)` - and a refusal marks that whole
+   * permission AREA read-only. A projects-led batch refused because this person
+   * cannot write settings would mark `content` read-only and the board would stop
+   * being editable, because a list could not grow. They also need different `silent`
+   * answers, which one commit cannot give.
+   *
+   * The growth is gated on `canWrite`: a refused write calls reload(), which replaces
+   * the snapshot and can land before the project write is acknowledged, so the person
+   * watches their edit revert for a reason that has nothing to do with it.
+   *
+   * @param {any} el
+   * @param {string} key - 'field' | 'projectType'
+   */
+  function pickOrAdd(el, key) {
+    const settled = canonicalValue(itemsOf(key), el.value);
+    el.value = settled.value;
+
+    const patch = {};
+    patch[key] = settled.value;
+    store.update('projects', el.dataset.id, patch, { silent: true });
+
+    if (settled.add && store.canWrite('settings')) growList(key, settled.add);
   }
 
   function numberOrNull(v) {
@@ -888,20 +929,61 @@ export function createHandlers(app) {
       render();
     },
 
+    /**
+     * Rename a list value, and every project using it.
+     *
+     * Run through `cascade()` like every other multi-record change, so it gets the
+     * undo toast for free - which matters here more than most, because this can
+     * touch a lot of projects at once.
+     */
+    renameListValue: function (fd, form) {
+      ui.open = null;
+      cascade(renameListValue(
+        store.snapshot(), form.dataset.key, form.dataset.v,
+        String(fd.get('value') || '')
+      ));
+    },
+
+    fieldVal: function (fd) { addToList('field', fd); },
+    typeVal: function (fd) { addToList('projectType', fd); },
     focus: function (fd) { addToList('focus', fd); },
     resource: function (fd) { addToList('resources', fd); },
     product: function (fd) { addToList('products', fd); }
   };
 
   function addToList(key, fd) {
-    const value = String(fd.get('value') || '').trim();
-    if (!value) return;
-    const snap = store.snapshot();
-    const items = ((snap.settings[key] && snap.settings[key].items) || []).slice();
-    if (items.indexOf(value) < 0) items.push(value);
     ui.open = null;
-    store.set('settings', key, { items: items }).then(render);
+    growList(key, String(fd.get('value') || '').trim());
     render();
+  }
+
+  /** The values on one of the settings lists, however empty. */
+  function itemsOf(key) {
+    const snap = store.snapshot();
+    return (snap.settings[key] && snap.settings[key].items) || [];
+  }
+
+  /**
+   * Append a value to one of the settings lists.
+   *
+   * De-duped by canonicalValue, NOT by an exact string match. An exact match would
+   * let the Add form on People & settings create "Corrosion" and "corrosion" as two
+   * entries - which is the very fragmentation this whole design exists to prevent,
+   * arriving through the one door that does not go via a project.
+   *
+   * Deliberately not silent: the new value has to reach the suggestions on a project
+   * page, the Projects-table filter and the chips here, none of which the person can
+   * already see.
+   *
+   * @param {string} key
+   * @param {string} value
+   */
+  function growList(key, value) {
+    const items = itemsOf(key);
+    const settled = canonicalValue(items, value);
+    if (!settled.add) return;                    // blank, or already on the list
+
+    store.set('settings', key, { items: items.concat([settled.add]) }).then(render);
   }
 
   /* ---------------------------------------------------------------- inputs */

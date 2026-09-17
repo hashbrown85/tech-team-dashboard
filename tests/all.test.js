@@ -21,6 +21,7 @@ import './formstate.test.js';
 import './project.test.js';
 import './projectsList.test.js';
 import './sorting.test.js';
+import './lists.test.js';
 import './cascade.test.js';
 import './store.test.js';
 import './identity.test.js';

@@ -684,11 +684,156 @@ export function distinctValues(projects, key) {
   const seen = {};
 
   (projects || []).forEach(function (p) {
-    const raw = String(p[key] == null ? '' : p[key]).trim();
-    if (!raw) return;                  // blank is not a value to filter by
-    const lower = raw.toLowerCase();
-    if (!seen[lower]) seen[lower] = { value: lower, label: raw, n: 0 };
-    seen[lower].n++;
+    // `field` and `projectType` hold a single string; `focus` and `resources` hold
+    // an array. Both shapes come through here now that the settings screen counts
+    // usages for all four.
+    const held = Array.isArray(p[key]) ? p[key] : [p[key]];
+
+    held.forEach(function (one) {
+      const raw = String(one == null ? '' : one).trim();
+      if (!raw) return;                // blank is not a value to filter by
+      const lower = raw.toLowerCase();
+      if (!seen[lower]) seen[lower] = { value: lower, label: raw, n: 0 };
+      seen[lower].n++;
+    });
+  });
+
+  return Object.keys(seen)
+    .map(function (k) { return seen[k]; })
+    .sort(function (a, b) {
+      const la = a.label.toLowerCase();
+      const lb = b.label.toLowerCase();
+      return la < lb ? -1 : la > lb ? 1 : 0;
+    });
+}
+
+
+/* ------------------------------------------------- the lists projects pick from */
+
+/**
+ * The value lists that can be renamed, and how a project stores them.
+ *
+ * `multi` is the whole reason this constant exists: `field` and `projectType` hold a
+ * single string on a project, while `focus` and `resources` hold an array. A rename
+ * has to handle both, and the array case has to de-duplicate when two values merge.
+ *
+ * **Products is deliberately absent.** That list is coming from Dataverse; renaming a
+ * value here would edit a copy of something this app does not own, and the change
+ * would be undone the moment the real list is connected.
+ */
+export const RENAMEABLE_LISTS = {
+  field: { label: 'Field', multi: false },
+  projectType: { label: 'Project type', multi: false },
+  focus: { label: 'Focus', multi: true },
+  resources: { label: 'Potential resource', multi: true }
+};
+
+/**
+ * The key two values are considered the same by.
+ *
+ * Deliberately identical to what `matchesValue` and `distinctValues` compare on, so a
+ * canonicalised value is always findable by the Projects-table filter. Collapsing
+ * inner whitespace would be an improvement in isolation and is declined for exactly
+ * that reason - the keys must not drift apart. The cost is a double space surviving.
+ *
+ * @param {any} v
+ * @returns {string}
+ */
+export function valueKey(v) {
+  return String(v == null ? '' : v).trim().toLowerCase();
+}
+
+/**
+ * Settle what somebody typed against the curated list.
+ *
+ * This is what makes a self-growing list survivable. Typing "coatings" when the list
+ * already holds "Coatings" must use the list's spelling and must NOT add a second
+ * entry - otherwise the list fragments into case variants of itself, and each one
+ * hides most of the rows behind the filter.
+ *
+ * @param {string[]} items - the curated list, in its stored spelling
+ * @param {string} raw - what was typed
+ * @returns {{value: string, add: string | null}} the value to store, and the value to
+ *   append to the list, or null when there is nothing to add
+ */
+export function canonicalValue(items, raw) {
+  const v = String(raw == null ? '' : raw).trim();
+
+  // Clearing the field is a real thing to do, and it never grows the list.
+  if (!v) return { value: '', add: null };
+
+  const key = valueKey(v);
+  const found = (items || []).filter(function (x) { return valueKey(x) === key; })[0];
+
+  if (found != null) return { value: String(found), add: null };
+  return { value: v, add: v };
+}
+
+/**
+ * How many projects use one value of a list.
+ *
+ * Shown on the chip in People & settings, where it is what makes a typo visible: a
+ * slip reads 1 beside a real category's 14.
+ *
+ * @param {Snapshot} snap
+ * @param {string} key
+ * @param {string} value
+ * @returns {number}
+ */
+export function countUsing(snap, key, value) {
+  const want = valueKey(value);
+  return (snap.projects || []).filter(function (p) {
+    return holdsValue(p, key, want);
+  }).length;
+}
+
+/**
+ * Does this project hold a value for one of the lists? Copes with both shapes.
+ *
+ * @param {any} p
+ * @param {string} key
+ * @param {string} want - an already-keyed value
+ */
+function holdsValue(p, key, want) {
+  const held = p[key];
+  if (Array.isArray(held)) {
+    return held.some(function (x) { return valueKey(x) === want; });
+  }
+  return valueKey(held) === want;
+}
+
+/**
+ * Suggestions for a free-text list field: the curated list, plus whatever is already
+ * in use.
+ *
+ * Neither source alone is enough. The curated list alone loses every value typed
+ * before it existed, so a project holding one would not offer it and the next person
+ * retypes it - the exact fragmentation the suggestions exist to prevent. Values in use
+ * alone means an entry added on the settings screen and not yet used is never offered,
+ * which makes that screen decorative.
+ *
+ * The curated spelling wins where both have one: the list is the authority on how a
+ * value is written. With canonicalValue in play the two converge, and the union's
+ * lasting job is the legacy tail and anyone who cannot write the settings list.
+ *
+ * @param {any[]} projects
+ * @param {string[]} items
+ * @param {string} key
+ * @returns {{value: string, label: string, n: number}[]}
+ */
+export function valueOptions(projects, items, key) {
+  /** @type {Record<string, {value: string, label: string, n: number}>} */
+  const seen = {};
+
+  (items || []).forEach(function (raw) {
+    const k = valueKey(raw);
+    if (!k) return;
+    seen[k] = { value: k, label: String(raw).trim(), n: 0 };
+  });
+
+  distinctValues(projects, key).forEach(function (o) {
+    if (seen[o.value]) seen[o.value].n = o.n;          // keep the curated spelling
+    else seen[o.value] = o;
   });
 
   return Object.keys(seen)

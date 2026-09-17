@@ -366,7 +366,40 @@ a gap nobody can account for.
 
 ---
 
-## 14. What is not actually enforced
+## 14. A list value can be renamed, and it follows every project
+
+`field`, `projectType`, `focus` and `resources` hold their values on a project **by
+value**, the same way an action holds its owner by name. So renaming one on the
+People & settings screen has to cascade, exactly as renaming a person rewrites every
+action they own (`renameListValue` in `src/domain/cascade.js`).
+
+This is what makes a self-growing list safe to have. Anybody typing a new Field adds
+it to the shared list, so a slip becomes shared vocabulary the moment it is typed —
+and the only honest answer to that is being able to correct it in one action rather
+than retyping it on every project that caught it.
+
+**Merging is the point, not an error.** Renaming onto a value the list already holds
+collapses the two: the old entry leaves, its projects move across, and the message
+says how many did. Refusing it would leave you retyping the value by hand, which is
+the situation the rename exists to get you out of.
+
+Two shapes have to work. `field` and `projectType` hold a single string; `focus` and
+`resources` hold an array, and the array case **de-duplicates** — a project tagged
+both "Coatngs" and "Coatings" must end up with one, not two.
+
+**Products is deliberately not renameable.** That list is coming from Dataverse, so
+renaming a value here would edit a copy of something this app does not own, and the
+change would be undone the moment the real list is connected.
+
+**Deleting is not renaming.** `removeFromList` only rewrites the settings row: projects
+keep the value, stay filterable, and the value is still offered by the suggestions,
+which union in what is in use. So delete means "take it off the seed list"; rename is
+the tool for retiring a term. Giving delete a cascade would destroy data where rename
+preserves it.
+
+---
+
+## 15. What is not actually enforced
 
 Be honest about these — three of them look like controls and aren't:
 
@@ -414,6 +447,22 @@ extraction is finished.
   JSON column somebody can edit by hand in SharePoint.
 
 ### Fixed since
+
+- **Last-write-wins on a settings list.** A list is stored as one `{items}`
+  document, and the local copy only refreshes on window focus and the 60-second poll.
+  Two people adding different values inside the same minute: the second write
+  overwrites the first's addition, silently. This has always been true of
+  `addToList`, but it was confined to an admin screen one person used occasionally —
+  Fields and Project types now grow from the project page, so it is on a path
+  everyone uses mid-meeting, and a rename touching many projects widens the window
+  further. Fixing it properly means merging on write rather than replacing.
+
+- **A typo joins the shared list immediately.** `canonicalValue` kills case and
+  whitespace variants; it does nothing for "Coatngs". The usage count on each chip is
+  what makes the slip visible — junk reads `1` beside a real category's `14` — and
+  rename (rule 14) is the cure. There is deliberately no minimum length, so "tbd"
+  will join a list: a floor blocks nothing people actually type by accident and would
+  reject a legitimate short name.
 
 - **A field that filters as you type needs its value left alone.** `restoreForms`
   skips the value of anything carrying `data-input`, because such a field writes to

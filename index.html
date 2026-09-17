@@ -191,6 +191,14 @@
     margin-left: 5px; margin-right: -4px; vertical-align: -3px;
   }
 
+  /* A chip's usage count and its rename button, on People & settings. `.pchip` was
+     written for a plain label, so the two extras need spacing of their own. */
+  .pchip .linkbtn { font: inherit; }
+  .pchip .cnt { margin-left: 6px; }
+  /* The inline rename editor replaces one chip, so it must not stretch to the row. */
+  .add.listval { width: auto; display: inline-flex; padding: 6px; }
+  .add.listval .fld { width: 14em; }
+
   /* `<details>` blocks (project details, closed actions) had no styling at all. */
   .dtl > summary { cursor: pointer; padding: 6px 0; }
   .dtl > summary:hover { color: var(--ink); }

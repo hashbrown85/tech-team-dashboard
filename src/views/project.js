@@ -37,7 +37,7 @@ import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
 import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
 import {
-  projectTitle, confidencePoints, distinctValues
+  projectTitle, confidencePoints, valueOptions
 } from '../domain/projects.js';
 import { pageHeader, kpi } from './shell.js';
 import { pickerControl } from './pickers.js';
@@ -135,15 +135,21 @@ export function renderProject(snap, ui, env, p) {
       '" data-edit="projType" data-id="' + esc(p.id) +
       '" placeholder="e.g. Trial" aria-label="Project type"' + dis(env) + '>') +
     /*
-     * Field and Project Type are free text, and the Projects list builds its filter
-     * dropdowns from whatever is actually typed. That has one failure mode -
-     * "Coatings", "coatings" and "Coating" becoming three options that each hide
-     * two thirds of the rows - and showing what colleagues already used is what
-     * prevents it. Pure markup: no script, no listener, survives the innerHTML
-     * replace on every render.
+     * The suggestions behind those two boxes: the curated list from People &
+     * settings, UNIONED with whatever is already in use on a project.
+     *
+     * Neither source alone works. The curated list alone loses every value typed
+     * before it existed, so a project holding one would not offer it and the next
+     * person retypes it - the exact fragmentation these suggestions prevent. Values
+     * in use alone means an entry added on the settings screen and never yet used is
+     * never offered, which makes that screen decorative.
+     *
+     * Pure markup: no script, no listener, survives the innerHTML replace.
      */
-    datalist('dl-field', distinctValues(snap.projects, 'field')) +
-    datalist('dl-ptype', distinctValues(snap.projects, 'projectType')) +
+    datalist('dl-field',
+      valueOptions(snap.projects, itemsOf(snap, 'field'), 'field')) +
+    datalist('dl-ptype',
+      valueOptions(snap.projects, itemsOf(snap, 'projectType'), 'projectType')) +
     '</section>';
 
   /* ---------------------------------------------------- the numbers up front */
@@ -309,8 +315,13 @@ export function renderProject(snap, ui, env, p) {
     actionsPanel + renderNotes(snap, ui, env, p);
 }
 
+/** The curated list for one settings key, however empty. */
+function itemsOf(snap, key) {
+  return (snap.settings[key] && snap.settings[key].items) || [];
+}
+
 /**
- * Suggestions for a free-text field, from what colleagues have already typed.
+ * Suggestions for a free-text field: the curated list plus what is already in use.
  *
  * @param {string} id
  * @param {{label: string}[]} values

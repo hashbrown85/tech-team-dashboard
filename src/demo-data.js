@@ -179,6 +179,10 @@ export function demoBoard() {
     },
 
     settings: {
+      // The two that grow on their own: anybody typing a new value on a project
+      // adds it here. Seeded to match what the demo projects already use.
+      field: { items: ['Coatings', 'Process', 'Sealants'] },
+      projectType: { items: ['Qualification', 'Reformulation', 'Trial'] },
       // What the customer cares about most, not what the project is made of.
       focus: { items: ['Corrosion', 'Scale', 'Pipeline', 'Rod Pumps', 'Paraffin'] },
       resources: { items: ['Pilot reactor', 'Rheometer', 'Weathering cabinet', 'External lab'] },

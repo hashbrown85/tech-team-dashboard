@@ -128,11 +128,20 @@ rather than a grid of togglable chips, which stops scaling the moment the list i
 longer than a line. `focus` and `resources` use the same control.
 
 `field` and `projectType` line the record up with a project sheet the team already
-uses. **Free text, deliberately not pickers** like `products` and `focus`: the
-vocabulary is still settling, and the Projects-list dropdowns are built from whatever
-is actually in the data. The project page offers a `<datalist>` of the values already
-in use, which is the one thing that stops *Coatings*, *coatings* and *Coating*
-becoming three filter options that each hide two thirds of the rows.
+uses. They are **single strings**, not arrays like `products` and `focus` — which is
+what lets the project page use a combo box rather than a chip picker, and keeps
+`matchesValue` and `distinctValues` working on a plain value.
+
+Both are picked from a **self-growing curated list** kept in `settings` under the same
+key. Type something that is not on the list and it is added, so the next person is
+offered it — governance without a roadblock mid-meeting. `canonicalValue` settles a
+typed value against the list first, so "coatings" becomes the list's "Coatings" and
+does **not** become a second entry; without that the list fragments into case variants
+of itself and each one hides most of the rows behind the filter.
+
+The suggestions are the **union** of the curated list and the values already in use.
+Neither alone works: the list alone loses everything typed before it existed, and the
+values alone make the settings screen decorative.
 
 The column is `ProjectField`, not `Field` — both satisfy the single-word column rule,
 but `Field` is too generic to want in a SharePoint list and reads worse beside

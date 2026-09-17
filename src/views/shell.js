@@ -184,7 +184,7 @@ export function renderSide(snap, ui, env) {
       '<span class="cnt n">' + snap.projects.filter(function (p) {
         return ACTIVE_STATUSES.indexOf(p.status) >= 0;
       }).length + '</span>') +
-    item('timeline', 'Timeline') + item('people', 'People') +
+    item('timeline', 'Timeline') + item('people', 'People &amp; settings') +
     '</nav>' +
     '<div class="side-foot">' + whoAmI(env) +
     '<label class="lbl" for="f-person">Show items for</label>' +
@@ -204,7 +204,7 @@ export function renderSide(snap, ui, env) {
     '<optgroup label="Lists">' +
     opt('actions', 'Action items', ui.view === 'actions') +
     opt('timeline', 'Timeline', ui.view === 'timeline') +
-    opt('people', 'People', ui.view === 'people') +
+    opt('people', 'People &amp; settings', ui.view === 'people') +
     '</optgroup>';
 
   const mnav = '<div class="mnav"><span class="shield" role="img" aria-label="Perfex"></span>' +

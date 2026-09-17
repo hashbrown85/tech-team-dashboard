@@ -37,7 +37,9 @@
 import { byId } from '../lib/seq.js';
 import { actionLabel } from './actions.js';
 import { documentId, memoryKey } from './meetings.js';
-import { linkedProjectGoesToo } from './projects.js';
+import {
+  linkedProjectGoesToo, RENAMEABLE_LISTS, valueKey
+} from './projects.js';
 
 /**
  * @typedef {import('./queries.js').Snapshot} Snapshot
@@ -353,3 +355,121 @@ export function deleteTab(snap, tid) {
 
 // Re-exported so cascade callers can build meeting keys without a second import.
 export { documentId, memoryKey };
+
+/**
+ * Rename one value of a settings list, everywhere it is used.
+ *
+ * This is what makes a self-growing list safe to have. Anybody typing a new Field on
+ * a project adds it to the shared list, so a slip becomes shared vocabulary - and the
+ * only honest answer to that is being able to correct it in one action rather than
+ * retyping it on every project that caught it.
+ *
+ * There is a precedent: renaming a PERSON rewrites every action they own, because
+ * actions store an owner by name. Projects store these the same way, so the same
+ * cascade is needed.
+ *
+ * ## Two shapes
+ *
+ * `field` and `projectType` hold a single string on a project; `focus` and
+ * `resources` hold an array. Both are handled, and the array case de-duplicates:
+ * a project tagged both "Coatngs" and "Coatings" must end up with one, not two.
+ *
+ * ## Merging is the point
+ *
+ * Renaming onto a value the list already holds is not an error to refuse - it is the
+ * fix for a typo that has already spread. The old entry leaves the list, its projects
+ * move across, and the message says how many did.
+ *
+ * @param {Snapshot} snap
+ * @param {string} key - one of RENAMEABLE_LISTS
+ * @param {string} from - the value as it is stored on the list
+ * @param {string} to - what it should read instead
+ * @returns {Cascade}
+ */
+export function renameListValue(snap, key, from, to) {
+  const spec = RENAMEABLE_LISTS[key];
+  if (!spec) return nothing();
+
+  const target = String(to == null ? '' : to).trim();
+  const fromKey = valueKey(from);
+  if (!target || !fromKey) return nothing();
+
+  const items = (snap.settings[key] && snap.settings[key].items) || [];
+
+  // If the list already holds the target, adopt ITS spelling and merge into it.
+  const existing = items.filter(function (x) {
+    return valueKey(x) === valueKey(target) && valueKey(x) !== fromKey;
+  })[0];
+  const finalValue = existing == null ? target : String(existing);
+
+  if (valueKey(finalValue) === fromKey && finalValue === String(from)) return nothing();
+
+  const nextItems = [];
+  items.forEach(function (x) {
+    if (valueKey(x) === fromKey) {
+      // The renamed entry, unless the target is already further down the list.
+      if (existing == null) nextItems.push(finalValue);
+      return;
+    }
+    nextItems.push(x);
+  });
+
+  /** @type {Op[]} */
+  const writes = [{ op: 'set', col: 'settings', id: key, data: { items: nextItems } }];
+  /** @type {Op[]} */
+  const undo = [{ op: 'set', col: 'settings', id: key, data: { items: items.slice() } }];
+
+  let moved = 0;
+  (snap.projects || []).forEach(function (p) {
+    const held = p[key];
+
+    if (spec.multi) {
+      const list = Array.isArray(held) ? held : [];
+      if (!list.some(function (x) { return valueKey(x) === fromKey; })) return;
+
+      // Rename in place, then drop any duplicate the merge just created.
+      const seen = {};
+      const next = [];
+      list.forEach(function (x) {
+        const v = valueKey(x) === fromKey ? finalValue : x;
+        const k = valueKey(v);
+        if (seen[k]) return;
+        seen[k] = true;
+        next.push(v);
+      });
+
+      // A project already holding the final spelling changes nothing. Writing it
+      // anyway is harmless but the COUNT is not - "3 projects moved" when one did
+      // is a message that cannot be checked against what you see.
+      if (next.length === list.length &&
+          next.every(function (v, i) { return v === list[i]; })) return;
+
+      const patch = {};
+      patch[key] = next;
+      const before = {};
+      before[key] = list.slice();
+      writes.push({ op: 'update', col: 'projects', id: p.id, patch: patch });
+      undo.push({ op: 'update', col: 'projects', id: p.id, patch: before });
+      moved++;
+      return;
+    }
+
+    if (valueKey(held) !== fromKey) return;
+    if (held === finalValue) return;             // already spelled that way
+
+    const patch = {};
+    patch[key] = finalValue;
+    const before = {};
+    before[key] = held;
+    writes.push({ op: 'update', col: 'projects', id: p.id, patch: patch });
+    undo.push({ op: 'update', col: 'projects', id: p.id, patch: before });
+    moved++;
+  });
+
+  const what = moved === 1 ? '1 project' : moved + ' projects';
+  const message = existing == null
+    ? 'Renamed to ' + finalValue + '. ' + what + ' updated.'
+    : 'Merged into ' + finalValue + '. ' + what + ' moved.';
+
+  return { writes: writes, undo: undo, message: message };
+}
