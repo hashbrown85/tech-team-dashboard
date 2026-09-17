@@ -30,7 +30,7 @@ import {
   ACTIVE_STATUSES, segmentsFor
 } from '../domain/constants.js';
 import {
-  meetingDate, ratingInfo, getMeeting, trendPoints, meetingSummary
+  meetingDate, nextMeetingAfter, ratingInfo, getMeeting, trendPoints, meetingSummary
 } from '../domain/meetings.js';
 import { actionLabel } from '../domain/actions.js';
 import { stepOf } from '../ui.js';
@@ -454,6 +454,43 @@ function projectDetailsPanel(snap, ui, env, p) {
  * Deliberately quiet — it is context for the conversation that follows, not another
  * list to work through. It renders nothing at all when there is nothing outstanding.
  */
+
+/**
+ * The two answers to "this is overdue": push it, or give it a real date.
+ *
+ * Restored from board.html:870, which had exactly this inside the ancestor of
+ * Already Owed. The port kept the block, dropped the control, and rewrote the tip
+ * to mention only ticking things off - so the block has been asking a question it
+ * could accept half the answers to.
+ *
+ * One emitter for both lists (Already Owed and the rail) so they cannot drift.
+ *
+ * `.afix` is placed in column 2 by the stylesheet rather than auto-placed. The rail
+ * is a fixed 340px track and cannot hold another column of controls; on its own row
+ * under the text, both fit at any width.
+ *
+ * The date box carries `id="due-<actionId>"`. That is what lets `edits.actionDue`
+ * redraw instead of writing silently: renderPreservingForms re-finds a focused
+ * element by id, so the caret survives and the dueness label keeps up.
+ *
+ * @param {any} a - the action
+ * @param {any} tab
+ * @param {string} d - the meeting being viewed
+ * @param {object} env
+ */
+function dueControls(a, tab, d, env) {
+  if (env.areaReadonly) return '';
+  const next = nextMeetingAfter(tab, d);
+  return '<span class="afix">' +
+    '<button type="button" class="btn ghost sm" data-act="pushDue" data-id="' + esc(a.id) +
+    '" data-v="' + esc(next) + '" title="Move it to ' + esc(fmtDay(next)) + '">' +
+    '\u2192 next meeting</button>' +
+    '<input class="fld dfix" type="date" id="due-' + esc(a.id) + '" value="' + esc(a.due || '') +
+    '" data-edit="actionDue" data-id="' + esc(a.id) +
+    '" aria-label="Move the due date for ' + actionLabel(a) + '"' + dis(env) + '>' +
+    '</span>';
+}
+
 function dueSinceLastMeeting(snap, env, tab, d) {
   // Date strings are YYYY-MM-DD, so comparing them as text gives the earlier one.
   const asOf = d < env.today ? d : env.today;
@@ -469,9 +506,13 @@ function dueSinceLastMeeting(snap, env, tab, d) {
       return '<li class="arow"><span class="aid">' + actionLabel(a) + '</span>' +
         '<span class="atext">' + esc(a.text) + '</span>' +
         '<span class="adue ' + dueClass(a, env.today) + '">' + dueLabel(a, env.today) + '</span>' +
-        '<span class="own">' + esc(a.owner || 'No owner') + '</span></li>';
+        '<span class="own">' + esc(a.owner || 'No owner') + '</span>' +
+        dueControls(a, tab, d, env) + '</li>';
     }).join('') + '</ul>' +
-    '<p class="dc-tip">Close anything already done before agreeing more — tick it in the rail.</p></div>';
+    // board.html:872 said both halves of this. The port dropped the re-dating half
+    // along with the control; it is back, so the sentence is again true.
+    '<p class="dc-tip">Tick off what is done. Anything slipping gets a new date, and ' +
+    'the owner says why in the round.</p></div>';
 }
 
 
@@ -650,7 +691,8 @@ function renderRail(snap, ui, env, tab, step, d) {
           '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
           (isOpen(a) ? '' : ' checked') + dis(env) + '><span class="aid">' + actionLabel(a) + '</span></label>' +
           '<span class="atext">' + esc(a.text) + '</span>' +
-          '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, env.today) + '</span></li>';
+          '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, env.today) + '</span>' +
+          dueControls(a, tab, d, env) + '</li>';
       }).join('') + '</ul>'
     : '<p class="none">' + (selected ? 'No actions on this project yet.' : 'No open actions in this meeting.') + '</p>';
 

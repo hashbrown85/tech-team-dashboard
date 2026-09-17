@@ -730,6 +730,60 @@ test('The rendered rows really come out in priority order', () => {
   eq(rendered, wanted, 'rows appear in the order priority asks for');
 });
 
+group('Re-dating an action from the meeting');
+
+/*
+ * Restored from board.html:870, which had this control and lost it in the port. The
+ * block asked "is this done?" and could not accept the other answer - "it slipped,
+ * here is a new date" - without leaving the meeting for the Action items page.
+ */
+function issuesTab() {
+  return render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+}
+
+test('Already Owed offers both answers, not just the tick', () => {
+  const html = issuesTab();
+  const block = html.slice(html.indexOf('duechk'), html.indexOf('dc-tip'));
+  ok(block.indexOf('data-act="pushDue"') >= 0, 'push it to the next meeting');
+  ok(block.indexOf('data-edit="actionDue"') >= 0, 'or give it a real date');
+});
+
+test('The rail carries the same control, from the same emitter', () => {
+  // Every segment shows the rail, so the control is to hand all meeting - and being
+  // one emitter, the two lists cannot drift apart.
+  const rail = /<aside class="rail">[\s\S]*<\/aside>/.exec(issuesTab());
+  ok(rail, 'the rail rendered');
+  if (rail) ok(rail[0].indexOf('data-act="pushDue"') >= 0, 'push is there too');
+});
+
+test('Every date box has a stable id, so its own redraw keeps the caret', () => {
+  // This is what lets edits.actionDue redraw rather than write silently. Without
+  // the id, formstate cannot re-find it and the dueness label beside it goes stale.
+  const html = issuesTab();
+  const boxes = html.match(/<input[^>]*data-edit="actionDue"[^>]*>/g) || [];
+  ok(boxes.length > 0, 'the meeting renders at least one date box');
+  boxes.forEach(function (b) {
+    ok(/id="due-[^"]+"/.test(b), 'a date box carries its id: ' + b.slice(0, 70));
+  });
+});
+
+test('The push button names the date it will set', () => {
+  // data-v carries the date; the handler does not recompute it. A button that moves
+  // a commitment should say where it is moving it to before it is pressed.
+  const btn = /<button[^>]*data-act="pushDue"[^>]*>/.exec(issuesTab());
+  ok(btn, 'a push button rendered');
+  if (!btn) return;
+  ok(/data-v="\d{4}-\d{2}-\d{2}"/.test(btn[0]), 'the target date travels in data-v');
+  ok(/title="Move it to [^"]+"/.test(btn[0]), 'and is named in the tooltip');
+});
+
+test('A read-only reader gets neither control', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } },
+    { content: 'readonly', settings: 'live' });
+  notOk(html.indexOf('data-act="pushDue"') >= 0, 'no push');
+  notOk(html.indexOf('data-edit="actionDue"') >= 0, 'no date box');
+});
+
 group('Collapsing the sidebar');
 
 /*

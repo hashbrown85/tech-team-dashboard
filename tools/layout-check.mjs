@@ -346,9 +346,10 @@ const GRID_CHILDREN = [
    * a user twice. A varying count is still a KNOWN SET, and a number outside it
    * means somebody added a child without looking at the grid.
    *
-   *   .arow  3, 4, 7 — the register emits seven into a four-column grid on purpose
-   *                    and lets them wrap; the rail emits three, the project page
-   *                    and the already-owed block four.
+   *   .arow  3,4,5,7 — the register emits seven into a four-column grid on purpose
+   *                    and lets them wrap; the project page emits four; the rail
+   *                    four and the already-owed block five, both since they gained
+   *                    the push/re-date controls (.afix, placed in column 2).
    *   .is-h  3       — but the CSS declares FOUR columns (auto auto minmax(0,1fr)
    *                    auto) and its mobile rules style `.is-h .it-t`, which is
    *                    never emitted inside .is-h: the title lives in a sibling
@@ -360,7 +361,7 @@ const GRID_CHILDREN = [
    * The count alone is NOT sufficient - the rail collapsed at three children in a
    * four-column grid. See PLACEMENT below for the check that catches that.
    */
-  ['arow', [3, 4, 7], 'four-column grid; the register emits more and lets them wrap'],
+  ['arow', [3, 4, 5, 7], 'four-column grid; the register emits more and lets them wrap'],
   ['is-h', [3], 'declares four columns; emits three children — see above'],
   ['item', [2, 3, 4, 5], 'auto minmax(0,1fr) auto, with conditional children']
 ];
@@ -410,6 +411,7 @@ const PLACEMENT = [
       own:     'capped',
       m:       'capped',
       adue:    'safe',
+      afix:    'placed:2',
       fld:     'safe',
       x:       'safe'
     }

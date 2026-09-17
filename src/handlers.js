@@ -193,6 +193,17 @@ export function createHandlers(app) {
      */
     toggleSide: function () { ui.sideSlim = !ui.sideSlim; render(); },
 
+    /*
+     * Push an action to the meeting after the one being looked at. The date is
+     * computed in the view (which knows the meeting) and travels in data-v, so this
+     * stays a plain write through the same changeDue the date box uses.
+     */
+    pushDue: function (el, id, v) {
+      if (!v) return;
+      const doc = changeDue(byId(store.snapshot().actions, id), v);
+      if (doc) store.set('actions', id, doc);
+    },
+
     openProject: function (el, id) {
       ui.project = id;
       goView('project');
@@ -467,11 +478,18 @@ export function createHandlers(app) {
       render();
     },
 
+    /*
+     * This used to be `{silent: true}` - a write with no redraw - because the date
+     * input had no id and `renderPreservingForms` could only restore focus inside a
+     * `form[data-form]`. The cost was that the "3d overdue" label beside it stayed
+     * stale until something else happened to redraw.
+     *
+     * Every date box now carries `id="due-<actionId>"`, and formstate re-finds a
+     * focused element by id, so the redraw is safe and the row keeps up.
+     */
     actionDue: function (el) {
       const doc = changeDue(byId(store.snapshot().actions, el.dataset.id), el.value);
-      // Silent so the date field keeps focus while it is being edited. The due
-      // label beside it catches up on the next render.
-      if (doc) store.set('actions', el.dataset.id, doc, { silent: true });
+      if (doc) store.set('actions', el.dataset.id, doc);
     },
 
     meetingNote: function (el) {

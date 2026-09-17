@@ -487,6 +487,13 @@ textarea.fld{display:block;width:100%;min-height:62px;padding:8px 10px;height:au
 .arow .ameta{font-size:13px;color:var(--muted);overflow-wrap:break-word}
 .arow .ameta b{font-weight:600;color:var(--ink-2)}
 .arow.done .atext{text-decoration:line-through;color:var(--muted)}
+/* The two answers to an overdue action, on their own row under the text. Column 2
+   by placement, not by auto-placement: the meeting rail is a fixed 340px track and
+   has no room for another column, and an auto-placed sibling beside .atext is how
+   the title collapses (see THE RULE above .item). */
+.arow > .afix{grid-column:2;display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px}
+.afix .dfix{height:28px;width:150px;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);font:12.5px var(--f-mono);padding:0 6px}
+.arow.over .afix .dfix{border-color:var(--crit)}
 .adue{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
 .adue input{height:30px;width:136px;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);font:12.5px var(--f-mono);padding:0 6px}
 .arow.over .adue input{border-color:var(--crit)}

@@ -18,7 +18,7 @@ import {
   setNote,
   lastScore,
   trendPoints,
-  meetingSummary
+  meetingSummary, nextMeetingAfter
 } from '../src/domain/meetings.js';
 
 const MEETING = '2026-09-14';
@@ -353,3 +353,23 @@ test('Sections always come in the same order', () => {
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
+
+
+group('Pushing an action to the next meeting');
+
+test('It lands on the meeting weekday after the one being viewed', () => {
+  // 2026-09-21 is a Monday. A Monday meeting pushed from it must go to the 28th,
+  // not stay on the 21st - nextOn returns its own argument when the day already
+  // matches, which would make "push" a no-op on a meeting day.
+  eq(nextMeetingAfter({ weekday: 1 }, '2026-09-21'), '2026-09-28');
+});
+
+test('Pushing from a past meeting still moves one meeting on', () => {
+  // The date comes from the meeting on screen, not from today, so opening last
+  // week's meeting and pushing does not skip to next week's.
+  eq(nextMeetingAfter({ weekday: 1 }, '2026-09-14'), '2026-09-21');
+});
+
+test('It finds the next occurrence from a mid-week date', () => {
+  eq(nextMeetingAfter({ weekday: 2 }, '2026-09-17'), '2026-09-22', 'Thursday -> Tuesday');
+});

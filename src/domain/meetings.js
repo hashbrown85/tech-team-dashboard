@@ -14,7 +14,7 @@
  */
 
 import { byId } from '../lib/seq.js';
-import { fmt, fmtDay, fmtLong, nextOn } from '../lib/dates.js';
+import { fmt, fmtDay, fmtLong, nextOn, addDays } from '../lib/dates.js';
 import {
   isOpen,
   issueItems,
@@ -89,6 +89,22 @@ export function getMeeting(snap, tid, d) {
  */
 export function meetingDate(tab, today, override) {
   return override || nextOn(today, Number(tab.weekday));
+}
+
+/**
+ * The meeting after `date` - what "push it to next time" means.
+ *
+ * From the meeting being looked at rather than from today, so pushing behaves the
+ * same whether you opened this week's meeting or last week's. `nextOn` returns its
+ * own argument when that day already IS the meeting weekday, so step past it first
+ * or pushing from a meeting day would set the date to that same day.
+ *
+ * @param {any} tab
+ * @param {string} date - 'YYYY-MM-DD', the meeting being viewed
+ * @returns {string}
+ */
+export function nextMeetingAfter(tab, date) {
+  return nextOn(addDays(date, 1), Number(tab.weekday));
 }
 
 /* ---------- ratings ---------- */
