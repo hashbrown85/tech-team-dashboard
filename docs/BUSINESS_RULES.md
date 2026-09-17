@@ -239,6 +239,40 @@ work that has a deadline. `byWorkOrder` substitutes a far-future date instead.
 people's lists are numbered independently — so it cannot order a list that spans
 both. It orders a person's block inside a meeting and nothing else.
 
+### Sorting takes over from that order, and absent values sort last
+
+Value, Win % and Due each sort on their header: first click in the column's natural
+direction (**numbers descending, dates ascending**), second reverses, third returns
+to the work order above.
+
+**A project with no value sorts last in BOTH directions.** Direction applies only
+among the projects that have one. No `estValue` means nobody has priced it and no
+`winPct` means nobody has judged it; sorting those as zero asserts the project is
+worth nothing and certain to be lost, which the data does not say. It is the same
+rule as undated-last, generalised — and that rule exists because an empty string
+compares below every real date as text, so the obvious comparison buried everything
+with a deadline under everything without one.
+
+The final tiebreak (title, then id) is **never reversed by direction**, or a block of
+unpriced projects would list backwards between one click and the next for no reason.
+The comparator has to be *total* rather than relying on `Array.sort` being stable,
+because stability only preserves the input order and the input is rebuilt by the
+adapter on every 60-second poll.
+
+**A sort remembered on a column the reader cannot see is ignored.** A persisted
+`projSort: 'value'` from a session with access would otherwise order the list by
+something invisible.
+
+### Filter menus come from the scoped set, not the filtered one
+
+The Field and Project Type dropdowns are built from the values present after the
+person and meeting scope, and **before** the search, the status chips and each other.
+Options drawn from the searched set vanish while you type; options drawn from the
+status-filtered set reshuffle when you touch an unrelated control; and two filters
+narrowing each other's menus means you cannot change one without first resetting the
+other. The cost is that a combination can show nothing, which is met with a count in
+each label and an empty message that names the control responsible.
+
 An empty list says **why** it is empty: a filter hiding everything reads differently
 from a meeting with no projects, which reads differently again from a board with
 none. "No projects" while a filter quietly hides them is how somebody concludes
@@ -380,6 +414,13 @@ extraction is finished.
   JSON column somebody can edit by hand in SharePoint.
 
 ### Fixed since
+
+- **A field that filters as you type needs its value left alone.** `restoreForms`
+  skips the value of anything carrying `data-input`, because such a field writes to
+  ui state on every keystroke and the render that just happened already shows the
+  right thing. Without the skip, clicking **Reset** on the Projects list captures the
+  old search text out of the box and restores it over the blank one, so Reset appears
+  not to work. Focus and the caret are still restored.
 
 - **An open form emptied itself mid-entry.** The board reloads and redraws every 60
   seconds (`IDLE_POLL_MS`), and again whenever the window regains focus. `draw()`

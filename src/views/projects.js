@@ -33,7 +33,10 @@ import { fmt } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import { personName, openActsFor, detailsArrived } from '../domain/queries.js';
 import { STATUS_LABELS, ACTIVE_STATUSES } from '../domain/constants.js';
-import { projectTitle } from '../domain/projects.js';
+import {
+  projectTitle, byTitleThenId, projectSorter, matchesQuery, matchesValue,
+  distinctValues, SORT_COLUMNS
+} from '../domain/projects.js';
 import { pageHeader, kpi } from './shell.js';
 import { moneyShort } from './project.js';
 
@@ -84,11 +87,9 @@ export function byWorkOrder(a, b) {
   if (due(a) !== due(b)) return due(a) < due(b) ? -1 : 1;
 
   // Stable and predictable when everything else ties, so the list does not
-  // reshuffle between renders.
-  const ta = projectTitle(a).toLowerCase();
-  const tb = projectTitle(b).toLowerCase();
-  if (ta !== tb) return ta < tb ? -1 : 1;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  // reshuffle between renders. Shared with every sorted order, so they all end
+  // the same way.
+  return byTitleThenId(a, b);
 }
 
 /**
@@ -101,6 +102,13 @@ export function renderProjects(snap, ui, env) {
   const today = env.today;
   const showValue = detailsArrived(snap);
 
+  /*
+   * A sort remembered from a session where this person could see the money must not
+   * be honoured now that they cannot - there would be a sorted-by column they cannot
+   * see, ordering the list for reasons invisible to them.
+   */
+  const sortCol = (ui.projSort === 'value' && !showValue) ? null : ui.projSort;
+
   // The sidebar's "Show items for" scopes this too. Projects record an owner by
   // ID where actions record a NAME, so this compares the resolved name rather than
   // the raw field - see the owner-id migration in the port plan.
@@ -110,18 +118,44 @@ export function renderProjects(snap, ui, env) {
     return true;
   });
 
-  const counts = {};
-  FILTERS.forEach(function (f) {
-    counts[f[0]] = scoped.filter(function (p) { return matchesStatus(p, f[0]); }).length;
+  /*
+   * The dropdown menus are built from `scoped` - after the person and meeting scope,
+   * and BEFORE the search, the status chips and each other.
+   *
+   * Each of those exclusions is a rule somebody would otherwise trip over. Options
+   * drawn from the searched set vanish while you type. Options drawn from the
+   * status-filtered set reshuffle when you touch an unrelated control. And two
+   * filters narrowing each other's menus means you cannot change Field without
+   * first resetting Type, because the option you want is no longer offered.
+   *
+   * The cost is that a combination can produce nothing. That is met with a count in
+   * each label and an honest empty message, not by designing it away.
+   */
+  const fieldOpts = distinctValues(scoped, 'field');
+  const typeOpts = distinctValues(scoped, 'projectType');
+
+  const narrowed = scoped.filter(function (p) {
+    return matchesQuery(snap, p, ui.projQuery) &&
+      matchesValue(p, 'field', ui.projField) &&
+      matchesValue(p, 'projectType', ui.projType);
   });
 
-  const rows = scoped
+  // Counts come from `narrowed`, not `scoped`: a chip promises "clicking me shows
+  // N", and 23 above a three-row table makes the control a liar.
+  const counts = {};
+  FILTERS.forEach(function (f) {
+    counts[f[0]] = narrowed.filter(function (p) { return matchesStatus(p, f[0]); }).length;
+  });
+
+  const rows = narrowed
     .filter(function (p) { return matchesStatus(p, ui.projStatus); })
-    .sort(byWorkOrder);
+    .sort(sortCol ? projectSorter(snap, sortCol, ui.projSortDir) : byWorkOrder);
 
   /* ------------------------------------------------------------- the numbers */
 
-  const live = scoped.filter(function (p) {
+  // The numbers describe the same set the table is drawn from, so they narrow with
+  // it. "Live projects 23" over three rows is the same lie a wrong chip count is.
+  const live = narrowed.filter(function (p) {
     return ACTIVE_STATUSES.indexOf(p.status) >= 0;
   });
   const offTrack = live.filter(function (p) { return p.status === 'off'; });
@@ -136,7 +170,9 @@ export function renderProjects(snap, ui, env) {
 
   const numbers = '<section class="kpis" aria-label="At a glance">' +
     kpi('', live.length, 'Live projects',
-      scoped.length - live.length ? (scoped.length - live.length) + ' closed' : 'none closed') +
+      narrowed.length - live.length
+        ? (narrowed.length - live.length) + ' closed'
+        : 'none closed') +
     kpi(offTrack.length ? 'warn' : 'good', offTrack.length, 'Off track',
       offTrack.length ? 'need a path' : 'all on track') +
     kpi(overdue.length ? 'crit' : '', overdue.length, 'Past due',
@@ -160,10 +196,48 @@ export function renderProjects(snap, ui, env) {
       (ui.projTab === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>';
   }).join('');
 
-  const filters = '<div class="filters">' + chips +
-    '<span class="sp"></span>' +
+  /*
+   * Two rows. The chips keep the first one to themselves - they are the most used
+   * control and their position is muscle memory - and everything added here goes on
+   * a second row rather than wrapping awkwardly onto the end of the first.
+   *
+   * The search box is wrapped in a form for ONE reason: captureForms/restoreForms
+   * only walk `form[data-form]`, and without it the caret is lost on the first
+   * keystroke, because every keystroke redraws the page. The form has no submit
+   * handler and needs none - main.js preventDefaults any data-form submit, so Enter
+   * is harmless. Keep it to a single field: restoreForms abandons a form whose field
+   * count changed, and the two selects' option lists are data-derived and will.
+   */
+  const search = '<form class="psearch" data-form="projSearch" role="search">' +
+    '<label class="sr-only" for="projq">Search projects</label>' +
+    '<input id="projq" class="fld" type="search" autocomplete="off" ' +
+    'data-input="projQuery" value="' + esc(ui.projQuery || '') + '" ' +
+    'placeholder="Search customer, project, field, type, owner">' +
+    '</form>';
+
+  const anyNarrowing = !!(ui.projQuery) || ui.projField !== 'all' ||
+    ui.projType !== 'all' || !!sortCol;
+
+  const reset = anyNarrowing
+    ? '<button type="button" class="fchip reset" data-act="projReset" ' +
+      'aria-label="Clear the search, both filters and the sort">Reset</button>'
+    : '';
+
+  const filters = '<div class="filters">' + chips + '</div>' +
+    '<div class="filters">' + search +
     '<select class="fld" data-edit="projTabFilter" aria-label="Filter by meeting">' +
-    tabOpts + '</select></div>';
+    tabOpts + '</select>' +
+    valueSelect('projFieldFilter', 'Filter by field', 'All fields',
+      fieldOpts, ui.projField) +
+    valueSelect('projTypeFilter', 'Filter by project type', 'All types',
+      typeOpts, ui.projType) +
+    '<span class="sp"></span>' + reset + '</div>';
+
+  const showing = anyNarrowing && narrowed.length !== scoped.length
+    ? '<p class="scope-note">Showing ' + narrowed.length + ' of ' + scoped.length +
+      (ui.projQuery ? ' \u00b7 matching \u201c' + esc(ui.projQuery) + '\u201d' : '') +
+      '</p>'
+    : '';
 
   const scopeNote = ui.person !== 'all'
     ? '<p class="scope-note">Showing only projects owned by <b>' + esc(ui.person) +
@@ -181,15 +255,101 @@ export function renderProjects(snap, ui, env) {
   const table = rows.length
     ? '<div class="tbl-scroll"><table class="t">' +
       '<thead><tr>' +
-      '<th>Project</th><th>Meeting</th><th>Owner</th><th>Status</th>' +
-      '<th>Due</th><th class="c">Open</th><th class="c">Win</th>' +
-      (showValue ? '<th>Value</th>' : '') +
+      '<th>Project</th><th>Field</th><th>Type</th>' +
+      '<th>Meeting</th><th>Owner</th><th>Status</th>' +
+      sortableTh(ui, sortCol, 'due', 'Due', '') +
+      '<th class="c">Open</th>' +
+      sortableTh(ui, sortCol, 'win', 'Win', 'c') +
+      (showValue ? sortableTh(ui, sortCol, 'value', 'Value', '') : '') +
       '</tr></thead><tbody>' +
       rows.map(function (p) { return projectRow(snap, env, p, showValue); }).join('') +
       '</tbody></table></div>'
-    : '<p class="none">' + emptyMessage(ui, scoped.length) + '</p>';
+    : '<p class="none">' +
+      emptyMessage(ui, scoped.length, narrowed.length) + '</p>';
 
-  return head + numbers + filters + scopeNote + table;
+  return head + numbers + filters + scopeNote + showing + table;
+}
+
+/**
+ * A dropdown of the values actually in use for a free-text field.
+ *
+ * A selection that is no longer among the options gets rendered anyway, at the end,
+ * showing (0). Otherwise the select would show nothing selected while the filter was
+ * still narrowing the list - invisible, and the table looks empty for no reason. A
+ * view cannot write ui state, so it has to say what is going on instead.
+ *
+ * @param {string} edit - the data-edit handler name
+ * @param {string} label
+ * @param {string} allLabel
+ * @param {{value: string, label: string, n: number}[]} options
+ * @param {string} chosen
+ */
+function valueSelect(edit, label, allLabel, options, chosen) {
+  const known = options.some(function (o) { return o.value === chosen; });
+
+  const orphan = !known && chosen !== 'all'
+    ? '<option value="' + esc(chosen) + '" selected>' + esc(chosen) + ' (0)</option>'
+    : '';
+
+  return '<select class="fld" data-edit="' + edit + '" aria-label="' + label + '">' +
+    '<option value="all"' + (chosen === 'all' ? ' selected' : '') + '>' +
+    allLabel + '</option>' +
+    options.map(function (o) {
+      return '<option value="' + esc(o.value) + '"' +
+        (o.value === chosen ? ' selected' : '') + '>' +
+        esc(o.label) + ' (' + o.n + ')</option>';
+    }).join('') + orphan + '</select>';
+}
+
+/**
+ * A column header you can sort by.
+ *
+ * `aria-sort` goes on the `<th>`, never on the button - it is a property of the
+ * header cell - and only on the column actually sorted. Putting `aria-sort="none"`
+ * on the others would advertise sortability that Project, Meeting, Owner, Status and
+ * Open do not have.
+ *
+ * The control is a real `<button type="button">` inside the cell rather than
+ * `data-act` on the `<th>`: the delegated listener would fire from a `th` happily
+ * enough, but a `th` is not focusable and has no Enter or Space behaviour. The
+ * `type="button"` matters now this page contains a form.
+ *
+ * The arrow is decorative and hidden from assistive tech; the state lives in the
+ * label, which also says what the NEXT click does. That is the only place the
+ * third-click-resets rule is discoverable.
+ *
+ * @param {any} ui
+ * @param {string | null} sortCol - the column in force, after the permission guard
+ * @param {string} col
+ * @param {string} label
+ * @param {string} cls - extra class for the th, '' or 'c'
+ */
+function sortableTh(ui, sortCol, col, label, cls) {
+  const spec = SORT_COLUMNS[col];
+  const active = sortCol === col;
+  const dir = active ? ui.projSortDir : null;
+
+  let aria;
+  let arrow;
+  if (!active) {
+    aria = 'Sort by ' + spec.label.toLowerCase() + ', ' + spec[spec.first];
+    arrow = '\u2195';
+  } else if (dir === spec.first) {
+    // Second click reverses.
+    const other = spec.first === 'asc' ? 'desc' : 'asc';
+    aria = spec.label + ', sorted ' + spec[dir] + '. Sort ' + spec[other] + '.';
+    arrow = dir === 'asc' ? '\u25b2' : '\u25bc';
+  } else {
+    // Third click goes back to the default order.
+    aria = spec.label + ', sorted ' + spec[dir] + '. Return to the default order.';
+    arrow = dir === 'asc' ? '\u25b2' : '\u25bc';
+  }
+
+  return '<th class="' + (cls ? cls + ' ' : '') + 'sortable"' +
+    (active ? ' aria-sort="' + (dir === 'asc' ? 'ascending' : 'descending') + '"' : '') +
+    '><button type="button" class="th-sort" data-act="projSort" data-v="' + col +
+    '" aria-label="' + esc(aria) + '">' + label +
+    '<span class="sarr" aria-hidden="true">' + arrow + '</span></button></th>';
 }
 
 function labelOf(value) {
@@ -203,7 +363,14 @@ function labelOf(value) {
  * "No projects" when a filter is hiding them all is the kind of message that has
  * people adding a duplicate because they believe the first one is gone.
  */
-function emptyMessage(ui, scopedCount) {
+function emptyMessage(ui, scopedCount, narrowedCount) {
+  // Name the control responsible, most specific first. "No projects" when a search
+  // is what emptied the list sends people looking for the wrong problem.
+  if (narrowedCount === 0 && scopedCount > 0) {
+    if (ui.projQuery) return 'No projects match that search.';
+    if (ui.projField !== 'all') return 'No projects in that field.';
+    if (ui.projType !== 'all') return 'No projects of that type.';
+  }
   if (scopedCount > 0) return 'No projects match this filter.';
   if (ui.projTab !== 'all') return 'No projects in this meeting.';
   if (ui.person !== 'all') return 'No projects owned by this person.';
@@ -223,6 +390,8 @@ function projectRow(snap, env, p, showValue) {
   return '<tr>' +
     '<td><button type="button" class="linkbtn" data-act="openProject" data-id="' +
     esc(p.id) + '">' + esc(projectTitle(p)) + '</button>' + focus + '</td>' +
+    '<td class="k">' + esc(p.field || '—') + '</td>' +
+    '<td class="k">' + esc(p.projectType || '—') + '</td>' +
     '<td class="k">' + esc(tab ? tab.name : '—') + '</td>' +
     '<td class="k">' + esc(personName(snap, p.personId)) + '</td>' +
     '<td><span class="chip ps-' + esc(p.status) + '">' +

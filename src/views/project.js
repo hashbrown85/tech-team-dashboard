@@ -36,7 +36,9 @@ import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
 import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
-import { projectTitle, confidencePoints } from '../domain/projects.js';
+import {
+  projectTitle, confidencePoints, distinctValues
+} from '../domain/projects.js';
 import { pageHeader, kpi } from './shell.js';
 import { pickerControl } from './pickers.js';
 import { spark } from './spark.js';
@@ -108,15 +110,13 @@ export function renderProject(snap, ui, env, p) {
     esc(p.id) + '">Copy summary</button>',
     'Project');
 
-  /* ------------------------------------------------- what the title is made of */
+  /* --------------------------------------------- what the project is, in short */
 
-  // Straight under the heading, because these two fields ARE the heading, and
+  // Straight under the heading, because the first two fields ARE the heading, and
   // because a project frequently gets entered mid-meeting against the wrong
   // customer or with a placeholder name. Somewhere to correct that has to be the
   // first thing you find, not a row buried under the status control.
-  const identity = '<section class="panel"><div class="pan-h"><h2>Project</h2>' +
-    '<span class="sub">Customer and name, which together make the title above</span>' +
-    '</div>' +
+  const identity = '<section class="panel"><div class="pan-h"><h2>Project</h2></div>' +
     row('Customer',
       '<input class="fld wide" type="text" value="' + esc(p.customer || '') +
       '" data-edit="projCustomer" data-id="' + esc(p.id) +
@@ -125,6 +125,25 @@ export function renderProject(snap, ui, env, p) {
       '<input class="fld wide" type="text" value="' + esc(p.name || '') +
       '" data-edit="projName" data-id="' + esc(p.id) +
       '" placeholder="What it is" aria-label="Project name"' + dis(env) + '>') +
+    row('Field',
+      '<input class="fld wide" type="text" list="dl-field" value="' + esc(p.field || '') +
+      '" data-edit="projField" data-id="' + esc(p.id) +
+      '" placeholder="e.g. Coatings" aria-label="Field"' + dis(env) + '>') +
+    row('Project Type',
+      '<input class="fld wide" type="text" list="dl-ptype" value="' +
+      esc(p.projectType || '') +
+      '" data-edit="projType" data-id="' + esc(p.id) +
+      '" placeholder="e.g. Trial" aria-label="Project type"' + dis(env) + '>') +
+    /*
+     * Field and Project Type are free text, and the Projects list builds its filter
+     * dropdowns from whatever is actually typed. That has one failure mode -
+     * "Coatings", "coatings" and "Coating" becoming three options that each hide
+     * two thirds of the rows - and showing what colleagues already used is what
+     * prevents it. Pure markup: no script, no listener, survives the innerHTML
+     * replace on every render.
+     */
+    datalist('dl-field', distinctValues(snap.projects, 'field')) +
+    datalist('dl-ptype', distinctValues(snap.projects, 'projectType')) +
     '</section>';
 
   /* ---------------------------------------------------- the numbers up front */
@@ -288,6 +307,19 @@ export function renderProject(snap, ui, env, p) {
 
   return head + identity + numbers + statusPanel + mission + commercial +
     actionsPanel + renderNotes(snap, ui, env, p);
+}
+
+/**
+ * Suggestions for a free-text field, from what colleagues have already typed.
+ *
+ * @param {string} id
+ * @param {{label: string}[]} values
+ */
+function datalist(id, values) {
+  if (!values.length) return '';
+  return '<datalist id="' + id + '">' + values.map(function (v) {
+    return '<option value="' + esc(v.label) + '"></option>';
+  }).join('') + '</datalist>';
 }
 
 /** One labelled row. Exactly two children, because `.rp` is a two-column grid. */

@@ -54,7 +54,14 @@ const MODULES = [
   '../src/views/actions.js',
   '../src/views/timeline.js',
   '../src/views/people.js',
-  '../src/views/settings.js'
+  '../src/views/settings.js',
+  // Added late and easy to forget - which is exactly what this list is for. A
+  // module nothing imports can carry a syntax error and the suite stays green.
+  '../src/views/project.js',
+  '../src/views/projects.js',
+  '../src/views/pickers.js',
+  '../src/views/spark.js',
+  '../src/lib/formstate.js'
 ];
 
 group('Every module loads');

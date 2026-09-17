@@ -115,16 +115,17 @@ test('The customer appears once as a field, not twice as a row as well', () => {
   eq((html.match(/data-edit="projCustomer"/g) || []).length, 1);
 });
 
-test('The two rows are labelled Customer and Project, in that order', () => {
+test('The rows are labelled and ordered like the project sheet', () => {
   // The inputs being in the right order is not the same as them being labelled
-  // right - and the label is what somebody reads before typing in the box.
+  // right - and the label is what somebody reads before typing in the box. The
+  // order is the one the shared project sheet uses, which is the point of it.
   const html = page('pr1');
   const panel = /<h2>Project<\/h2>[\s\S]*?<\/section>/.exec(html);
   ok(panel, 'found the panel');
 
   const labels = (panel[0].match(/<div class="rp-h"><b>([^<]+)<\/b>/g) || [])
     .map(function (m) { return /<b>([^<]+)<\/b>/.exec(m)[1]; });
-  eq(labels, ['Customer', 'Project']);
+  eq(labels, ['Customer', 'Project', 'Field', 'Project Type']);
 });
 
 test('Internal work with no customer gets no dangling hyphen', () => {

@@ -146,6 +146,43 @@
   table.t td.c { width: auto; min-width: 64px; }
   .filters + .scope-note { margin-top: 10px; }
 
+  /* Sortable column headers. The th owns the brand background and the label
+     typography, so the button must inherit all of it or it renders as a default
+     grey control on red. The padding moves onto the button so the whole cell is
+     the hit target. */
+  table.t th.sortable { padding: 0; }
+  table.t th .th-sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    width: 100%; padding: 8px 10px;
+    border: 0; background: none; cursor: pointer; text-align: left;
+    font: inherit; color: inherit;
+    letter-spacing: inherit; text-transform: inherit;
+  }
+  table.t th.c .th-sort { justify-content: center; }
+  table.t th .th-sort:hover { background: var(--brand-deep); }
+  /* The global :focus-visible ring is var(--brand) - invisible on a brand-red
+     header, which would leave these unusable by keyboard. */
+  table.t th .th-sort:focus-visible {
+    outline: 2px solid var(--on-brand); outline-offset: -3px;
+  }
+  table.t th .sarr { font-size: 10px; opacity: 0; }
+  table.t th .th-sort:hover .sarr,
+  table.t th .th-sort:focus-visible .sarr { opacity: .6; }
+  table.t th[aria-sort] .sarr { opacity: 1; }
+
+  /* The search box has to match `.filters select`, which is already a 30px pill,
+     or the row reads as broken. */
+  .psearch { display: flex; margin: 0; }
+  .psearch .fld {
+    height: 30px; width: 240px; max-width: 100%;
+    border-radius: 15px; font-size: 13.5px;
+  }
+  .psearch .fld::-webkit-search-cancel-button { cursor: pointer; }
+
+  .filters + .filters { margin-top: 6px; }
+  /* Dashed, so it reads as "undo what I did" rather than as another filter. */
+  .fchip.reset { border-style: dashed; }
+
   /* The x on a chip. `.x` is a 26px control sized for a list row, which makes a
      chip half again as tall as it needs to be. This also tidies the same chips on
      the People & settings screen, which had the problem first. */

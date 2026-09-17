@@ -55,8 +55,9 @@ test('Without a hole in it, and with its tags balanced', () => {
   ['undefined', 'NaN', '[object Object]'].forEach(function (bad) {
     notOk(html.indexOf(bad) >= 0, 'leaks "' + bad + '"');
   });
-  [['<table', '</table>'], ['<tr', '</tr>'], ['<td', '</td>'],
-   ['<div', '</div>'], ['<button', '</button>']].forEach(function (pair) {
+  [['<table', '</table>'], ['<tr', '</tr>'], ['<td', '</td>'], ['<th', '</th>'],
+   ['<div', '</div>'], ['<button', '</button>'], ['<form', '</form>'],
+   ['<select', '</select>'], ['<option', '</option>']].forEach(function (pair) {
     const opens = (html.match(new RegExp(pair[0] + '[ >]', 'g')) || []).length;
     const closes = (html.match(new RegExp(pair[1], 'g')) || []).length;
     eq(opens, closes, pair[0] + ' vs ' + pair[1]);
@@ -89,6 +90,13 @@ test('The table can scroll sideways rather than widening the page', () => {
 });
 
 group('The order you would work down it');
+
+test('The list is unsorted by default, so the work order is what shows', () => {
+  // The three tests below only mean anything while this is true. If a future
+  // change to defaults() picked a sort column, they would silently start
+  // asserting that column's order instead.
+  eq(base.projSort, null);
+});
 
 test('Off track comes first, whatever its due date', () => {
   const snap = demoBoard();
@@ -174,6 +182,23 @@ test('Each chip carries how many it would show', () => {
   eq(Number(chip[1]), offCount);
 });
 
+test('Chip counts follow the search, because a chip promises what it will show', () => {
+  // They used to count the whole scoped set. A chip saying 23 above a three-row
+  // table is a control making a promise it will not keep.
+  const snap = demoBoard();
+  const all = page({ snap: snap });
+  const searched = page({ snap: snap, ui: { projQuery: 'meridian' } });
+
+  const countFor = function (html) {
+    const m = /data-v="all"[^>]*>All<span class="cnt n">(\d+)</.exec(html);
+    ok(m, 'found the All chip');
+    return Number(m[1]);
+  };
+
+  ok(countFor(all) > countFor(searched), 'the count came down with the search');
+  eq(countFor(searched), 1, 'one project matches "meridian"');
+});
+
 test('Exactly one chip is pressed', () => {
   const html = page();
   eq((html.match(/data-act="projStatusFilter"[^>]*aria-pressed="true"/g) || []).length, 1);
@@ -225,7 +250,7 @@ group('The value column is the same permission as everywhere else');
 
 test('It appears when the restricted collection arrived', () => {
   const html = page();
-  ok(html.indexOf('<th>Value</th>') > 0, 'the column is there');
+  ok(/data-act="projSort" data-v="value"/.test(html), 'the column is there');
   ok(html.indexOf('Annual value') > 0, 'and the total');
 });
 
@@ -236,7 +261,11 @@ test('It is absent, and its figures never sent, when refused', () => {
   snap.projectDetails = [];          // as the adapter really hands it back
 
   const html = page({ snap: snap });
-  notOk(html.indexOf('<th>Value</th>') > 0, 'no column');
+  // Asserted against the sort control, not the literal '<th>Value</th>'. That
+  // string stopped appearing the moment the header became a button, and this
+  // assertion would then have passed whether or not the column leaked - a
+  // permission test going quietly hollow is worse than no test.
+  notOk(/data-v="value"/.test(html), 'no column');
   notOk(html.indexOf(String(value)) > 0, 'and the number is not in the markup');
   ok(html.indexOf('Judged') > 0, 'the stat falls back to something visible');
 });
@@ -247,7 +276,7 @@ test('Win confidence is shown to everyone, because it is not restricted', () => 
   snap.projectDetails = [];
   const html = page({ snap: snap });
 
-  ok(html.indexOf('<th class="c">Win</th>') > 0, 'the column survives');
+  ok(/data-act="projSort" data-v="win"/.test(html), 'the column survives');
   ok(/<td class="c">65%<\/td>/.test(html), 'with its number');
 });
 

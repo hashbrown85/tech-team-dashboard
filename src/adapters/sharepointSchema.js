@@ -112,6 +112,23 @@ export const SCHEMA = {
       name: { col: 'ProjectName', kind: 'text' },
       // Visible to everyone who can see the project. The money stays restricted.
       customer: { col: 'Customer', kind: 'text' },
+
+      /*
+       * How the project is classified, to line up with the sheet these came from.
+       *
+       * Free text, and deliberately not pickers like products and focus: the
+       * vocabulary is still settling, and the Projects-list dropdowns are built from
+       * whatever is actually in the data rather than from a list somebody maintains.
+       * The project page offers a <datalist> of the values already in use, which is
+       * what stops "Coatings", "coatings" and "Coating" becoming three of them.
+       *
+       * `ProjectField` rather than `Field`: both are one word, which the column
+       * naming rule requires, but `Field` is too generic to want in a SharePoint
+       * list and reads worse beside `ProjectType`.
+       */
+      field: { col: 'ProjectField', kind: 'text' },
+      projectType: { col: 'ProjectType', kind: 'text' },
+
       // What this project is actually for, in the owner's words.
       mission: { col: 'Mission', kind: 'note' },
       status: { col: 'Status', kind: 'text' },

@@ -499,3 +499,203 @@ export function confidencePoints(project) {
     .sort(function (a, b) { return a.m < b.m ? -1 : a.m > b.m ? 1 : 0; })
     .map(function (h) { return { d: String(h.m), v: Number(h.p) }; }));
 }
+
+
+/* ------------------------------------------------------- sorting and searching */
+
+/**
+ * The columns the Projects table can be sorted by, and which way each goes first.
+ *
+ * The rule is: **numbers descending, dates ascending.** Nobody opens a money column
+ * to find the smallest figure, and nobody opens a date column to find the one
+ * furthest away. Due also sorts the way the default order already does, so clicking
+ * it only removes the off-track-first grouping rather than jerking the list about.
+ *
+ * This lives in the domain rather than the view because the click handler and the
+ * header markup both need it, and handlers never import from views/.
+ */
+export const SORT_COLUMNS = {
+  value: { first: 'desc', label: 'Value', desc: 'highest first', asc: 'lowest first' },
+  win: { first: 'desc', label: 'Win %', desc: 'highest first', asc: 'lowest first' },
+  due: { first: 'asc', label: 'Due', desc: 'latest first', asc: 'soonest first' }
+};
+
+/**
+ * Which way a column sorts on the first click.
+ *
+ * @param {string} col
+ * @returns {string} 'asc' | 'desc'
+ */
+export function firstDirFor(col) {
+  return SORT_COLUMNS[col] ? SORT_COLUMNS[col].first : 'desc';
+}
+
+/**
+ * The last resort when every other comparison ties: title, then id.
+ *
+ * Extracted so the default order and every sorted order end the same way. It is
+ * never reversed, whatever direction is in force - see projectSorter.
+ *
+ * @param {any} a
+ * @param {any} b
+ */
+export function byTitleThenId(a, b) {
+  const ta = projectTitle(a).toLowerCase();
+  const tb = projectTitle(b).toLowerCase();
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * What a project sorts by for one column, or null when it has no value at all.
+ *
+ * `NaN` is folded into null on purpose. A hand-edited SharePoint cell reading "TBC"
+ * would otherwise produce a NaN key, and every comparison against NaN is false,
+ * which makes the comparator non-transitive and the order genuinely arbitrary
+ * rather than merely odd.
+ *
+ * Dates compare as text, as they do everywhere else here - see the note in
+ * sharepointSchema.js on why they are stored that way.
+ *
+ * @param {Snapshot} snap
+ * @param {string} col
+ * @param {any} p
+ * @returns {number | string | null}
+ */
+export function sortKey(snap, col, p) {
+  if (col === 'value') {
+    // The money lives in its own collection, which may be empty by permission.
+    const d = byId(snap.projectDetails, p.id);
+    const n = d && d.estValue != null ? Number(d.estValue) : NaN;
+    return isFinite(n) ? n : null;
+  }
+  if (col === 'win') {
+    const n = p.winPct == null ? NaN : Number(p.winPct);
+    return isFinite(n) ? n : null;
+  }
+  if (col === 'due') return p.due || null;
+  return null;
+}
+
+/**
+ * Sort by one column, in one direction.
+ *
+ * **A project with no value sorts last, in BOTH directions.** Direction applies only
+ * among those that have one. No estValue means nobody has priced it and no winPct
+ * means nobody has judged it; sorting those as zero asserts the project is worth
+ * nothing and certain to be lost, which the data does not say.
+ *
+ * It is the existing "undated sorts last" rule generalised. That rule exists because
+ * an empty string compares below every real date as text, so the obvious comparison
+ * buried everything with a deadline under everything without one. Ascending Win %
+ * would do exactly the same with every unjudged project.
+ *
+ * The comparator is **total**: every pair either differs on the key or is settled by
+ * byTitleThenId. That matters more than Array.sort being stable, because stability
+ * only preserves the INPUT order, and the input is rebuilt by the adapter on every
+ * 60-second poll.
+ *
+ * @param {Snapshot} snap
+ * @param {string} col
+ * @param {string} dir - 'asc' | 'desc'
+ * @returns {(a: any, b: any) => number}
+ */
+export function projectSorter(snap, col, dir) {
+  const flip = dir === 'desc' ? -1 : 1;
+
+  return function (a, b) {
+    const ka = sortKey(snap, col, a);
+    const kb = sortKey(snap, col, b);
+
+    if (ka == null || kb == null) {
+      if (ka != null) return -1;        // having a value beats not having one,
+      if (kb != null) return 1;         // whichever way the column is pointing
+    } else if (ka !== kb) {
+      return (ka < kb ? -1 : 1) * flip;
+    }
+
+    // Never flipped: reversing the tiebreak would shuffle a block of unpriced
+    // projects alphabetically between one direction and the other, for no reason.
+    return byTitleThenId(a, b);
+  };
+}
+
+/**
+ * Does this project match what somebody typed into the search box?
+ *
+ * Searches customer, name, field, project type and the owner's name. Several terms
+ * are ANDed across the whole haystack rather than per field, so "meridian coating"
+ * finds the project whose CUSTOMER is Meridian Coatings and whose NAME is Coating
+ * additive trial - which is what a search box is expected to do.
+ *
+ * Mission, focus and products are deliberately not searched. Widening this later is
+ * easy; narrowing it once people rely on it is not.
+ *
+ * @param {Snapshot} snap
+ * @param {any} p
+ * @param {string} query
+ * @returns {boolean}
+ */
+export function matchesQuery(snap, p, query) {
+  const q = String(query == null ? '' : query).trim().toLowerCase();
+  if (!q) return true;
+
+  const hay = [p.customer, p.name, p.field, p.projectType, personName(snap, p.personId)]
+    .filter(Boolean)
+    .join(' \u0001 ')                  // a separator no typed term can contain
+    .toLowerCase();
+
+  return q.split(/\s+/).every(function (term) { return hay.indexOf(term) >= 0; });
+}
+
+/**
+ * Does this project match one of the free-text dropdown filters?
+ *
+ * Compared case- and whitespace-insensitively. With free text that is not a nicety:
+ * it is the difference between a working filter and one that hides rows for no
+ * visible reason because somebody typed "coatings" and somebody else "Coatings".
+ *
+ * @param {any} p
+ * @param {string} key - 'field' | 'projectType'
+ * @param {string} want - a lower-cased value, or 'all'
+ * @returns {boolean}
+ */
+export function matchesValue(p, key, want) {
+  if (want === 'all') return true;
+  return String(p[key] == null ? '' : p[key]).trim().toLowerCase() === want;
+}
+
+/**
+ * The values actually in use for a free-text field, for building a filter dropdown.
+ *
+ * Grouped case-insensitively, so "Coatings" and "coatings" are one option rather
+ * than two that each hide most of the rows. The first spelling seen becomes the
+ * label; the value is the lower-cased key, which is what matchesValue compares.
+ *
+ * The count rides along for the label. Two filters that can combine to show nothing
+ * need to say how many each option would bring, rather than being designed around.
+ *
+ * @param {any[]} projects
+ * @param {string} key
+ * @returns {{value: string, label: string, n: number}[]}
+ */
+export function distinctValues(projects, key) {
+  /** @type {Record<string, {value: string, label: string, n: number}>} */
+  const seen = {};
+
+  (projects || []).forEach(function (p) {
+    const raw = String(p[key] == null ? '' : p[key]).trim();
+    if (!raw) return;                  // blank is not a value to filter by
+    const lower = raw.toLowerCase();
+    if (!seen[lower]) seen[lower] = { value: lower, label: raw, n: 0 };
+    seen[lower].n++;
+  });
+
+  return Object.keys(seen)
+    .map(function (k) { return seen[k]; })
+    .sort(function (a, b) {
+      const la = a.label.toLowerCase();
+      const lb = b.label.toLowerCase();
+      return la < lb ? -1 : la > lb ? 1 : 0;
+    });
+}

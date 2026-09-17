@@ -321,4 +321,62 @@ test('A form with no fields is not carried around', () => {
   eq(captureForms(rootOf([empty]), null), []);
 });
 
+group('Fields backed by state are left to the view');
+
+/** The projects search box: one input that writes to ui on every keystroke. */
+function searchForm(value) {
+  return form({ 'data-form': 'projSearch' }, [
+    el('input', { name: '', type: 'text', value: value || '', 'data-input': 'projQuery' })
+  ]);
+}
+
+test('A data-input field keeps the value the view rendered, not the captured one', () => {
+  // This is what makes Reset work. Clicking Reset sets ui.projQuery to '' and
+  // redraws; the click did not touch the box, so capture reads the OLD text out of
+  // it. Restoring that would put the search straight back and Reset would look
+  // broken.
+  const before = rootOf([searchForm('meridian')]);
+  const typed = captureForms(before, null);
+
+  const after = rootOf([searchForm('')]);        // what the view now renders
+  restoreForms(after, typed);
+
+  eq(valueOf(after, ''), '', 'the blank the view rendered survives');
+});
+
+test('But focus and the caret still come back', () => {
+  // Only the value is the view's business. Losing focus mid-word is still the bug
+  // this whole file exists for.
+  const f = searchForm('meridian');
+  const field = collect(f, ['input'], [])[0];
+  field.selectionStart = 4;
+  field.selectionEnd = 4;
+
+  const typed = captureForms(rootOf([f]), field);
+  const after = rootOf([searchForm('meridian')]);
+  restoreForms(after, typed);
+
+  const restored = collect(after, ['input'], [])[0];
+  ok(restored.focused, 'focus is back');
+  eq(restored.selection, [4, 4], 'and the caret where it was');
+});
+
+test('An ordinary field in the same form is still restored', () => {
+  // The rule is per field, not per form.
+  const before = rootOf([form({ 'data-form': 'mixed' }, [
+    el('input', { name: 'typed', type: 'text', value: 'kept' }),
+    el('input', { name: 'live', type: 'text', value: 'stale', 'data-input': 'q' })
+  ])]);
+  const typed = captureForms(before, null);
+
+  const after = rootOf([form({ 'data-form': 'mixed' }, [
+    el('input', { name: 'typed', type: 'text', value: '' }),
+    el('input', { name: 'live', type: 'text', value: 'fresh', 'data-input': 'q' })
+  ])]);
+  restoreForms(after, typed);
+
+  eq(valueOf(after, 'typed'), 'kept', 'the ordinary one comes back');
+  eq(valueOf(after, 'live'), 'fresh', 'the state-backed one does not');
+});
+
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

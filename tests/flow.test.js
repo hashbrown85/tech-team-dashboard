@@ -822,4 +822,96 @@ test('Typing a number a digit at a time leaves one point, not three', async () =
   ok(points.length <= before + 1, 'at most one new point, got ' + points.length);
 });
 
+group('Filtering the Projects list');
+
+test('Typing in the search box changes ui state and nothing else', async () => {
+  // It runs on every keystroke, so it must not write to the store. That is the
+  // whole reason data-input is a separate map from data-edit.
+  const a = await app();
+  const before = JSON.stringify(a.snap());
+
+  a.H.inputs.projQuery(/** @type {any} */ ({ value: 'meridian' }));
+  await settle();
+
+  eq(a.ui.projQuery, 'meridian');
+  eq(JSON.stringify(a.snap()), before, 'the board is untouched');
+});
+
+test('Sorting cycles through direction and back to the default order', async () => {
+  const a = await app();
+  eq(a.ui.projSort, null, 'starts unsorted');
+
+  a.H.clicks.projSort(null, '', 'value');
+  eq(a.ui.projSort, 'value');
+  eq(a.ui.projSortDir, 'desc', 'money starts highest first');
+
+  a.H.clicks.projSort(null, '', 'value');
+  eq(a.ui.projSortDir, 'asc', 'second click reverses');
+
+  a.H.clicks.projSort(null, '', 'value');
+  eq(a.ui.projSort, null, 'third click returns to the work order');
+});
+
+test('Dates start soonest first rather than latest', async () => {
+  const a = await app();
+  a.H.clicks.projSort(null, '', 'due');
+  eq(a.ui.projSortDir, 'asc');
+});
+
+test('Switching column starts that column afresh, not mid-cycle', async () => {
+  const a = await app();
+  a.H.clicks.projSort(null, '', 'value');
+  a.H.clicks.projSort(null, '', 'value');     // now ascending
+  a.H.clicks.projSort(null, '', 'due');
+
+  eq(a.ui.projSort, 'due');
+  eq(a.ui.projSortDir, 'asc', 'due opens on its own first direction');
+});
+
+test('A column name that is not sortable is refused', async () => {
+  // It comes off the page, so it is checked rather than trusted.
+  const a = await app();
+  a.H.clicks.projSort(null, '', 'status');
+  eq(a.ui.projSort, null);
+});
+
+test('Reset clears the search, both filters and the sort together', async () => {
+  const a = await app();
+  a.H.inputs.projQuery(/** @type {any} */ ({ value: 'meridian' }));
+  a.H.edits.projFieldFilter(/** @type {any} */ ({ value: 'coatings' }));
+  a.H.edits.projTypeFilter(/** @type {any} */ ({ value: 'trial' }));
+  a.H.clicks.projSort(null, '', 'win');
+
+  a.H.clicks.projReset();
+
+  eq(a.ui.projQuery, '');
+  eq(a.ui.projField, 'all');
+  eq(a.ui.projType, 'all');
+  eq(a.ui.projSort, null);
+});
+
+test('Reset leaves the sidebar person scope alone', async () => {
+  // That is set outside this screen and applies to the whole board, so clearing it
+  // from here would be reaching past what the button says it does.
+  const a = await app();
+  a.ui.person = 'Alex Morgan';
+  a.H.clicks.projReset();
+  eq(a.ui.person, 'Alex Morgan');
+});
+
+test('Editing Field and Project Type writes to the project', async () => {
+  const a = await app();
+  a.H.edits.projField(/** @type {any} */ ({
+    dataset: { id: 'pr3' }, value: 'Sealants'
+  }));
+  a.H.edits.projType(/** @type {any} */ ({
+    dataset: { id: 'pr3' }, value: 'Qualification'
+  }));
+  await settle();
+
+  const p = a.snap().projects.find(function (x) { return x.id === 'pr3'; });
+  eq(p.field, 'Sealants');
+  eq(p.projectType, 'Qualification');
+});
+
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

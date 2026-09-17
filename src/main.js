@@ -168,6 +168,21 @@ export async function start(options) {
     if (fn) fn(el);
   });
 
+  /*
+   * Fields that filter as you type, via `data-input`.
+   *
+   * A distinct attribute rather than firing `edits` on `input`: every existing
+   * data-edit field would then write to the store on every keystroke - projMission,
+   * pdValue, and personName, which cascades over every action that person owns.
+   * Opting in keeps all of that unchanged.
+   */
+  root.addEventListener('input', function (e) {
+    const el = /** @type {HTMLElement} */ (e.target).closest('[data-input]');
+    if (!el) return;
+    const fn = handlers.inputs[el.getAttribute('data-input')];
+    if (fn) fn(el);
+  });
+
   root.addEventListener('submit', function (e) {
     const form = /** @type {HTMLFormElement} */ (e.target);
     const name = form.getAttribute && form.getAttribute('data-form');

@@ -30,6 +30,14 @@ function defaults() {
     projFilter: 'all',  // action register project filter
     projStatus: 'live', // Projects list: which statuses to show
     projTab: 'all',     // Projects list: meeting filter
+    projQuery: '',      // Projects list: the search box
+    projField: 'all',   // Projects list: Field filter, lower-cased, or 'all'
+    projType: 'all',    // Projects list: Project Type filter, lower-cased, or 'all'
+    // Which column the Projects list is sorted by, or null for the default work
+    // order. Two scalars rather than one 'value:desc' string: loadUi merges with
+    // Object.assign, and a stale composite would need parsing and validating.
+    projSort: null,
+    projSortDir: 'desc',
     railProj: null,     // project whose actions the meeting rail is filtered to
     project: null,      // the project whose own page is open (view === 'project')
     tlGroup: 'meeting', // timeline grouping

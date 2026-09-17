@@ -63,6 +63,7 @@ export function demoBoard() {
     projects: [
       { id: 'pr1', tab: 't1', personId: 'p1', name: 'Coating additive trial', status: 'on',
         customer: 'Meridian Coatings',
+        field: 'Coatings', projectType: 'Trial',
         mission: 'Prove the low-VOC additive holds adhesion spec on their line, so they '
           + 'can move off the incumbent before their reformulation deadline.',
         winPct: 65,
@@ -81,11 +82,13 @@ export function demoBoard() {
         due: addDays(thisMonday, 24), added: lastMonday },
       { id: 'pr2', tab: 't1', personId: 'p2', name: 'Sealant reformulation', status: 'off',
         customer: 'Halden Industrial',
+        field: 'Sealants', projectType: 'Reformulation',
         mission: 'Reformulate to pass freeze-thaw without losing cure speed.',
         due: addDays(thisMonday, 10), added: addDays(lastMonday, -14),
         prevStatus: 'on', statusMeeting: thisMonday, rank: 1000,
         note: 'Second pilot batch failed the freeze-thaw cycle' },
       { id: 'pr3', tab: 't1', personId: 'p1', name: 'Pigment supplier qualification', status: 'hold',
+        field: 'Coatings', projectType: 'Qualification',
         due: addDays(thisMonday, 45), added: addDays(lastMonday, -21),
         note: 'Waiting on their updated safety data sheets' },
       { id: 'pr4', tab: 't1', personId: 'p1', name: 'Low-odour thinner for the flooring range',
@@ -93,6 +96,7 @@ export function demoBoard() {
         note: 'Needs a fortnight of lab time we have not booked' },
       { id: 'pr5', tab: 't2', personId: 'p3', name: 'Line 3 throughput uplift', status: 'on',
         customer: 'Internal',
+        field: 'Process', projectType: 'Trial',
         winPct: 40, winReason: '',
         // And one going the other way, which is the case worth being able to see.
         confidence: [

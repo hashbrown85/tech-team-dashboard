@@ -301,11 +301,15 @@ ADAPTERS.forEach(function (impl) {
     await a.set('projects', 'pr1', {
       tab: 't1', personId: 'p1', name: 'A project', status: 'on',
       customer: 'Meridian Coatings',
+      field: 'Coatings',
+      projectType: 'Trial',
       mission: 'Two lines.\nSecond line.'
     });
 
     const p = (await a.load()).projects[0];
     eq(p.customer, 'Meridian Coatings');
+    eq(p.field, 'Coatings');
+    eq(p.projectType, 'Trial');
     eq(p.mission, 'Two lines.\nSecond line.', 'multi-line text survives');
   });
 

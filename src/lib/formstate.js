@@ -160,8 +160,23 @@ export function restoreForms(root, saved) {
       const f = s.fields[i];
       if (f.name !== String(el.name || '')) return;   // not the field we think it is
 
+      /*
+       * A field carrying `data-input` writes to ui state on every keystroke, so the
+       * render that just happened already shows the right value. Only the caret was
+       * lost, and putting the captured text back would actively break things.
+       *
+       * The case that matters: clicking Reset sets `ui.projQuery = ''` and redraws.
+       * The click did not change the box, so capture reads the OLD text out of it and
+       * would restore it over the blank one - Reset would appear not to work.
+       *
+       * This rule assumes the handler runs synchronously before the render. If the
+       * input is ever debounced, revisit it: the render would then be behind the DOM
+       * and would need the captured value after all.
+       */
+      const stateBacked = !!(el.getAttribute && el.getAttribute('data-input'));
+
       if (f.type === 'checkbox' || f.type === 'radio') el.checked = f.checked;
-      else el.value = f.value;
+      else if (!stateBacked) el.value = f.value;
 
       if (!f.focused || typeof el.focus !== 'function') return;
 

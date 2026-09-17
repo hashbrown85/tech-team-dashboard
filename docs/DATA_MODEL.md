@@ -98,6 +98,8 @@ board.html:1384-1394) — but only if the project hasn't been worked on yet.
 | `personId` | string | → `people.id`, the owner |
 | `name` | string | |
 | `customer` | string *optional* | Visible to everyone who can see the project |
+| `field` | string *optional* | Free text, column `ProjectField` |
+| `projectType` | string *optional* | Free text, column `ProjectType` |
 | `mission` | string *optional* | Free text: what this project is for |
 | `status` | see below | |
 | `due` | date string *optional* | |
@@ -124,6 +126,17 @@ The **dollar value** is not here. It is the one field that lives in
 dropdown of what is not yet chosen, with each choice shown as a removable chip —
 rather than a grid of togglable chips, which stops scaling the moment the list is
 longer than a line. `focus` and `resources` use the same control.
+
+`field` and `projectType` line the record up with a project sheet the team already
+uses. **Free text, deliberately not pickers** like `products` and `focus`: the
+vocabulary is still settling, and the Projects-list dropdowns are built from whatever
+is actually in the data. The project page offers a `<datalist>` of the values already
+in use, which is the one thing that stops *Coatings*, *coatings* and *Coating*
+becoming three filter options that each hide two thirds of the rows.
+
+The column is `ProjectField`, not `Field` — both satisfy the single-word column rule,
+but `Field` is too generic to want in a SharePoint list and reads worse beside
+`ProjectType`.
 
 **A project's title is `customer` and `name`, joined by a hyphen** — "Meridian
 Coatings - Coating additive trial" (`projectTitle`). Internal work with no customer

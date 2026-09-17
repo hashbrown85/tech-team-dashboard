@@ -21,7 +21,7 @@ import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
-  recordConfidence
+  recordConfidence, SORT_COLUMNS, firstDirFor
 } from './domain/projects.js';
 import {
   newIssue, resolveIssue, reopenIssue, reorderQueue
@@ -137,6 +137,48 @@ export function createHandlers(app) {
 
     filter: function (el, id, v) { ui.filter = v; render(); },
     projStatusFilter: function (el, id, v) { ui.projStatus = v; render(); },
+
+    /**
+     * Sort the Projects table by a column, cycling through three states.
+     *
+     * First click sorts the way that column naturally goes - numbers highest first,
+     * dates soonest first. Second click reverses. Third returns to the default work
+     * order, which is what the header's aria-label says it will do.
+     */
+    projSort: function (el, id, v) {
+      // The column name comes off the page, so it is checked rather than trusted -
+      // the same reason pickValue validates its field name.
+      if (!SORT_COLUMNS[v]) return;
+
+      const first = firstDirFor(v);
+      if (ui.projSort !== v) {
+        ui.projSort = v;
+        ui.projSortDir = first;
+      } else if (ui.projSortDir === first) {
+        ui.projSortDir = first === 'asc' ? 'desc' : 'asc';
+      } else {
+        ui.projSort = null;
+        ui.projSortDir = first;
+      }
+      render();
+    },
+
+    /**
+     * Clear everything narrowing or reordering the Projects list.
+     *
+     * One reset rather than one per control: by now there are four of them, and four
+     * little clear affordances read as clutter. The person scope is NOT cleared - it
+     * is set in the sidebar and applies to the whole board, so taking it out from
+     * here would be reaching outside this screen.
+     */
+    projReset: function () {
+      ui.projQuery = '';
+      ui.projField = 'all';
+      ui.projType = 'all';
+      ui.projSort = null;
+      ui.projSortDir = 'desc';
+      render();
+    },
     tlGroup: function (el, id, v) { ui.tlGroup = v; render(); },
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
@@ -363,6 +405,8 @@ export function createHandlers(app) {
     personFilter: function (el) { ui.person = el.value; render(); },
     regTab: function (el) { ui.regTab = el.value; ui.projFilter = 'all'; render(); },
     projTabFilter: function (el) { ui.projTab = el.value; render(); },
+    projFieldFilter: function (el) { ui.projField = el.value; render(); },
+    projTypeFilter: function (el) { ui.projType = el.value; render(); },
 
     navSelect: function (el) {
       const v = el.value;
@@ -464,6 +508,22 @@ export function createHandlers(app) {
       const name = String(el.value == null ? '' : el.value).trim();
       if (!name) return;
       store.update('projects', el.dataset.id, { name: name }, { silent: true });
+    },
+
+    /*
+     * How the project is classified. Silent for the same reason as customer and
+     * name: a redraw mid-word takes the caret with it. The Projects-list dropdowns
+     * and the datalist of values in use both catch up on the next render.
+     *
+     * Note these are projField/projType - the Projects-LIST filters above are
+     * projFieldFilter/projTypeFilter. Different keys, same map, no collision.
+     */
+    projField: function (el) {
+      store.update('projects', el.dataset.id, { field: el.value }, { silent: true });
+    },
+
+    projType: function (el) {
+      store.update('projects', el.dataset.id, { projectType: el.value }, { silent: true });
     },
 
     projDue: function (el) {
@@ -844,7 +904,22 @@ export function createHandlers(app) {
     render();
   }
 
-  return { clicks: clicks, edits: edits, forms: forms };
+  /* ---------------------------------------------------------------- inputs */
+
+  /**
+   * Fields that act on every keystroke rather than on change.
+   *
+   * Only for state that filters what is on screen. Nothing here writes to the store,
+   * which is why it can afford to run per keystroke at all.
+   */
+  const inputs = {
+    projQuery: function (el) {
+      ui.projQuery = el.value;
+      render();
+    }
+  };
+
+  return { clicks: clicks, edits: edits, forms: forms, inputs: inputs };
 }
 
 /** Copy to the clipboard, with the old-browser fallback the original had. */
