@@ -33,6 +33,12 @@ Rehearse dark anyway at step 8, in case the attribute gets lost.
 **Serve it properly.** `python tools/serve.py 8010`, then open
 `http://localhost:8010/`. Browsers refuse ES modules opened as files.
 
+> **If it sits on "Loading the board..."**, the modules did not arrive. Check the
+> terminal: if the server says *"Could not start on port 8010"*, an older one is
+> still running and you are talking to that instead. Stop every `python` window and
+> start one. Do **not** switch to another port to get around it — the browser saves
+> your board per address, so `:8011` is a different, empty board.
+
 > **Open `index.html`. Never `board.html`.** `board.html` is the original
 > single-file version, kept for reference. It has its own stale copy of the entire
 > stylesheet, so rehearsing against it tells you nothing about what will ship.
