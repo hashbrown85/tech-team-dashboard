@@ -206,10 +206,60 @@ export function openActsFor(snap, id, excludeActionId) {
 export function actsOf(snap, id) {
   return snap.actions
     .filter(function (a) { return a.parent && a.parent.id === id; })
-    .sort(function (a, c) {
-      if (isOpen(a) === isOpen(c)) return (a.due || '9') < (c.due || '9') ? -1 : 1;
-      return isOpen(a) ? -1 : 1;
-    });
+    .sort(actionHistoryOrder);
+}
+
+/**
+ * One project's actions, as a conversation: what is outstanding, then what was
+ * most recently finished.
+ *
+ * Open first, soonest deadline at the top. Then closed, MOST RECENTLY FINISHED
+ * FIRST - so the last thing accomplished sits directly under the open block,
+ * where the eye already is. Reading down goes backwards in time.
+ *
+ * The closed half used to sort by DUE date, which says nothing about a finished
+ * thing: it put whatever happened to have the earliest deadline at the top, which
+ * is usually the oldest win. "What did we just get done" was at the bottom of a
+ * twenty-row list, or off the end of the 340px rail entirely.
+ *
+ * Absent sorts last within each half - an open action with no date has had no
+ * commitment made, and a closed one with no `doneOn` cannot be placed in time.
+ *
+ * Total, and the tiebreak is never flipped by the block it is in. The previous
+ * comparator returned 1 for ties, which is not transitive, so it leaned on
+ * Array.sort being stable over an array the adapter rebuilds every 60 seconds -
+ * stability preserves the INPUT order, and the input is not stable.
+ *
+ * @param {any} a
+ * @param {any} b
+ */
+export function actionHistoryOrder(a, b) {
+  const ao = isOpen(a);
+  if (ao !== isOpen(b)) return ao ? -1 : 1;
+
+  if (ao) {
+    const da = a.due || '';
+    const db = b.due || '';
+    if (!da !== !db) return da ? -1 : 1;
+    if (da !== db) return da < db ? -1 : 1;
+    return byActionNum(a, b, 1);
+  }
+
+  const ca = a.doneOn || '';
+  const cb = b.doneOn || '';
+  if (!ca !== !cb) return ca ? -1 : 1;
+  if (ca !== cb) return ca > cb ? -1 : 1;
+  // Newest number first among same-day completions, matching the block it is in.
+  return byActionNum(a, b, -1);
+}
+
+/** A total last resort. Written here rather than imported: domain/actions.js
+ *  already imports from this file, so the other direction would be a cycle. */
+function byActionNum(a, b, dir) {
+  const na = typeof a.num === 'number' && !isNaN(a.num) ? a.num : 0;
+  const nb = typeof b.num === 'number' && !isNaN(b.num) ? b.num : 0;
+  if (na !== nb) return (na < nb ? -1 : 1) * dir;
+  return String(a.id) < String(b.id) ? -1 : 1;
 }
 
 /**

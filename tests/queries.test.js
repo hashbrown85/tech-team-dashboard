@@ -17,6 +17,7 @@ import {
   issueItems,
   actionedItems,
   actsOf,
+  actionHistoryOrder,
   projVisible
 } from '../src/domain/queries.js';
 
@@ -323,6 +324,74 @@ test('An action with no parent belongs to nothing and blocks nothing', () => {
 
   eq(openActsFor(snap, 'i1'), 0);
   eq(idsIn(issueItems(snap, 't1')), ['i1'], 'an orphaned action does not give the issue a path');
+});
+
+group("A project's actions read as a conversation");
+
+/*
+ * Filtering the rail to a project is for talking about it: what is outstanding,
+ * and what we just got done. So open work first, then the most recently finished
+ * directly beneath it.
+ *
+ * The closed half used to sort by DUE date, which says nothing about a finished
+ * thing - the last win ended up at the bottom of the list, or off the end of the
+ * 340px rail.
+ */
+function ordered(list) {
+  return list.slice().sort(actionHistoryOrder).map(function (a) { return a.id; });
+}
+
+test('Open work comes first, whatever order it arrived in', () => {
+  const list = [
+    { id: 'done', num: 1, status: 'done', doneOn: '2026-09-16' },
+    { id: 'open', num: 2, due: '2026-10-01' }
+  ];
+  eq(ordered(list), ['open', 'done']);
+  eq(ordered(list.slice().reverse()), ['open', 'done'], 'and from the other input order');
+});
+
+test('The last thing accomplished sits at the top of the closed block', () => {
+  const list = [
+    { id: 'oldest', num: 1, status: 'done', doneOn: '2026-08-14' },
+    { id: 'newest', num: 2, status: 'done', doneOn: '2026-09-16' },
+    { id: 'middle', num: 3, status: 'done', doneOn: '2026-09-02' }
+  ];
+  eq(ordered(list), ['newest', 'middle', 'oldest'], 'backwards in time, reading down');
+});
+
+test('Open actions still lead with the soonest deadline', () => {
+  const list = [
+    { id: 'later', num: 1, due: '2026-10-20' },
+    { id: 'soon', num: 2, due: '2026-09-20' }
+  ];
+  eq(ordered(list), ['soon', 'later']);
+});
+
+test('Absent dates sort last within their own half, not into the other', () => {
+  // An open action with no date has had no commitment made; a closed one with no
+  // doneOn cannot be placed in time. Neither is a reason to leave its block.
+  const list = [
+    { id: 'undated-open', num: 1 },
+    { id: 'dated-open', num: 2, due: '2026-10-01' },
+    { id: 'undated-done', num: 3, status: 'done' },
+    { id: 'dated-done', num: 4, status: 'done', doneOn: '2026-09-16' }
+  ];
+  eq(ordered(list), ['dated-open', 'undated-open', 'dated-done', 'undated-done']);
+});
+
+test('The comparator is total, so a re-fetched array cannot reshuffle it', () => {
+  // Array.sort being stable only preserves the INPUT order, and the adapter
+  // rebuilds the input on every 60-second poll. The old comparator returned 1
+  // for ties, which is not even transitive.
+  const sameDay = [
+    { id: 'c', num: 30, status: 'done', doneOn: '2026-09-16' },
+    { id: 'a', num: 10, status: 'done', doneOn: '2026-09-16' },
+    { id: 'b', num: 20, status: 'done', doneOn: '2026-09-16' }
+  ];
+  const once = ordered(sameDay);
+  const twice = ordered(sameDay.slice().reverse());
+  eq(once, twice, 'the same order whichever way it arrived');
+  eq(once, ['c', 'b', 'a'], 'and the newest action leads a same-day tie');
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
