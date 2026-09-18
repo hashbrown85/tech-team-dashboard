@@ -24,7 +24,7 @@ import { byName } from './lib/seq.js';
 
 /**
  * @typedef {object} Identity
- * @property {'signed-in'|'unknown-user'|'demo'} kind
+ * @property {'signed-in'|'unknown-user'|'local'|'demo'} kind
  * @property {string} displayName    what to show in the sidebar
  * @property {any | null} person     the matching roster record, if there is one
  * @property {string | null} personId
@@ -37,11 +37,32 @@ import { byName } from './lib/seq.js';
  * hand-typed roster entry disagree about capitalisation often enough to matter.
  *
  * @param {import('./domain/queries.js').Snapshot} snap
- * @param {{username?: string, name?: string} | null} account - from the sign-in, or null in demo mode
+ * @param {{username?: string, name?: string} | null} account - from the sign-in, or null without one
+ * @param {{personId?: string | null} | null} [local] - set on a local board: who the
+ *   user has said they are. Its presence is what distinguishes a real local board
+ *   from the demo, which is why it is a parameter rather than a lookup.
  * @returns {Identity}
  */
-export function identify(snap, account) {
+export function identify(snap, account, local) {
   if (!account || !account.username) {
+    /*
+     * A local board is real data with no sign-in, so nothing can work out who is
+     * sitting there - it has to be said. Until it is, the board has NO point of
+     * view: no person, so it opens showing everyone's work rather than quietly
+     * deciding you are whoever sorts first and filtering to them.
+     */
+    if (local) {
+      const me = local.personId
+        ? snap.people.find(function (p) { return p.id === local.personId; }) || null
+        : null;
+      return {
+        kind: 'local',
+        displayName: me ? me.name : 'Not set',
+        person: me,
+        personId: me ? me.id : null
+      };
+    }
+
     // Demo mode. Borrow the first person alphabetically so the board has a point
     // of view, and say plainly that this is not real.
     const first = snap.people.slice().sort(byName)[0] || null;

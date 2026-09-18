@@ -285,6 +285,17 @@ function matrix() {
    * cannot see them. Two screens: a meeting, which is what it is for, and the people
    * screen, which is where the identity block and the demo flag live.
    */
+  /*
+   * A LOCAL board - real data, no sign-in. It renders things no other state does:
+   * the "You are" picker, the LOCAL marker, and the download/load panel. Without a
+   * state here, check (b) never sees any of their classes.
+   */
+  const LOCAL_ID = { kind: 'local', displayName: 'Alex Morgan', person: null, personId: 'p1' };
+  out.push(['local board, people', { view: 'people' }, full, LIVE, LOCAL_ID]);
+  out.push(['local board, overview', { view: 'overview' }, full, LIVE, LOCAL_ID]);
+  out.push(['local board, slim sidebar',
+    { view: 'overview', sideSlim: true }, full, LIVE, LOCAL_ID]);
+
   out.push(['sidebar slim',
     { view: 'tab', tab: 't1', steps: { t1: 2 }, sideSlim: true }, full, LIVE, { kind: 'demo', displayName: 'Alex Morgan', personId: 'p1' }]);
   out.push(['sidebar slim, people',

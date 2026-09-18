@@ -211,6 +211,22 @@ export function createStore(adapter, hooks) {
     load: reload,
     refresh: function () { return reload(); },
 
+    /*
+     * Replace the whole board with one loaded from a file.
+     *
+     * Only a store that can be wholesale replaced supports this - today that is the
+     * local one. Rebuilding a shared store record by record is a different job with
+     * different failure modes (half-applied imports), and it belongs in a one-off
+     * tool rather than behind a button somebody can press during a meeting.
+     */
+    replaceAll: function (fresh) {
+      if (!adapter._replaceAll) {
+        return Promise.reject(new Error('This board cannot be replaced from a file.'));
+      }
+      adapter._replaceAll(fresh);
+      return reload();
+    },
+
     /* --- writes --- */
 
     /**

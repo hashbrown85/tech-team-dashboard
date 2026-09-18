@@ -43,9 +43,21 @@ printed count.
 Their coverage is only as good as the state matrix inside them. If they are green and
 a screen is still wrong, suspect the matrix before the check.
 
-`?board=big` renders a deliberately oversized board of invented data — 20 people, 10
-meetings, 56 projects — for checking a layout at realistic size. See
-[`docs/REHEARSAL.md`](docs/REHEARSAL.md) before running the board in a real meeting.
+## Three boards
+
+| Address | What it is |
+|---|---|
+| `http://localhost:8010/` | **Your board.** Real data, saved in this browser by `localAdapter`. Nothing is shared and nothing leaves the machine. |
+| `?board=demo` | The small sample board. Invented, and thrown away on reload. |
+| `?board=big` | A deliberately oversized board — 20 people, 10 meetings, 56 projects — for checking a layout at realistic size. Also invented. |
+
+Browser storage belongs to an exact address: what is saved at `localhost:8010` is
+invisible at `:8011` or at `127.0.0.1`. **Always serve it the same way.** The
+**Download a copy** button on People & settings produces the portable form — the
+backup, the way to move machines, and the file that will be loaded into SharePoint.
+
+See [`docs/REHEARSAL.md`](docs/REHEARSAL.md) before running the board in a real
+meeting; step 0a is the one that decides whether it is safe to.
 
 ## What's where
 

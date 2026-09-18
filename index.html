@@ -27,6 +27,10 @@
   .iam-note { font-size: 11.5px; line-height: 1.35; color: var(--muted); margin-top: 2px; }
   .iam.demo .iam-note { color: var(--gold-ink); }
   .iam.warn .iam-note { color: var(--crit); }
+  /* A local board is REAL data, just not shared yet - so this is a statement of
+     fact, not a warning like .demo. Muted on purpose: it should be readable if you
+     look for it and invisible if you do not. */
+  .iam.local .iam-note { color: var(--ink-2); }
 
   /* --- The project page --- */
 
@@ -232,16 +236,37 @@
    * The title changes so nobody demonstrates the fake board to a room by accident.
    */
   async function boot() {
-    if (new URLSearchParams(location.search).get('board') !== 'big') return start();
+    const board = new URLSearchParams(location.search).get('board');
 
-    const [{ bigBoard }, { createMemoryAdapter }] = await Promise.all([
-      import('./tools/bigboard.mjs'),
-      import('./src/adapters/memoryAdapter.js')
-    ]);
-    document.title = 'BIG BOARD (invented data) — Technical Operations';
-    return start({
-      adapter: createMemoryAdapter({ seed: bigBoard(), startActionNum: 9999 })
-    });
+    if (board === 'big') {
+      const [{ bigBoard }, { createMemoryAdapter }] = await Promise.all([
+        import('./tools/bigboard.mjs'),
+        import('./src/adapters/memoryAdapter.js')
+      ]);
+      document.title = 'BIG BOARD (invented data) — Technical Operations';
+      return start({
+        adapter: createMemoryAdapter({ seed: bigBoard(), startActionNum: 9999 })
+      });
+    }
+
+    /*
+     * The sample board. It moved behind a parameter when `local` became the
+     * default, so the PLAIN address is always the real board - opening the wrong
+     * one and typing a meeting into something that is thrown away on reload is a
+     * worse failure than an extra query string.
+     */
+    if (board === 'demo') {
+      const [{ demoBoard }, { createMemoryAdapter }] = await Promise.all([
+        import('./src/demo-data.js'),
+        import('./src/adapters/memoryAdapter.js')
+      ]);
+      document.title = 'DEMO BOARD (invented data) — Technical Operations';
+      return start({
+        adapter: createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 })
+      });
+    }
+
+    return start();
   }
 
   boot().catch(function (err) {

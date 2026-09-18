@@ -13,6 +13,7 @@
 
 import { createStore } from './store.js';
 import { createMemoryAdapter } from './adapters/memoryAdapter.js';
+import { createLocalAdapter } from './adapters/localAdapter.js';
 import { createGraphAdapter } from './adapters/graphAdapter.js';
 import { signIn, explainAuthFailure } from './adapters/auth.js';
 import { CONFIG, isConfigured, missingConfig } from './config.js';
@@ -37,6 +38,15 @@ import { renderPreservingForms } from './lib/formstate.js';
  * @returns {Promise<{adapter: any, account: any}>}
  */
 async function chooseAdapter(root) {
+  /*
+   * The real board, before SharePoint exists: saved in this browser, no sign-in.
+   * `local: true` is what tells identify() this is real data rather than the demo,
+   * so it neither labels it a demo nor invents a point of view for it.
+   */
+  if (CONFIG.mode === 'local') {
+    return { adapter: createLocalAdapter({}), account: null, local: true };
+  }
+
   if (CONFIG.mode !== 'sharepoint') {
     // No sign-in in demo mode, so no account: identify() falls back to demo.
     return { adapter: createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 }), account: null };
@@ -65,6 +75,7 @@ async function chooseAdapter(root) {
  *
  * @param {object} [options]
  * @param {any} [options.adapter] - overrides the configured one; used by tests
+ * @param {boolean} [options.local] - the adapter holds REAL data with no sign-in
  * @param {HTMLElement} [options.root]
  */
 export async function start(options) {
@@ -74,13 +85,16 @@ export async function start(options) {
 
   let adapter;
   let account = null;
+  let local = false;
   try {
     if (opts.adapter) {
       adapter = opts.adapter;
+      local = !!opts.local;
     } else {
       const chosen = await chooseAdapter(root);
       adapter = chosen.adapter;
       account = chosen.account;
+      local = !!chosen.local;
     }
   } catch (err) {
     // chooseAdapter has already explained a configuration problem on screen.
@@ -108,8 +122,13 @@ export async function start(options) {
     // Resolved on demand rather than captured, because the roster can change under
     // a long-running session - somebody added to People should be recognised without
     // a reload. Notes record an author, so this has to be the sign-in's answer.
-    identity: function () { return identify(store.snapshot(), account); }
+    identity: function () { return identify(store.snapshot(), account, localFor()); }
   });
+
+  /* Null unless this is a local board, which is what identify() keys on. */
+  function localFor() {
+    return local ? { personId: ui.meId } : null;
+  }
 
   let drawing = false;
   // Once somebody chooses who to show items for, stop overriding it.
@@ -122,7 +141,7 @@ export async function start(options) {
     drawing = true;
     try {
       const snap = store.snapshot();
-      const identity = identify(snap, account);
+      const identity = identify(snap, account, localFor());
 
       // Open on your own work rather than everyone's - but only until the person
       // filter is touched, after which their choice stands.

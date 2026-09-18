@@ -49,6 +49,10 @@ function defaults() {
     follow: false,      // showing the copyable follow-up text
     sumShow: false,     // showing the meeting summary preview
     sideSlim: false,    // sidebar collapsed to the icon strip
+    // On a local board there is no sign-in, so who you are has to be said. Kept
+    // here rather than in the board itself because it is per person and per
+    // browser - two people opening the same downloaded copy are not the same person.
+    meId: null,
     open: null,         // which inline form is open
     openDetails: {}     // project ids whose details panel is expanded
     // Who you are is NOT remembered here any more - it comes from the sign-in.

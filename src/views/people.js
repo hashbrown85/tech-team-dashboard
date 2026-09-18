@@ -71,6 +71,11 @@ export function renderPeople(snap, ui, env) {
       '<input class="fld" name="name" type="text" placeholder="Name" required>' +
       '<input class="fld" name="title" type="text" placeholder="Title">' +
       '<input class="fld" name="home" type="text" placeholder="Area">' +
+      // Optional, and worth the extra box: this is what matches somebody to their
+      // Microsoft sign-in later. The column has always existed in the schema; the
+      // form never collected it, so every person typed in now would have to be
+      // hand-matched when SharePoint arrives.
+      '<input class="fld" name="upn" type="email" placeholder="Work email (optional)">' +
       '<button class="btn" type="submit">Add</button>' +
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="person"' + dis(env) + '>+ Person</button>';
@@ -90,7 +95,43 @@ export function renderPeople(snap, ui, env) {
       'Stands in for the product list in Dataverse, until that is reachable.') +
     managedList(snap, ui, env, 'focus', 'Focus', 'focus', 'delFocus') +
     managedList(snap, ui, env, 'resources', 'Potential resources', 'resource',
-      'delResource');
+      'delResource') +
+    boardFile(snap, env);
+}
+
+/**
+ * Getting the board out of this browser, and back in.
+ *
+ * Until SharePoint exists the board lives in one browser, at one address, on one
+ * machine. That is enough to run a meeting from and not enough to rely on: site
+ * data gets cleared, laptops get replaced, and browser storage is invisible to a
+ * different address. A downloaded copy is the only form that survives any of that,
+ * and it is the same file that will be loaded into SharePoint later.
+ *
+ * Only shown on a board that has somewhere to be saved to. On the demo there is
+ * nothing worth keeping, and offering to save it would suggest otherwise.
+ *
+ * @param {Snapshot} snap
+ * @param {any} env
+ */
+function boardFile(snap, env) {
+  if (!env.identity || env.identity.kind !== 'local') return '';
+
+  const counts = snap.people.length + ' people, ' + snap.projects.length +
+    ' projects, ' + snap.actions.length + ' actions';
+
+  return '<section class="panel"><div class="pan-h"><h2>This board</h2>' +
+    '<span class="k">' + esc(counts) + '</span></div>' +
+    '<p class="sub">Saved in this browser, at this address, on this computer — ' +
+    'and nowhere else. Download a copy at the end of every meeting.</p>' +
+    '<div class="filters">' +
+    '<button class="btn" type="button" data-act="downloadBoard">Download a copy</button>' +
+    '<label class="btn ghost" for="f-load">Load a copy…</label>' +
+    '<input class="sr-only" type="file" id="f-load" accept="application/json,.json" ' +
+    'data-edit="loadBoard"' + dis(env) + '>' +
+    '</div>' +
+    '<p class="sub">Loading replaces everything on this board. It asks first.</p>' +
+    '</section>';
 }
 
 /**

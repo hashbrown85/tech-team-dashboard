@@ -32,7 +32,7 @@
 
 /**
  * @typedef {object} BoardConfig
- * @property {'demo'|'sharepoint'} mode
+ * @property {'local'|'demo'|'sharepoint'} mode
  * @property {string} tenantId
  * @property {string} clientId
  * @property {string} siteId
@@ -42,10 +42,14 @@
 /** @type {BoardConfig} */
 export const CONFIG = {
   /**
-   * 'demo'       - in-memory, invented data, no sign-in. The default.
-   * 'sharepoint' - the real lists. Needs the three ids below.
+   * 'local'      - YOUR board, saved in this browser. The default, so the plain
+   *                address is always the real one. Nothing is shared and nothing
+   *                leaves the machine; download a copy to move it or back it up.
+   * 'demo'       - in-memory, invented data, thrown away on reload. Also at
+   *                `?board=demo`, which is the easier way to reach it.
+   * 'sharepoint' - the real lists, shared, signed in. Needs the three ids below.
    */
-  mode: 'demo',
+  mode: 'local',
 
   /**
    * Your directory (tenant) id, from the app registration's Overview page.

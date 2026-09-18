@@ -102,6 +102,7 @@ a{color:var(--brand)}
 .nini{font:700 10px/1 var(--f-label);letter-spacing:.02em;width:28px;height:22px;border-radius:4px;background:var(--sunk);color:var(--ink-2);place-items:center}
 .iam-flag{display:none;font:700 10px/1 var(--f-label);letter-spacing:.06em;padding:4px 5px;border-radius:3px;background:var(--gold-soft);color:var(--gold-ink);text-align:center}
 .iam-flag.warn{background:var(--crit-soft);color:var(--crit)}
+.iam-flag.local{background:var(--sunk);color:var(--ink-2)}
 
 .app.slim{--side-w:56px}
 /* Without this the width goes nowhere on a wide screen: .page is capped at 1240px

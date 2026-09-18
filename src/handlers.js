@@ -19,6 +19,7 @@ import { addDays, nowIso } from './lib/dates.js';
 import { toast, flash, focusFirst } from './lib/dom.js';
 import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
+import { looksLikeSnapshot } from './adapters/localAdapter.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
   recordConfidence, SORT_COLUMNS, firstDirFor, canonicalValue
@@ -46,11 +47,21 @@ import {
  * @param {any} app.ui
  * @param {() => void} app.render
  * @param {() => string} app.today
+ * @param {(question: string) => boolean} [app.confirm] - defaults to window.confirm
  */
 export function createHandlers(app) {
   const store = app.store;
   const ui = app.ui;
   const render = app.render;
+
+  /*
+   * Asking "are you sure". Injected for the same reason `today` and `identity` are:
+   * a handler that reaches for a global is one the tests cannot pin down, and two
+   * async tests setting `globalThis.confirm` raced each other into a false pass.
+   */
+  const ask = app.confirm ||
+    (typeof confirm === 'function' ? function (q) { return confirm(q); }
+      : function () { return true; });
 
   /**
    * Who is using the board, as a person id, or null.
@@ -211,6 +222,21 @@ export function createHandlers(app) {
      * from a project page left a filter on with nothing on screen saying so.
      */
     clearProjFilter: function () { ui.projFilter = 'all'; render(); },
+
+    /*
+     * Download the whole board as one file.
+     *
+     * Three jobs at once: the backup for a board that lives only in this browser,
+     * the way to move it to another machine, and the file that gets loaded into
+     * SharePoint when the lists exist. Browser storage belongs to one address on
+     * one machine and can be cleared by a policy nobody told you about; this is
+     * the copy that survives that.
+     */
+    downloadBoard: function () {
+      const name = 'board-' + app.today() + '.json';
+      const ok = downloadFile(name, JSON.stringify(store.snapshot(), null, 2));
+      toast(ok ? 'Saved as ' + name + ' in your downloads.' : 'This browser cannot download files.');
+    },
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
     toggleSummary: function () { ui.sumShow = !ui.sumShow; render(); },
@@ -462,6 +488,63 @@ export function createHandlers(app) {
 
   const edits = {
     personFilter: function (el) { ui.person = el.value; render(); },
+
+    /*
+     * Who you are, on a local board. Only reachable there - see mePicker.
+     * Clearing `person` lets main.js's "open on your own work" nudge re-apply to
+     * whoever was just chosen, rather than leaving the board scoped to nobody.
+     */
+    meId: function (el) {
+      ui.meId = el.value || null;
+      ui.person = 'all';
+      render();
+    },
+
+    /*
+     * Load a downloaded copy, replacing everything.
+     *
+     * Confirmed first, and the confirmation counts what is about to go - "replace
+     * the board?" is a question somebody says yes to without reading; "replace 47
+     * projects?" is one they stop at.
+     *
+     * The file is checked for shape BEFORE anything is replaced, so a wrong file
+     * picked by mistake costs nothing.
+     */
+    loadBoard: function (el) {
+      const file = el.files && el.files[0];
+      if (!file) return;
+      el.value = '';                       // so picking the same file again re-fires
+
+      file.text().then(function (text) {
+        let incoming;
+        try {
+          incoming = JSON.parse(text);
+        } catch (e) {
+          toast('That file is not a board - it could not be read.');
+          return;
+        }
+        if (!looksLikeSnapshot(incoming)) {
+          toast('That file is not a board. Nothing has been changed.');
+          return;
+        }
+
+        const now = store.snapshot();
+        const going = now.projects.length + ' projects and ' + now.actions.length + ' actions';
+        const coming = (incoming.projects || []).length + ' projects and ' +
+          (incoming.actions || []).length + ' actions';
+        if (!ask('Replace this board (' + going + ') with the file (' + coming + ')?\n\n' +
+          'This cannot be undone. Download a copy first if you are unsure.')) {
+          return;
+        }
+
+        return store.replaceAll(incoming).then(function () {
+          toast('Board loaded from the file.');
+          render();
+        });
+      }).catch(function () {
+        toast('That file could not be read.');
+      });
+    },
     regTab: function (el) { ui.regTab = el.value; ui.projFilter = 'all'; render(); },
     projTabFilter: function (el) { ui.projTab = el.value; render(); },
     projFieldFilter: function (el) { ui.projField = el.value; render(); },
@@ -980,7 +1063,10 @@ export function createHandlers(app) {
       store.set('people', store.newId(), {
         name: name,
         title: String(fd.get('title') || '').trim(),
-        home: String(fd.get('home') || '').trim()
+        home: String(fd.get('home') || '').trim(),
+        // Lower-cased on the way in, because identify() matches case-insensitively
+        // and storing it consistently means the match is obvious when read by eye.
+        upn: String(fd.get('upn') || '').trim().toLowerCase()
       }).then(render);
       render();
     },
@@ -1063,6 +1149,27 @@ export function createHandlers(app) {
   };
 
   return { clicks: clicks, edits: edits, forms: forms, inputs: inputs };
+}
+
+/**
+ * Hand the browser a file to save.
+ *
+ * No server is involved and nothing leaves the machine - the bytes are built here
+ * and passed straight to a download. That matters: this file is the whole board,
+ * including real customer names.
+ */
+function downloadFile(name, text) {
+  if (typeof document === 'undefined' || typeof Blob === 'undefined') return false;
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Revoking immediately races the download in some browsers; a tick is enough.
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  return true;
 }
 
 /** Copy to the clipboard, with the old-browser fallback the original had. */

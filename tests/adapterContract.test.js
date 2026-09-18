@@ -14,6 +14,8 @@
 
 import { group, test, eq, ok, notOk } from './harness.js';
 import { createMemoryAdapter } from '../src/adapters/memoryAdapter.js';
+import { createLocalAdapter } from '../src/adapters/localAdapter.js';
+import { fakeStorage } from './fakeStorage.js';
 import { createGraphAdapter } from '../src/adapters/graphAdapter.js';
 import { createFakeGraph } from './fakeGraph.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
@@ -55,6 +57,15 @@ const ADAPTERS = [
     name: 'memory',
     make: function (snap) {
       return createMemoryAdapter({ seed: snap || blankSnapshot(), startActionNum: 1 });
+    }
+  },
+  {
+    name: 'local',
+    make: function (snap) {
+      // A fresh store each time, so the seed is what the adapter starts from.
+      return createLocalAdapter({
+        storage: fakeStorage(), seed: snap || blankSnapshot()
+      });
     }
   },
   {

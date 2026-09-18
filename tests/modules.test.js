@@ -43,6 +43,7 @@ const MODULES = [
   // adapters
   '../src/adapters/DataStore.js',
   '../src/adapters/memoryAdapter.js',
+  '../src/adapters/localAdapter.js',
   '../src/adapters/graphAdapter.js',
   '../src/adapters/sharepointSchema.js',
   '../src/adapters/auth.js',

@@ -162,6 +162,19 @@ export function whoAmI(env) {
    * safeguard away at exactly the moment it is needed. The full sentence stays as
    * the tooltip.
    */
+  /*
+   * A local board is REAL data with no sign-in. It must not carry the demo warning
+   * - that exists so invented data is never shown to a room by mistake, and on a
+   * real board it fires backwards - but it is still worth saying that this is not
+   * yet the shared copy, because that is the difference between losing a meeting
+   * and not.
+   */
+  if (who.kind === 'local') {
+    return '<div class="iam local">' + name +
+      '<div class="iam-note">Local board \u2014 this computer only</div>' +
+      '<span class="iam-flag local" title="Local board \u2014 this computer only">LOCAL</span></div>';
+  }
+
   if (who.kind === 'demo') {
     return '<div class="iam demo">' + name +
       '<div class="iam-note">Demo data — not the real board</div>' +
@@ -226,6 +239,36 @@ export function meetingInitials(name) {
       : parts[i].charAt(0).toUpperCase();
   }
   return out || '?';
+}
+
+/**
+ * Who you are, on a board with no sign-in.
+ *
+ * This is the old "I am" dropdown, which was deliberately removed when real
+ * sign-in was designed - a board that believes whatever it is told is not a
+ * control. It comes back SCOPED TO LOCAL MODE only, because there something has
+ * to say who is sitting here, and the alternative is what the demo does: quietly
+ * decide you are whoever sorts first alphabetically, then open the board filtered
+ * to their work and stamp your notes with their name.
+ *
+ * It renders nowhere else. Signed in, the answer comes from the sign-in; in the
+ * demo it does not matter.
+ *
+ * @param {Snapshot} snap
+ * @param {any} env
+ * @param {any} ui
+ */
+function mePicker(snap, env, ui) {
+  if (!env.identity || env.identity.kind !== 'local') return '';
+
+  const opts = '<option value="">Not set</option>' +
+    snap.people.slice().sort(byName).map(function (p) {
+      return '<option value="' + esc(p.id) + '"' +
+        (ui.meId === p.id ? ' selected' : '') + '>' + esc(p.name) + '</option>';
+    }).join('');
+
+  return '<label class="lbl" for="f-me">You are</label>' +
+    '<select class="fld" id="f-me" data-edit="meId">' + opts + '</select>';
 }
 
 /**
@@ -329,7 +372,7 @@ export function renderSide(snap, ui, env) {
     item('timeline', 'Timeline', 'Timeline') +
     item('people', 'People &amp; settings', 'People & settings') +
     '</nav>' +
-    '<div class="side-foot">' + whoAmI(env) +
+    '<div class="side-foot">' + whoAmI(env) + mePicker(snap, env, ui) +
     '<label class="lbl" for="f-person">Show items for</label>' +
     '<select class="fld" id="f-person" data-edit="personFilter">' + personSel + '</select>' +
     connPill(env.modes, env.areaReadonly) + '</div></aside>';

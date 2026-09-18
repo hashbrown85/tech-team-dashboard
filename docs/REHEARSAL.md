@@ -4,7 +4,8 @@ Run this before the board is used in a real meeting, **on the machine that will
 present, on the meeting-room network, through the projector**. Half the risks here
 are environmental and none of them show up on your desk.
 
-Budget 45 minutes. Work down in order — it puts the worst failures first.
+Budget an hour. Work down in order — it puts the worst failures first, and step 0a
+is the one that can stop everything.
 
 ---
 
@@ -40,6 +41,29 @@ Rehearse dark anyway at step 8, in case the attribute gets lost.
 blocked requests to `fonts.googleapis.com`. If the corporate network blocks it, the
 board falls back to system fonts, every measurement shifts, and a layout that fitted
 at your desk may not fit in the room. Better to find out now.
+
+---
+
+## Step 0a — the drill that decides whether Monday happens
+
+Everything else on this page is about whether the board *looks* right. This is the
+one about whether it *keeps* anything, and it is the only step that can stop the
+plan on its own. Do it first, on the real board (the plain address, no `?board=`).
+
+1. Add a person, a meeting and a project.
+2. **Hard-reload** (`Ctrl+F5`). They must all still be there.
+3. **People & settings → Download a copy.** Check the file is in your Downloads.
+4. Clear the site's data for `localhost:8010`, or open the board in a private
+   window. The board should be empty — that is the point.
+5. **Load a copy**, pick the file. Everything comes back.
+
+If any of those five fails, stop and say so. Running a meeting on a board that is
+not saving is worse than not running it at all, because you find out at the end.
+
+**The trap:** browser storage belongs to an exact address. What is saved at
+`http://localhost:8010` cannot be seen at `:8011`, or at `127.0.0.1`. Always start
+the server the same way, and always use the same link. The downloaded copy is the
+only portable form.
 
 ---
 
@@ -80,6 +104,10 @@ Open `http://localhost:8010/?board=big` — a deliberately oversized board of in
 data: 20 people, 10 meetings, 56 projects, a year of history. The tab title says **BIG
 BOARD** so you cannot show it to anyone by mistake.
 
+> **Three boards, three addresses.** The plain address is **your** board, saved in
+> this browser. `?board=demo` is the small sample, and `?board=big` is the oversized
+> one — both invented, both thrown away on reload. Only the plain one keeps anything.
+
 | # | Where | What it is stressing |
 |---|---|---|
 | 1 | **Overview** | 56 projects in the numbers strip; the meeting cards with ten meetings; the attendance list at 20 names |
@@ -93,14 +121,17 @@ BOARD** so you cannot show it to anyone by mistake.
 | 9 | **Narrow** | drag the window to roughly 1100, 980, 700 and 560 px. Each is a point where the layout rearranges. You will not present narrow, but a laptop screen mid-meeting is one alt-tab away |
 | 10 | **Reload mid-flow** | with a timer running and a half-filled form open, press F5. The form should keep what you typed and the meeting should come back where you left it |
 | 11 | **The collapsed menu** | press the toggle at the top of the sidebar. Check the tiles actually get wider (see the note below), that the meeting initials read clearly at ten meetings, that the strip scrolls if it needs to, and that you can reach every screen from it without expanding. Tab to the toggle and press Space twice — focus must still be on it |
+| 12 | **Already Owed, on the Issues tab** | the block should list overdue actions with two controls on each: **→ next meeting** (check the tooltip names the date before you press it) and a date box. Push one, re-date another, and confirm the "42d overdue" label updates without a manual reload |
+| 13 | **The Action items table** | sort by ID, Owner and Due — three clicks on the same header should return to the default order. Search for an owner's name, then for a word that only appears in an issue title, and confirm the **Origin** column found it. Check a long issue title does not widen the table. Hit Reset |
 
-**Keyboard check, at step 7:** press Tab until focus reaches a sortable column header
-on the Projects list. The outline there is set specially, because the normal one is
+**Keyboard check, at steps 7 and 13:** press Tab until focus reaches a sortable
+column header — on the Projects list, and again on the Action items table, which now
+has the same headers. The outline there is set specially, because the normal one is
 invisible against the red header. Confirm you can see it.
 
-**Finally, do it again on the real board** — `http://localhost:8010/` with no
-`?board=big`. That is closer to what the room will contain on day one, and it confirms
-the big board did not hide a small-data problem.
+**Finally, do it again on your real board** — `http://localhost:8010/` with no
+`?board=` at all. That is what the room will actually see, and it confirms the big
+board did not hide a small-data problem. **Download a copy when you are done.**
 
 ---
 
