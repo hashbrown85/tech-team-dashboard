@@ -32,7 +32,7 @@ import { byId } from '../lib/seq.js';
  * controls on screen are disabled. board.html:601-605.
  *
  * @param {any} ui
- * @param {{content: string, settings: string}} modes
+ * @param {{content: string, settings: string, details: string}} modes
  */
 export function areaReadonly(ui, modes) {
   if (ui.view === 'people') return modes.settings !== 'live';
@@ -47,11 +47,21 @@ export function areaReadonly(ui, modes) {
  * @param {any} ui
  * @param {object} env
  * @param {string} env.today
- * @param {{content: string, settings: string}} env.modes
+ * @param {{content: string, settings: string, details: string}} env.modes
  * @returns {string}
  */
 export function renderApp(snap, ui, env) {
-  const full = Object.assign({}, env, { areaReadonly: areaReadonly(ui, env.modes) });
+  /*
+   * `details` is the third permission group and it is NOT a screen: the annual
+   * value sits on a project page among fields anybody may edit. So it cannot be
+   * folded into areaReadonly, which answers "is this SCREEN read-only" - it needs
+   * its own flag, or somebody allowed to read the money but not change it gets an
+   * editable-looking box that rejects the click.
+   */
+  const full = Object.assign({}, env, {
+    areaReadonly: areaReadonly(ui, env.modes),
+    detailsReadonly: !!env.modes && env.modes.details !== 'live'
+  });
 
   let main;
   if (ui.view === 'tab') {

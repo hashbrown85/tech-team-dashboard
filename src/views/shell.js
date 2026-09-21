@@ -35,15 +35,19 @@ import { byName } from '../lib/seq.js';
  * clear about — it appears when a write has been refused, so it is telling the user
  * something that already happened.
  *
- * @param {{content: string, settings: string}} modes
+ * @param {{content: string, settings: string, details: string}} modes
  * @param {boolean} areaReadonly - is the area currently on screen read-only?
  */
 export function connPill(modes, areaReadonly) {
-  if (modes.content === 'connecting' || modes.settings === 'connecting') {
+  // Three groups, not two. `details` was added and this was never told about it,
+  // so a board still resolving that group reported itself Live.
+  if (modes.content === 'connecting' || modes.settings === 'connecting' ||
+    modes.details === 'connecting') {
     return '<div class="savepill"><i class="dotc"></i><span>Connecting…</span></div>';
   }
   if (areaReadonly) {
-    const partial = modes.content === 'live' || modes.settings === 'live';
+    const partial = modes.content === 'live' || modes.settings === 'live' ||
+      modes.details === 'live';
     return '<div class="savepill ro"><i class="dotc"></i><span>View only' +
       (partial ? ' here' : '') + '</span></div>';
   }

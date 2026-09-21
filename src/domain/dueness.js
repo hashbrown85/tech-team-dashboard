@@ -108,6 +108,11 @@ export function personOk(a, personName) {
  * @param {string} today
  * @returns {{open: number, over: number, soon: number, off: number, stop: number}}
  */
+/*
+ * Counts what is IN the snapshot. On a board where rows have been withheld it
+ * returns a smaller number with the same confidence - so anything labelling these
+ * as a total ("across all meetings") should check `boardIsComplete` first.
+ */
 export function stats(snap, tid, today) {
   const open = snap.actions.filter(function (a) { return inScope(a, tid) && isOpen(a); });
   return {

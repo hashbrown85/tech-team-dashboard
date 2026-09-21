@@ -29,6 +29,7 @@
  */
 
 import { byId } from '../lib/seq.js';
+import { TECHDIR_TAB_ID } from './constants.js';
 
 /**
  * Did the restricted project-details collection actually arrive?
@@ -46,6 +47,51 @@ import { byId } from '../lib/seq.js';
  */
 export function detailsArrived(snap) {
   return (snap.denied || []).indexOf('projectDetails') < 0;
+}
+
+/**
+ * Anything the store refused to send.
+ *
+ * Today this is only ever `projectDetails`, and the effect is a missing panel that
+ * nothing explains. It is also the shape any per-area restriction would have to
+ * take, so it is worth having one place that answers "is this board complete".
+ *
+ * @param {Snapshot} snap
+ * @returns {string[]}
+ */
+export function withheld(snap) {
+  return (snap.denied || []).slice();
+}
+
+/** What a withheld collection is called in a sentence somebody reads. */
+const WITHHELD_LABELS = {
+  projectDetails: 'project values'
+};
+
+/**
+ * The withheld collections, named the way a person would name them.
+ *
+ * `projectDetails` is a list name, not something to put in front of somebody who
+ * is being told what they cannot see.
+ *
+ * @param {Snapshot} snap
+ * @returns {string[]}
+ */
+export function withheldLabels(snap) {
+  return withheld(snap).map(function (col) { return WITHHELD_LABELS[col] || col; });
+}
+
+/**
+ * Is the board in front of this person the whole board?
+ *
+ * Several counts assume it is - see `stats` and `openActsFor`, both of which return
+ * a confident number rather than an error when rows are missing. Anything printing
+ * a total across the board should ask this before claiming "all".
+ *
+ * @param {Snapshot} snap
+ */
+export function boardIsComplete(snap) {
+  return withheld(snap).length === 0;
 }
 
 /**
@@ -106,6 +152,75 @@ export function parentText(snap, action) {
   }
   const p = byId(snap.projects, action.parent.id);
   return p ? p.name + ' (project)' : '';
+}
+
+/* ---------------------------------------------------------------- areas */
+
+/*
+ * An "area" is a meeting whose kind is 'area', and somebody belongs to it by being
+ * on its attendance list. There is no separate area entity and no field to keep in
+ * step - which is the point: the roster and the areas cannot drift apart, because
+ * they are the same thing.
+ *
+ * NOTE, and it matters: none of this restricts anything. These are the same kind of
+ * display helpers as personOk and inScope - the data is all in the browser either
+ * way. A real restriction has to be the store refusing to send the rows, the way
+ * projectDetails already does. `detailAreas` was exactly this shape and was retired
+ * for exactly that reason; do not let these grow into a pretend control.
+ */
+
+/**
+ * The area meetings a person belongs to, in any role.
+ *
+ * @param {Snapshot} snap
+ * @param {string | null} personId
+ * @returns {any[]} the tabs, not their ids
+ */
+export function areasFor(snap, personId) {
+  if (!personId) return [];
+  return snap.tabs.filter(function (t) {
+    if (t.kind !== 'area') return false;
+    return ['members', 'support', 'optional'].some(function (role) {
+      return (t[role] || []).indexOf(personId) >= 0;
+    });
+  });
+}
+
+/**
+ * Does this person reach across areas?
+ *
+ * True when they are on a non-area meeting that exists to look across them - today
+ * that is Tech Directors. Being in several areas is NOT the same thing: somebody in
+ * two areas sees two areas, not all of them.
+ *
+ * @param {Snapshot} snap
+ * @param {string | null} personId
+ */
+export function seesAllAreas(snap, personId) {
+  if (!personId) return false;
+  return snap.tabs.some(function (t) {
+    if (t.id !== TECHDIR_TAB_ID) return false;
+    return ['members', 'support', 'optional'].some(function (role) {
+      return (t[role] || []).indexOf(personId) >= 0;
+    });
+  });
+}
+
+/**
+ * The area a record belongs to, or null.
+ *
+ * Records carry a `tab`; projectDetails and projectNotes do not, and are reached
+ * only through their project - so they have no area of their own and must be asked
+ * about via the project they hang off.
+ *
+ * @param {Snapshot} snap
+ * @param {any} record
+ * @returns {any | null}
+ */
+export function areaOfRecord(snap, record) {
+  if (!record || !record.tab) return null;
+  const tab = byId(snap.tabs, record.tab);
+  return tab && tab.kind === 'area' ? tab : null;
 }
 
 /**
@@ -189,6 +304,19 @@ export function isOpen(a) {
  * @param {string} id - an issue id or a project id
  * @param {string} [excludeActionId] - ignore this action (used when toggling one)
  * @returns {number}
+ */
+/*
+ * ASSUMES THE WHOLE BOARD IS PRESENT, and quietly gives a wrong answer if it is not.
+ *
+ * There is no flag on an issue saying "somebody owns this" - it is derived, here, by
+ * counting. So if the actions are missing from the snapshot, an owned issue reads as
+ * ownerless: it returns to the queue, it is counted as a show-stopper, and - because
+ * this same count decides auto-resolve in domain/actions.js - it can change what
+ * gets WRITTEN, not merely what is shown.
+ *
+ * It does not check the tab, either: an action may point at an issue in a different
+ * meeting. So per-area filtering cannot simply be applied to actions without
+ * deciding what this should mean first. `boardIsComplete` is the thing to ask.
  */
 export function openActsFor(snap, id, excludeActionId) {
   return snap.actions.filter(function (a) {

@@ -278,6 +278,10 @@ function matrix() {
     { content: 'readonly', settings: 'live' }, { personId: 'p1' }]);
   out.push(['read-only settings', { view: 'people' }, full,
     { content: 'live', settings: 'readonly' }, { personId: 'p1' }]);
+  // The Overview's "some of this was not sent to you" note renders only on a board
+  // where something WAS withheld. Without this state, check (b) never sees it.
+  out.push(['overview, value refused', { view: 'overview' }, refusedBoard(),
+    LIVE, { personId: 'p1' }]);
   out.push(['project value refused', { view: 'project', project: 'pr1' }, refusedBoard(),
     LIVE, { personId: 'p1' }]);
   out.push(['projects list, value refused', { view: 'projects' }, refusedBoard(),

@@ -25,6 +25,7 @@ import { report } from './harness.js';
 import './modules.test.js';
 import './dates.test.js';
 import './queries.test.js';
+import './areas.test.js';
 import './projects.test.js';
 import './issues.test.js';
 import './actions.test.js';

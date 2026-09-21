@@ -27,7 +27,7 @@ import { byPriority, confidencePoints } from '../domain/projects.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
-  ACTIVE_STATUSES, segmentsFor
+  ACTIVE_STATUSES, segmentsFor, TECHDIR_TAB_ID
 } from '../domain/constants.js';
 import {
   meetingDate, nextMeetingAfter, ratingInfo, getMeeting, trendPoints, meetingSummary
@@ -227,7 +227,7 @@ function stageWins(snap, ui, env, tab, d, ents) {
 /* --- 1: New Opportunities, or the Tech Directors business review --- */
 
 function stageOpportunities(snap, ui, env, tab, d, ents) {
-  if (tab.id === 'techdir') return businessReview(snap, tab);
+  if (tab.id === TECHDIR_TAB_ID) return businessReview(snap, tab);
 
   const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
 

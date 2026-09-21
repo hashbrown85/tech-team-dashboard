@@ -47,6 +47,14 @@ import { spark } from './spark.js';
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
  */
 
+/**
+ * The annual value is the one field in the `details` permission group, so it can be
+ * refused on its own while the rest of the page stays editable.
+ */
+function disDetails(env) {
+  return env.areaReadonly || env.detailsReadonly ? ' disabled' : '';
+}
+
 function dis(env) {
   return env.areaReadonly ? ' disabled' : '';
 }
@@ -263,7 +271,7 @@ export function renderProject(snap, ui, env, p) {
       ? '<input class="fld pnum" type="number" step="1000" value="' +
         esc(details && details.estValue != null ? details.estValue : '') +
         '" data-edit="pdValue" data-id="' + esc(p.id) + '" aria-label="Annual value"' +
-        dis(env) + '><span class="why">Dollars per year</span>'
+        disDetails(env) + '><span class="why">Dollars per year</span>'
       : '<span class="why">Not shown — project value is kept to the people who ' +
         'have access to it.</span>') +
     row('Win confidence',

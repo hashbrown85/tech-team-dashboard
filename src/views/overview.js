@@ -13,7 +13,9 @@
 import { esc } from '../lib/dom.js';
 import { fmt, fmtDay, addDays, rel } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
-import { issueItems, openActsFor, personName, person } from '../domain/queries.js';
+import {
+  issueItems, openActsFor, personName, person, boardIsComplete, withheldLabels
+} from '../domain/queries.js';
 import { stats, isOverdue, dueLabel, personOk } from '../domain/dueness.js';
 import { lastScore, meetingDate } from '../domain/meetings.js';
 import { SEVERITY_LABELS } from '../domain/constants.js';
@@ -33,10 +35,26 @@ export function renderOverview(snap, ui, env) {
   const today = env.today;
   const s = stats(snap, 'all', today);
 
-  let html = pageHeader('Overview', 'Every meeting, action item and issue as of ' + fmtDay(today));
+  /*
+   * These tiles are totals, and a total that is quietly missing rows is worse than
+   * no total. Today the only thing that can be withheld is project value, which
+   * these do not count - but the wording is what would go wrong first if anything
+   * else ever were, so it asks rather than assumes.
+   */
+  const complete = boardIsComplete(snap);
+  const scopeNote = complete ? 'across all meetings' : 'across what you can see';
+
+  let html = pageHeader('Overview',
+    'Every meeting, action item and issue as of ' + fmtDay(today));
+
+  if (!complete) {
+    html += '<p class="scope-note">Some of this board was not sent to you: <b>' +
+      esc(withheldLabels(snap).join(', ')) + '</b>. What is below counts only what you ' +
+      'can see.</p>';
+  }
 
   html += '<section class="kpis" aria-label="Summary">' +
-    kpi('', s.open, 'Open actions', 'across all meetings', 'showActions', 'open') +
+    kpi('', s.open, 'Open actions', scopeNote, 'showActions', 'open') +
     kpi(s.over ? 'crit' : 'good', s.over, 'Overdue',
       s.over ? 'past due date' : 'nothing late', 'showActions', 'over') +
     kpi(s.soon ? 'warn' : '', s.soon, 'Due in 7 days',
