@@ -19,7 +19,8 @@ import { demoBoard } from '../src/demo-data.js';
 import { createHandlers } from '../src/handlers.js';
 import { loadUi } from '../src/ui.js';
 import { today } from '../src/lib/dates.js';
-import { issueItems, actionedItems, actsOf } from '../src/domain/queries.js';
+import { issueItems, actionedItems, actsOf, projVisible } from '../src/domain/queries.js';
+import { meetingDate } from '../src/domain/meetings.js';
 import {
   byPriority, projectTitle, confidencePoints
 } from '../src/domain/projects.js';
@@ -459,10 +460,27 @@ test('Somebody else cannot edit it either', async () => {
 
 group('Priority: each person orders their own projects');
 
-/** The ids of one person's projects in a meeting, in the order they render. */
+/**
+ * The ids of one person's projects in a meeting, in the order they render.
+ *
+ * Visibility matters and used to be missing here. `reorderProjects` moves a project
+ * among the ones actually SHOWN, and a project starting next week is not shown - so
+ * this helper's idea of the order disagreed with the product's on any Monday, when
+ * the demo board's `pr4` starts the following week rather than this one. The tests
+ * then failed on the one morning somebody would want to trust them.
+ */
 function orderOf(a, tabId, personId) {
-  return a.snap().projects
-    .filter(function (p) { return p.tab === tabId && p.personId === personId; })
+  return orderIn(a, a.snap().projects, tabId, personId);
+}
+
+/** The same rule, applied to any list of projects - so no test can use a different one. */
+function orderIn(a, projects, tabId, personId) {
+  const tab = a.snap().tabs.filter(function (t) { return t.id === tabId; })[0];
+  const d = meetingDate(tab, today(), a.ui.dates[tabId]);
+  return projects
+    .filter(function (p) {
+      return p.tab === tabId && p.personId === personId && projVisible(p, tabId, d);
+    })
     .sort(byPriority)
     .map(function (p) { return p.id; });
 }
@@ -567,9 +585,8 @@ test('An unordered list still renders the same way twice', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   const once = orderOf(a, 't1', 'p1');
   const shuffled = a.snap().projects.slice().reverse();
-  eq(shuffled.filter(function (p) { return p.tab === 't1' && p.personId === 'p1'; })
-      .sort(byPriority).map(function (p) { return p.id; }),
-    once, 'same order from a differently-ordered snapshot');
+  eq(orderIn(a, shuffled, 't1', 'p1'), once,
+    'same order from a differently-ordered snapshot');
 });
 
 test('A project nobody has ordered sorts BELOW the ones somebody has', () => {

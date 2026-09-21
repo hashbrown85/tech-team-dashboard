@@ -10,15 +10,24 @@
  *
  * Dates are worked out from today so the demo always looks current: something
  * overdue, something due this week, a rated meeting last week.
+ *
+ * Which means the board CHANGES SHAPE depending on what day you ask for it. `pr4`
+ * starts a week after this Monday, so on any day except a Monday it is visible in
+ * this week's meeting, and on a Monday it is not. Four tests asserted the Friday
+ * shape and went red on the Monday morning somebody needed them - a gate that is
+ * green some days and red others is worse than no gate. Hence `from`: tests pin a
+ * date and get the same board every time. The app never passes it.
  */
 
 import { today as todayString, addDays, nextOn } from './lib/dates.js';
 
 /**
+ * @param {string} [from] - 'YYYY-MM-DD' to build the board relative to. Defaults to
+ *   today, which is what the app wants and what makes the suite non-deterministic.
  * @returns {import('./domain/queries.js').Snapshot}
  */
-export function demoBoard() {
-  const today = todayString();
+export function demoBoard(from) {
+  const today = from || todayString();
   const thisMonday = mondayOf(today);
   const lastMonday = addDays(thisMonday, -7);
   const thisTuesday = nextOn(thisMonday, 2);

@@ -300,6 +300,11 @@ button.kpi:hover{background:var(--surface-2)}
 .item > .it-t{grid-column:2}
 .item > .why,.item > .it-c{grid-column:2}
 .item > .x{grid-column:3;grid-row:1}
+/* The Reopen button on a resolved issue. Auto-placed it landed in column 3 beside
+   the title - and a .btn is 34px tall with 14px of padding either side, so it is a
+   real aggressor against a track floored at zero. Pinned where the x goes; the two
+   never appear on the same row. */
+.item > .btn{grid-column:3;grid-row:1}
 .it-t{font-weight:500;overflow-wrap:break-word}
 .why{color:var(--ink-2);font-size:13.5px;margin-top:2px;overflow-wrap:break-word}
 /* Not `.concl` - that is the Rate segment's two-column page grid further down,

@@ -21,6 +21,8 @@ import { loadUi } from '../src/ui.js';
 import { spark } from '../src/views/spark.js';
 import { meetingInitials } from '../src/views/shell.js';
 import { confidencePoints } from '../src/domain/projects.js';
+import { projVisible } from '../src/domain/queries.js';
+import { meetingDate } from '../src/domain/meetings.js';
 
 const MODES = { content: 'live', settings: 'live' };
 const snap = demoBoard();
@@ -710,10 +712,14 @@ test('The rendered rows really come out in priority order', () => {
   // function and nothing about the view. Dropping .sort(byPriority) from the stage
   // left every one of them passing. This reads the order off the page.
   const snap = demoBoard();
+  // Only the rows that are actually SHOWN this week: a project starting next week
+  // is deliberately absent, and expecting it here made this red every Monday.
+  const d = meetingDate(snap.tabs.filter(function (t) { return t.id === 't1'; })[0],
+    today(), null);
   const mine = snap.projects.filter(function (p) {
-    return p.tab === 't1' && p.personId === 'p1';
+    return p.tab === 't1' && p.personId === 'p1' && projVisible(p, 't1', d);
   });
-  ok(mine.length >= 2, 'p1 has a couple in t1');
+  ok(mine.length >= 2, 'p1 has a couple showing in t1');
 
   // Deliberately the reverse of the order they appear in the snapshot.
   mine.forEach(function (p, i) { p.priority = mine.length - i; });
@@ -728,6 +734,73 @@ test('The rendered rows really come out in priority order', () => {
     .filter(function (id) { return wanted.indexOf(id) >= 0; });
 
   eq(rendered, wanted, 'rows appear in the order priority asks for');
+});
+
+group('The board renders the same on any day of the week');
+
+/*
+ * The demo board works its dates out from today, so it changes SHAPE depending on
+ * when you ask for it - `pr4` starts a week after this Monday, so it shows in this
+ * week's meeting on a Tuesday and does not on a Monday.
+ *
+ * Four tests quietly assumed the Friday shape. They passed all week and went red on
+ * Monday morning, on the committed code, with nothing changed - which is the worst
+ * possible behaviour for something being used as a go/no-go gate. These render at a
+ * pinned date for each weekday, so the drift cannot come back unnoticed.
+ */
+const WEEK = [
+  ['2026-09-21', 'Monday (the meeting day)'],
+  ['2026-09-22', 'Tuesday'],
+  ['2026-09-23', 'Wednesday'],
+  ['2026-09-24', 'Thursday'],
+  ['2026-09-25', 'Friday'],
+  ['2026-09-26', 'Saturday'],
+  ['2026-09-27', 'Sunday']
+];
+
+test('Every weekday renders the projects stage without leaking a value', () => {
+  WEEK.forEach(function (day) {
+    const snap = demoBoard(day[0]);
+    const html = renderApp(snap, Object.assign({}, base, {
+      view: 'tab', tab: 't1', steps: { t1: 2 }
+    }), { today: day[0], modes: MODES });
+    eq(leaks(html), [], day[1] + ' renders no undefined/NaN');
+    eq(unbalanced(html), [], day[1] + ' closes its tags');
+  });
+});
+
+test('What renders is exactly what projVisible says, on every day', () => {
+  // The view and the rule agreeing is the thing that actually matters; which
+  // projects those are is allowed to differ from day to day.
+  WEEK.forEach(function (day) {
+    const snap = demoBoard(day[0]);
+    const t1 = snap.tabs.filter(function (t) { return t.id === 't1'; })[0];
+    const d = meetingDate(t1, day[0], null);
+
+    const expected = snap.projects
+      .filter(function (p) { return projVisible(p, 't1', d); })
+      .map(function (p) { return p.id; }).sort();
+
+    const html = renderApp(snap, Object.assign({}, base, {
+      view: 'tab', tab: 't1', steps: { t1: 2 }
+    }), { today: day[0], modes: MODES });
+
+    const rendered = (html.match(/id="proj-([a-z0-9]+)"/g) || [])
+      .map(function (m) { return /id="proj-([a-z0-9]+)"/.exec(m)[1]; }).sort();
+
+    eq(rendered, expected, day[1] + ': the stage shows what the rule allows');
+  });
+});
+
+test('demoBoard actually honours the date it is given', () => {
+  // The two tests above compare a rendered stage against the rule, and both derive
+  // from the same board - so they still pass if the date argument is ignored, which
+  // is exactly the drift being defended against. This asserts the parameter itself.
+  eq(demoBoard('2026-09-21').projects.filter(function (p) { return p.id === 'pr4'; })[0].start,
+    '2026-09-28', 'a Monday board starts pr4 the following Monday');
+  eq(demoBoard('2026-09-28').projects.filter(function (p) { return p.id === 'pr4'; })[0].start,
+    '2026-10-05', 'and a week later, a week later');
+  ok(demoBoard('2026-09-21').actions.length > 0, 'and it is still a whole board');
 });
 
 group('Re-dating an action from the meeting');

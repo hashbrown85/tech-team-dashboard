@@ -60,7 +60,6 @@ import { meetingDate } from '../src/domain/meetings.js';
 import { blankSnapshot } from '../src/adapters/DataStore.js';
 import { bigBoard } from './bigboard.mjs';
 import { loadUi } from '../src/ui.js';
-import { today } from '../src/lib/dates.js';
 import { STATUSES, SEVERITIES } from '../src/domain/constants.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -163,13 +162,27 @@ function emittedClasses(html, into, empties) {
 
 /* --------------------------------------------------------------- the matrix */
 
-const TODAY = today();
+/*
+ * PINNED, not today's date.
+ *
+ * The demo board works its dates out from `today()`, so what this tool renders used
+ * to depend on the day it ran: a resolved issue only appears on the meeting it was
+ * resolved in, and a project starting next week only appears mid-week. That made
+ * the checker green on a Friday and red on the Monday, on unchanged code - and a
+ * gate that answers differently on different days is not a gate.
+ *
+ * A Monday, because that is the demo meeting's own day and the shape that renders
+ * least by default. `MIDWEEK` below covers the other shape, so both are always
+ * checked rather than whichever the calendar happens to hand us.
+ */
+const TODAY = '2026-09-21';
+const MIDWEEK = '2026-09-23';
 const LIVE = { content: 'live', settings: 'live' };
 const base = loadUi();
 
 /** A board carrying every status, severity and dueness state. */
-function fullBoard() {
-  const s = demoBoard();
+function fullBoard(from) {
+  const s = demoBoard(from || TODAY);
 
   // The demo board has four of six statuses. Every `.proj.ps-*` and `.chip.ps-*`
   // variant needs to render or check (b) never sees it.
@@ -290,6 +303,22 @@ function matrix() {
    * the "You are" picker, the LOCAL marker, and the download/load panel. Without a
    * state here, check (b) never sees any of their classes.
    */
+  /*
+   * The same screens on a MIDWEEK date. The demo board changes shape with the
+   * calendar - a project starting next week shows now and not on the meeting day,
+   * a resolved issue shows only on the meeting it was resolved in - so rendering
+   * one date only ever checks one of the two shapes. This checks both, every run,
+   * instead of whichever the day happens to produce.
+   */
+  const mid = fullBoard(MIDWEEK);
+  [
+    ['midweek: projects stage', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
+    ['midweek: issues', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
+    ['midweek: overview', { view: 'overview' }]
+  ].forEach(function (st) {
+    out.push([st[0], st[1], mid, LIVE, { personId: 'p1', displayName: 'Alex Morgan' }]);
+  });
+
   const LOCAL_ID = { kind: 'local', displayName: 'Alex Morgan', person: null, personId: 'p1' };
   out.push(['local board, people', { view: 'people' }, full, LIVE, LOCAL_ID]);
   out.push(['local board, overview', { view: 'overview' }, full, LIVE, LOCAL_ID]);
@@ -410,7 +439,18 @@ const PLACEMENT = [
       'it-t': 'text placed:2',
       why:    'placed:2',
       'it-c': 'placed:2',
-      x:      'placed:3'
+      /*
+       * Both of these sit beside the title on row 1, and both are SAFE there: a
+       * button's width is bounded by a label we wrote, not by anything a user can
+       * type. That is the distinction `safe` is for - not "small", but "cannot be
+       * made arbitrarily wide by data".
+       *
+       * `btn` is Reopen, on a resolved issue. It only renders on the meeting whose
+       * date the issue was resolved on, which is why it surfaced on a Monday and
+       * not on the Friday I last ran this.
+       */
+      x:      'safe placed:3',
+      btn:    'safe placed:3'
     }
   },
   {
@@ -470,9 +510,20 @@ function placeRows(kinds, cols) {
   const free = function (r, c) { return !taken[r + ':' + c]; };
   const take = function (r, c) { taken[r + ':' + c] = true; };
 
+  /*
+   * Pass 0: anything with BOTH a row and a column is placed first, per CSS Grid
+   * 8.5. Leaving this out put `.x` on row 2 - its own CSS says grid-row:1 - and
+   * the tool then judged it against a row it is not in. It passed by luck.
+   */
+  kinds.forEach(function (k, i) {
+    if (k.col === null || k.row === null) return;
+    take(k.row, k.col);
+    rows[i] = k.row;
+  });
+
   let cr = 1, cc = 1;
   kinds.forEach(function (k, i) {
-    if (k.col === null) return;
+    if (k.col === null || rows[i] !== undefined) return;
     if (k.col < cc) cr++;
     cc = k.col;
     while (!free(cr, cc)) cr++;
@@ -482,7 +533,7 @@ function placeRows(kinds, cols) {
 
   cr = 1; cc = 1;
   kinds.forEach(function (k, i) {
-    if (k.col !== null) return;
+    if (k.col !== null || rows[i] !== undefined) return;
     while (!free(cr, cc)) {
       cc++;
       if (cc > cols) { cc = 1; cr++; }
@@ -900,7 +951,8 @@ function main() {
         if (!cls) { unknown.push(tokens.join('.') || '(no class)'); return null; }
         const spec = p.kids[cls];
         const col = /placed:(\d+)/.exec(spec);
-        return { cls: cls, col: col ? +col[1] : null, spec: spec };
+        const row = /row:(\d+)/.exec(spec);
+        return { cls: cls, col: col ? +col[1] : null, row: row ? +row[1] : null, spec: spec };
       });
 
       if (unknown.length) {
