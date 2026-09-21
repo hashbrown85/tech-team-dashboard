@@ -65,6 +65,7 @@ meeting; step 0a is the one that decides whether it is safe to.
 |---|---|
 | `docs/DATA_MODEL.md` | every collection and field — the only schema that exists |
 | `docs/BUSINESS_RULES.md` | the rules, in prose. **Read before changing `src/domain/`** |
+| `docs/DRY-RUN.md` | **start here** — set the board up and drive a whole meeting through it |
 | `docs/REHEARSAL.md` | what to check before a meeting is run from this |
 | `tools/layout-check.mjs` | markup vs stylesheet; the checks the test suite cannot make |
 | `tools/bigboard.mjs` | an oversized board of invented data, for `?board=big` |
