@@ -107,7 +107,9 @@ const FIELDS = 'input, select, textarea';
  * @returns {string}
  */
 function keyOf(form) {
-  const attrs = ['data-form', 'data-pid', 'data-id', 'data-tab'];
+  // No 'data-pid': the per-person add forms it distinguished are gone, and an
+  // attribute nothing emits reads as though a case is covered when it is not.
+  const attrs = ['data-form', 'data-id', 'data-tab'];
   return attrs.map(function (a) {
     return String(form.getAttribute(a) || '');
   }).join('|');

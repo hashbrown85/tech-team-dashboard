@@ -126,10 +126,11 @@ export function statusChange(snap, project, newStatus, tid, meetingDate) {
  * @param {string} args.meetingDate
  * @returns {any} the document to write
  */
-export function newProject({ tab, personId, name, due, meetingDate }) {
+export function newProject({ tab, personId, support, name, due, meetingDate }) {
   return {
     tab: tab,
     personId: personId,
+    support: support || '',
     name: name,
     status: 'on',
     due: due || '',
@@ -160,7 +161,7 @@ export function newProject({ tab, personId, name, due, meetingDate }) {
  * @returns {{entry: any, project: any, startsOn: string}} two documents to write
  */
 export function newOpportunity({
-  entryId, projectId, tab, personId, text, why, meetingDate,
+  entryId, projectId, tab, personId, support, text, why, meetingDate,
   customer, winPct, winReason, focus
 }) {
   const startsOn = addDays(meetingDate, 7);
@@ -177,6 +178,7 @@ export function newOpportunity({
   const project = {
     tab: tab,
     personId: personId,
+    support: support || '',
     customer: customer || '',
     name: text,
     status: 'new',
@@ -201,6 +203,7 @@ export function newOpportunity({
       tab: tab,
       meeting: meetingDate,
       personId: personId,
+      support: support || '',
       kind: 'opp',
       text: text,
       why: why || '',

@@ -988,7 +988,7 @@ test('Neither stage leaks a value or unbalances a tag', () => {
 group('Raising an opportunity');
 
 function oppForm() {
-  return render({ view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp:p1' });
+  return render({ view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp' });
 }
 
 test('It asks for the project fields, in the order a project is tracked in', () => {

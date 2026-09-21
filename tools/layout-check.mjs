@@ -211,9 +211,16 @@ function fullBoard(from) {
         e.why = 'Why it went the way it did';
         if (i % 2) e.change = 'What we will do differently next time';
       }
-      if (e.kind === 'opp') e.why = 'The challenge we still have to clear';
+      if (e.kind === 'opp') {
+      e.why = 'The challenge we still have to clear';
+      // A supporting person, so the six-child opportunity row actually renders.
+      // Without it `.item` tops out at five and the new sub-line is never checked.
+      e.support = 'p2';
+    }
     });
   });
+
+  if (s.projects[0]) s.projects[0].support = 'p2';
 
   SEVERITIES.forEach(function (sev, i) {
     if (s.issues[i]) s.issues[i].sev = sev;
@@ -408,7 +415,7 @@ const GRID_CHILDREN = [
    */
   ['arow', [3, 4, 5], 'four-column grid: the rail three, project page four, already-owed five'],
   ['is-h', [3], 'declares four columns; emits three children — see above'],
-  ['item', [2, 3, 4, 5], 'auto minmax(0,1fr) auto, with conditional children']
+  ['item', [2, 3, 4, 5, 6], 'auto minmax(0,1fr) auto, with conditional children']
 ];
 
 
@@ -443,6 +450,7 @@ const PLACEMENT = [
       'it-t': 'text placed:2',
       why:    'placed:2',
       'it-c': 'placed:2',
+      'it-s': 'placed:2',
       /*
        * Both of these sit beside the title on row 1, and both are SAFE there: a
        * button's width is bounded by a label we wrote, not by anything a user can

@@ -610,8 +610,7 @@ test('A newly added project lands at the bottom of an ordered list', async () =>
   moveProject(a, before[1], -1);          // give the list real priorities
   await settle();
 
-  a.H.forms.project(fields([['name', 'Brand new thing'], ['due', '']]),
-    /** @type {any} */ ({ dataset: { pid: 'p1' } }));
+  a.H.forms.project(fields([['name', 'Brand new thing'], ['due', ''], ['who', 'p1']]));
   await settle();
 
   const after = orderOf(a, 't1', 'p1');
@@ -699,8 +698,57 @@ function multiFields(pairs) {
   };
 }
 
+group('An item always has an owner');
+
+/*
+ * The owner used to be implied by which person's block the "+" button sat in, so it
+ * could not be missing. Now it is a field, and a field can be empty - which would
+ * create a project or an entry belonging to nobody, showing up in no person's block
+ * and reachable only from the Projects list.
+ */
+test('A project with no owner is not created', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = a.snap().projects.length;
+  a.H.forms.project(fields([['name', 'Ownerless'], ['due', ''], ['who', '']]));
+  await settle();
+  eq(a.snap().projects.length, before, 'nothing was written');
+});
+
+test('A win with no owner is not created', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  const before = a.snap().entries.length;
+  a.H.forms.wl(fields([['kind', 'win'], ['text', 'Ownerless'], ['why', 'x'], ['who', '']]));
+  await settle();
+  eq(a.snap().entries.length, before, 'nothing was written');
+});
+
+test('An opportunity with no owner is not created', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const before = a.snap().projects.length;
+  a.H.forms.opp(multiFields([['text', 'Ownerless'], ['who', '']]));
+  await settle();
+  eq(a.snap().projects.length, before, 'no project, and so no entry either');
+});
+
+test('A supporting person is optional, and stored when given', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  a.H.forms.project(fields([['name', 'With a second'], ['due', ''],
+    ['who', 'p1'], ['support', 'p2']]));
+  await settle();
+  const made = a.snap().projects.find(function (p) { return p.name === 'With a second'; });
+  ok(made, 'it was created');
+  if (made) eq(made.support, 'p2', 'and remembers who is helping');
+
+  a.H.forms.project(fields([['name', 'On my own'], ['due', ''], ['who', 'p1']]));
+  await settle();
+  const solo = a.snap().projects.find(function (p) { return p.name === 'On my own'; });
+  ok(solo, 'and one without is fine');
+  if (solo) eq(solo.support, '', 'with a blank rather than undefined');
+});
+
 function raise(a, pairs) {
-  a.H.forms.opp(multiFields(pairs), /** @type {any} */ ({ dataset: { pid: 'p1' } }));
+  // `who` comes from the form now, not from whose block the button sat in.
+  a.H.forms.opp(multiFields(pairs.concat([['who', 'p1']])));
 }
 
 function newestProject(a) {

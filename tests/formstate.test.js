@@ -194,32 +194,35 @@ test('Nothing is put back into a form that has gone', () => {
   ok(true, 'did not throw');
 });
 
-test('One person typing never lands in another person\'s form', () => {
-  // Every person's block on a meeting screen renders a form with the SAME
-  // data-form. Matching on that alone would drop Alex's opportunity into Priya's.
-  const mine = form({ 'data-form': 'opp', 'data-pid': 'p1' }, [
-    el('input', { name: 'text', type: 'text', value: 'Mine' })
+test('Two forms of the same kind never swap what was typed into them', () => {
+  // A screen can render several forms with the SAME data-form - two notes being
+  // edited at once, for instance. Matching on data-form alone would drop what was
+  // typed into one of them into the other.
+  //
+  // This used to be shown with the per-person opportunity forms, one per block.
+  // Those are a single form now, so it uses the pair that does still occur.
+  const mine = form({ 'data-form': 'noteEdit', 'data-id': 'n1' }, [
+    el('textarea', { name: 'text', type: 'textarea', value: 'Mine' })
   ]);
-  const theirs = form({ 'data-form': 'opp', 'data-pid': 'p2' }, [
-    el('input', { name: 'text', type: 'text', value: '' })
+  const theirs = form({ 'data-form': 'noteEdit', 'data-id': 'n2' }, [
+    el('textarea', { name: 'text', type: 'textarea', value: '' })
   ]);
 
-  const typed = captureForms(rootOf([mine]), null);
+  const typed = captureForms(rootOf([mine, theirs]), null);
 
   const after = rootOf([
-    form({ 'data-form': 'opp', 'data-pid': 'p1' }, [
-      el('input', { name: 'text', type: 'text', value: '' })
+    form({ 'data-form': 'noteEdit', 'data-id': 'n1' }, [
+      el('textarea', { name: 'text', type: 'textarea', value: '' })
     ]),
-    form({ 'data-form': 'opp', 'data-pid': 'p2' }, [
-      el('input', { name: 'text', type: 'text', value: '' })
+    form({ 'data-form': 'noteEdit', 'data-id': 'n2' }, [
+      el('textarea', { name: 'text', type: 'textarea', value: '' })
     ])
   ]);
   restoreForms(after, typed);
 
-  const boxes = collect(after, ['input'], []);
-  eq(boxes[0].value, 'Mine', 'p1 gets their own back');
-  eq(boxes[1].value, '', 'and p2 gets nothing');
-  ok(theirs, 'fixture used');
+  const boxes = collect(after, ['textarea'], []);
+  eq(boxes[0].value, 'Mine', 'n1 gets its own back');
+  eq(boxes[1].value, '', 'and n2 gets nothing');
 });
 
 test('A form that changed shape is left alone rather than part-filled', () => {

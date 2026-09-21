@@ -928,10 +928,17 @@ export function createHandlers(app) {
       render();
     },
 
-    wl: function (fd, form) {
+    /*
+      * The owner now comes from the form rather than from which person's block the
+      * button sat in. `form` is still taken, because closeForm and the caret logic
+      * rely on the signature, and because an empty `who` must not silently create an
+      * orphan - it is required in the markup and checked again here.
+      */
+    wl: function (fd) {
       const t = currentTab();
       const text = String(fd.get('text') || '').trim();
-      if (!t || !text) return;
+      const who = String(fd.get('who') || '').trim();
+      if (!t || !text || !who) return;
       const kind = String(fd.get('kind') || 'win');
       const change = String(fd.get('change') || '').trim();
       // A loss has to say what changes. That is the one content rule the app enforces.
@@ -943,7 +950,7 @@ export function createHandlers(app) {
       store.set('entries', store.newId(), {
         tab: t.id,
         meeting: currentDate(t),
-        personId: form.dataset.pid,
+        personId: who,
         kind: kind,
         text: text,
         why: String(fd.get('why') || '').trim(),
@@ -952,10 +959,11 @@ export function createHandlers(app) {
       render();
     },
 
-    opp: function (fd, form) {
+    opp: function (fd) {
       const t = currentTab();
       const text = String(fd.get('text') || '').trim();
-      if (!t || !text) return;
+      const who = String(fd.get('who') || '').trim();
+      if (!t || !text || !who) return;
       ui.open = null;
 
       const entryId = store.newId();
@@ -965,7 +973,8 @@ export function createHandlers(app) {
         entryId: entryId,
         projectId: projectId,
         tab: t.id,
-        personId: form.dataset.pid,
+        personId: who,
+        support: String(fd.get('support') || '').trim(),
         text: text,
         why: String(fd.get('why') || '').trim(),
         customer: String(fd.get('customer') || '').trim(),
@@ -984,14 +993,16 @@ export function createHandlers(app) {
       render();
     },
 
-    project: function (fd, form) {
+    project: function (fd) {
       const t = currentTab();
       const name = String(fd.get('name') || '').trim();
-      if (!t || !name) return;
+      const who = String(fd.get('who') || '').trim();
+      if (!t || !name || !who) return;
       ui.open = null;
       store.set('projects', store.newId(), newProject({
         tab: t.id,
-        personId: form.dataset.pid,
+        personId: who,
+        support: String(fd.get('support') || '').trim(),
         name: name,
         due: String(fd.get('due') || ''),
         meetingDate: currentDate(t)

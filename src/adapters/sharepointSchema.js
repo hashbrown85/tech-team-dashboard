@@ -95,6 +95,9 @@ export const SCHEMA = {
       tab: { col: 'Tab', kind: 'text' },
       meeting: { col: 'MeetingDate', kind: 'date' },
       personId: { col: 'PersonId', kind: 'text' },
+      // A person ID, not a name. Actions store their support by NAME and that is
+      // the wart the owner-id migration exists to fix - no point adding a second.
+      support: { col: 'SupportId', kind: 'text' },
       kind: { col: 'Kind', kind: 'text' },
       text: { col: 'Body', kind: 'note' },
       why: { col: 'Why', kind: 'note' },
@@ -109,6 +112,7 @@ export const SCHEMA = {
     fields: {
       tab: { col: 'Tab', kind: 'text' },
       personId: { col: 'PersonId', kind: 'text' },
+      support: { col: 'SupportId', kind: 'text' },
       name: { col: 'ProjectName', kind: 'text' },
       // Visible to everyone who can see the project. The money stays restricted.
       customer: { col: 'Customer', kind: 'text' },

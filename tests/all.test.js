@@ -42,6 +42,7 @@ import './store.test.js';
 import './identity.test.js';
 import './views.test.js';
 import './flow.test.js';
+import './reporting.test.js';
 import './adapterContract.test.js';
 import './localAdapter.test.js';
 import './localBoard.test.js';

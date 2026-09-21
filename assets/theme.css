@@ -298,7 +298,7 @@ button.kpi:hover{background:var(--surface-2)}
    into column 1 or park them beside the title. Now column 1 only ever holds the
    chip and column 3 only the x - both nowrap, both tiny. */
 .item > .it-t{grid-column:2}
-.item > .why,.item > .it-c{grid-column:2}
+.item > .why,.item > .it-c,.item > .it-s{grid-column:2}
 .item > .x{grid-column:3;grid-row:1}
 /* The Reopen button on a resolved issue. Auto-placed it landed in column 3 beside
    the title - and a .btn is 34px tall with 14px of padding either side, so it is a
@@ -310,6 +310,7 @@ button.kpi:hover{background:var(--surface-2)}
 /* Not `.concl` - that is the Rate segment's two-column page grid further down,
    and this inline label was silently being rendered as one. */
 .it-c{color:var(--muted);font-size:12.5px;overflow-wrap:break-word}
+.it-s{color:var(--ink-2);font-size:12.5px;overflow-wrap:break-word}
 .why span{font:600 11px var(--f-label);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:6px}
 .why.own span{color:var(--brand)}
 .chip{font:700 11px/1 var(--f-label);text-transform:uppercase;letter-spacing:.07em;padding:5px 7px;border-radius:3px;white-space:nowrap;display:inline-block;margin-top:1px}

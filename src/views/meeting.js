@@ -206,22 +206,25 @@ function stageWins(snap, ui, env, tab, d, ents) {
         }).join('') + '</ul>'
       : '<p class="none">Nothing recorded yet.</p>';
 
-    const formKey = 'wl:' + id;
-    const form = ui.open === formKey
-      ? '<form class="add" data-form="wl" data-pid="' + esc(id) + '">' +
-        '<select class="fld" name="kind" data-edit="wlKind" aria-label="Win or loss">' +
-        '<option value="win">Win</option><option value="loss">Loss</option></select>' +
-        '<input class="fld" name="text" type="text" placeholder="What happened" required>' +
-        '<input class="fld" name="why" type="text" placeholder="Why did it happen" required>' +
-        '<input class="fld ifloss" name="change" type="text" placeholder="What we will do differently" hidden>' +
-        '<button class="btn" type="submit">Add</button>' +
-        '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
-      : '<button class="btn ghost sm add-btn edit-only" type="button" data-act="openForm" data-v="' + esc(formKey) + '"' + dis(env) + '>+ Win or loss</button>';
-
-    return personBlock(snap, id, list + form);
+    return personBlock(snap, id, list);
   }).join('');
 
-  return rows || '<p class="none">Add people to this meeting in Settings first.</p>';
+  // One form for the segment, at the bottom, the way Issues has always worked.
+  const addForm = ui.open === 'wl'
+    ? '<form class="add" data-form="wl">' +
+      '<select class="fld" name="kind" data-edit="wlKind" aria-label="Win or loss">' +
+      '<option value="win">Win</option><option value="loss">Loss</option></select>' +
+      '<input class="fld" name="text" type="text" placeholder="What happened" required>' +
+      '<input class="fld" name="why" type="text" placeholder="Why did it happen" required>' +
+      '<input class="fld ifloss" name="change" type="text" placeholder="What we will do differently" hidden>' +
+      whoFields(snap, tab, false) +
+      '<button class="btn" type="submit">Add</button>' +
+      '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
+    : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="wl"' +
+      dis(env) + '>+ Win or loss</button>';
+
+  return (rows || '<p class="none">Add people to this meeting in Settings first.</p>') +
+    addForm;
 }
 
 /* --- 1: New Opportunities, or the Tech Directors business review --- */
@@ -240,21 +243,23 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
             '<span class="chip">Opportunity</span>' +
             '<span class="it-t">' + esc(e.text) + '</span>' +
             (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
+            (supportLine(snap, e) ? '<span class="it-s">' + esc(supportLine(snap, e)) + '</span>' : '') +
             (pj && pj.start ? '<span class="it-c">Joins Current Projects ' + fmtDay(pj.start) + '</span>' : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'
       : '<p class="none">Nothing raised yet.</p>';
 
-    const formKey = 'opp:' + id;
-    const form = ui.open === formKey
-      ? opportunityForm(snap, env, tab, id)
-      : '<button class="btn ghost sm add-btn edit-only" type="button" data-act="openForm" data-v="' + esc(formKey) + '"' + dis(env) + '>+ Opportunity</button>';
-
-    return personBlock(snap, id, list + form);
+    return personBlock(snap, id, list);
   }).join('');
 
-  return rows || '<p class="none">Add people to this meeting in Settings first.</p>';
+  const addForm = ui.open === 'opp'
+    ? opportunityForm(snap, env, tab)
+    : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="opp"' +
+      dis(env) + '>+ Opportunity</button>';
+
+  return (rows || '<p class="none">Add people to this meeting in Settings first.</p>') +
+    addForm;
 }
 
 /** Every active project across every meeting — what the Tech Directors group reviews. */
@@ -294,19 +299,21 @@ function stageProjects(snap, ui, env, tab, d) {
         }).join('') + '</ul>'
       : '<p class="none">No current projects.</p>';
 
-    const formKey = 'pj:' + id;
-    const form = ui.open === formKey
-      ? '<form class="add" data-form="project" data-pid="' + esc(id) + '">' +
-        '<input class="fld" name="name" type="text" placeholder="Project name" required>' +
-        '<input class="fld" name="due" type="date" aria-label="Due date">' +
-        '<button class="btn" type="submit">Add</button>' +
-        '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
-      : '<button class="btn ghost sm add-btn edit-only" type="button" data-act="openForm" data-v="' + esc(formKey) + '"' + dis(env) + '>+ Project</button>';
-
-    return personBlock(snap, id, list + form);
+    return personBlock(snap, id, list);
   }).join('');
 
-  return rows || '<p class="none">Add people to this meeting in Settings first.</p>';
+  const addForm = ui.open === 'project'
+    ? '<form class="add" data-form="project">' +
+      '<input class="fld" name="name" type="text" placeholder="Project name" required>' +
+      '<input class="fld" name="due" type="date" aria-label="Due date">' +
+      whoFields(snap, tab, true) +
+      '<button class="btn" type="submit">Add</button>' +
+      '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
+    : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="project"' +
+      dis(env) + '>+ Project</button>';
+
+  return (rows || '<p class="none">Add people to this meeting in Settings first.</p>') +
+    addForm;
 }
 
 /**
@@ -344,8 +351,13 @@ function projectRow(snap, ui, env, p, idx, count) {
       }).join(' ') + ' \u00b7 '
     : '';
 
+  const helper = supportLine(snap, p);
+
   const meta =
     (p.customer ? '<b>' + esc(p.customer) + '</b> \u00b7 ' : '') + focus +
+    // Folded into the meta line rather than added as another grid child: `.proj`
+    // is a two-column grid whose child count the checker asserts.
+    (helper ? esc(helper) + ' \u00b7 ' : '') +
     (p.status === 'new'
       ? '<span class="chip new">New</span> ' +
         (p.fromOpp
@@ -734,7 +746,7 @@ function severityOptions(selected) {
 }
 
 /** Options of people, those in this meeting first. */
-function peopleOptions(snap, tab, selectedName) {
+function peopleOptions(snap, tab, selectedName, blankLabel) {
   const ids = attendeeIds(tab).filter(function (id) { return person(snap, id); });
   const inMeeting = ids.map(function (id) { return person(snap, id); });
   const rest = snap.people.filter(function (p) { return ids.indexOf(p.id) < 0; });
@@ -745,10 +757,45 @@ function peopleOptions(snap, tab, selectedName) {
       (selectedName && p.name === selectedName ? ' selected' : '') + '>' + esc(p.name) + '</option>';
   }
 
-  return (inMeeting.length ? '<optgroup label="In this meeting">' +
+  return (blankLabel ? '<option value="">' + blankLabel + '</option>' : '') +
+    (inMeeting.length ? '<optgroup label="In this meeting">' +
       inMeeting.map(function (p) { return opt(p, false); }).join('') + '</optgroup>' : '') +
     (rest.length ? '<optgroup label="Everyone else">' +
       rest.map(function (p) { return opt(p, false); }).join('') + '</optgroup>' : '');
+}
+
+/**
+ * Who it belongs to, and optionally who is helping.
+ *
+ * The three reporting segments used to have no owner control at all: each person's
+ * block carried its own "+" button and the owner was whoever's block you clicked in.
+ * That reads well going round the room and badly everywhere else - you cannot enter
+ * somebody else's item, and it is the only place in the app where an owner is
+ * implied by position rather than chosen. The Issues segment always asked; these
+ * now do too.
+ *
+ * Both are person IDS. Actions store an owner by name and that is the wart the
+ * owner-id migration exists to remove, so nothing new should copy it.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {boolean} withSupport - opportunities and projects have one; wins do not
+ */
+function whoFields(snap, tab, withSupport) {
+  return '<select class="fld" name="who" aria-label="Whose is this" required>' +
+    peopleOptions(snap, tab) + '</select>' +
+    (withSupport
+      ? '<select class="fld" name="support" aria-label="Supporting (optional)">' +
+        peopleOptions(snap, tab, '', 'Supporting\u2026 (optional)') + '</select>'
+      : '');
+}
+
+/** "with Sam Reed", or nothing. */
+function supportLine(snap, record) {
+  const id = record && record.support;
+  if (!id) return '';
+  const p = person(snap, id);
+  return p ? 'with ' + p.name : '';
 }
 
 /** Owner options, by NAME, because that is what an action stores. */
@@ -851,7 +898,7 @@ function confidenceTrend(p, bare) {
  * somebody raises an opportunity is "and I'll call them on Thursday", and there is
  * currently nowhere to put that until the project exists a week later.
  */
-function opportunityForm(snap, env, tab, personId) {
+function opportunityForm(snap, env, tab) {
   const focusOptions = (snap.settings.focus && snap.settings.focus.items) || [];
 
   const focusBoxes = focusOptions.length
@@ -862,7 +909,8 @@ function opportunityForm(snap, env, tab, personId) {
       }).join('') + '</fieldset>'
     : '';
 
-  return '<form class="add oppform" data-form="opp" data-pid="' + esc(personId) + '">' +
+  return '<form class="add oppform" data-form="opp">' +
+    whoFields(snap, tab, true) +
     '<input class="fld full" name="customer" type="text" placeholder="Customer">' +
     '<input class="fld full" name="text" type="text" ' +
     'placeholder="Project title - what the opportunity is" required>' +
