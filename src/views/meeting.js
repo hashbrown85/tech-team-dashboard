@@ -178,36 +178,44 @@ function renderStage(snap, ui, env, tab, step, d, ents, segs) {
  * `.pname`, which is the clickable PROJECT name button — so neither did anything
  * like what was intended.
  */
-function personBlock(snap, id, inner) {
-  const p = person(snap, id);
-  return '<div class="rp"><div class="rp-h">' +
-    '<b>' + esc(personName(snap, id)) + '</b>' +
-    '<span>' + esc((p && p.title) || '') + '</span></div>' +
-    '<div class="rp-b">' + inner + '</div></div>';
+/**
+ * Who owns this, and who is helping.
+ *
+ * These three segments used to be grouped into a block per person, with the name as
+ * a heading - so the owner was never written on the item itself. The blocks are gone
+ * and the lists are flat, so every row carries its own name or there is no way to
+ * tell whose it is.
+ *
+ * @param {Snapshot} snap
+ * @param {any} record - an entry or a project
+ * @returns {string} plain text, not markup
+ */
+function ownerLine(snap, record) {
+  const owner = personName(snap, record && record.personId);
+  const helper = record && record.support ? person(snap, record.support) : null;
+  return helper ? owner + ' \u00b7 with ' + helper.name : owner;
 }
 
 /* --- 0: Wins & Losses --- */
 
 function stageWins(snap, ui, env, tab, d, ents) {
-  const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
+  const mine = ents.filter(function (e) {
+    return e.kind === 'win' || e.kind === 'loss';
+  });
 
-  const rows = reporting.map(function (id) {
-    const mine = ents.filter(function (e) { return e.personId === id && (e.kind === 'win' || e.kind === 'loss'); });
-    const list = mine.length
+  const list = mine.length
       ? '<ul class="items">' + mine.map(function (e) {
           return '<li class="item ' + (e.kind === 'win' ? 'win' : 'loss') + '">' +
             '<span class="chip ' + (e.kind === 'win' ? 'good' : 'crit') + '">' +
             (e.kind === 'win' ? 'Win' : 'Loss') + '</span>' +
             '<span class="it-t">' + esc(e.text) + '</span>' +
+            '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
             (e.why ? '<span class="why">Why: ' + esc(e.why) + '</span>' : '') +
             (e.change ? '<span class="it-c">' + (e.kind === 'loss' ? 'Doing differently: ' : 'Keep doing: ') + esc(e.change) + '</span>' : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'
       : '<p class="none">Nothing recorded yet.</p>';
-
-    return personBlock(snap, id, list);
-  }).join('');
 
   // One form for the segment, at the bottom, the way Issues has always worked.
   const addForm = ui.open === 'wl'
@@ -223,8 +231,7 @@ function stageWins(snap, ui, env, tab, d, ents) {
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="wl"' +
       dis(env) + '>+ Win or loss</button>';
 
-  return (rows || '<p class="none">Add people to this meeting in Settings first.</p>') +
-    addForm;
+  return list + addForm;
 }
 
 /* --- 1: New Opportunities, or the Tech Directors business review --- */
@@ -232,34 +239,28 @@ function stageWins(snap, ui, env, tab, d, ents) {
 function stageOpportunities(snap, ui, env, tab, d, ents) {
   if (tab.id === TECHDIR_TAB_ID) return businessReview(snap, tab);
 
-  const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
+  const mine = ents.filter(function (e) { return e.kind === 'opp'; });
 
-  const rows = reporting.map(function (id) {
-    const mine = ents.filter(function (e) { return e.personId === id && e.kind === 'opp'; });
-    const list = mine.length
+  const list = mine.length
       ? '<ul class="items">' + mine.map(function (e) {
           const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
           return '<li class="item opp">' +
             '<span class="chip">Opportunity</span>' +
             '<span class="it-t">' + esc(e.text) + '</span>' +
+            '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
             (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
-            (supportLine(snap, e) ? '<span class="it-s">' + esc(supportLine(snap, e)) + '</span>' : '') +
             (pj && pj.start ? '<span class="it-c">Joins Current Projects ' + fmtDay(pj.start) + '</span>' : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'
       : '<p class="none">Nothing raised yet.</p>';
 
-    return personBlock(snap, id, list);
-  }).join('');
-
   const addForm = ui.open === 'opp'
     ? opportunityForm(snap, env, tab)
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="opp"' +
       dis(env) + '>+ Opportunity</button>';
 
-  return (rows || '<p class="none">Add people to this meeting in Settings first.</p>') +
-    addForm;
+  return list + addForm;
 }
 
 /** Every active project across every meeting — what the Tech Directors group reviews. */
@@ -284,23 +285,22 @@ function businessReview(snap, tab) {
 /* --- 2: Current Projects, or Tech-Projects --- */
 
 function stageProjects(snap, ui, env, tab, d) {
-  const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
+  /*
+   * One list for the meeting, not one per person. Priority is therefore meeting-wide
+   * too: the arrows move a project among ALL of them, where they used to move it
+   * only within its owner's block. That follows from the list being flat - there is
+   * no way to read a per-person order out of a single list - and it suits a segment
+   * that is worked down from the top.
+   */
+  const mine = snap.projects
+    .filter(function (p) { return projVisible(p, tab.id, d); })
+    .sort(byPriority);
 
-  const rows = reporting.map(function (id) {
-    // Each person orders their own projects, and the two orders are independent -
-    // the arrows on one person's block never move anybody else's work.
-    const mine = snap.projects
-      .filter(function (p) { return p.personId === id && projVisible(p, tab.id, d); })
-      .sort(byPriority);
-
-    const list = mine.length
+  const list = mine.length
       ? '<ul class="items">' + mine.map(function (p, i) {
           return projectRow(snap, ui, env, p, i, mine.length);
         }).join('') + '</ul>'
       : '<p class="none">No current projects.</p>';
-
-    return personBlock(snap, id, list);
-  }).join('');
 
   const addForm = ui.open === 'project'
     ? '<form class="add" data-form="project">' +
@@ -312,8 +312,7 @@ function stageProjects(snap, ui, env, tab, d) {
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="project"' +
       dis(env) + '>+ Project</button>';
 
-  return (rows || '<p class="none">Add people to this meeting in Settings first.</p>') +
-    addForm;
+  return list + addForm;
 }
 
 /**
@@ -351,13 +350,15 @@ function projectRow(snap, ui, env, p, idx, count) {
       }).join(' ') + ' \u00b7 '
     : '';
 
-  const helper = supportLine(snap, p);
-
+  /*
+   * The owner leads and is the bold thing on the row. The block heading that used to
+   * carry the name is gone, so this is the only place it appears - and it is what
+   * you scan for. Folded into the meta line rather than added as another child:
+   * `.proj` is a two-column grid whose child count the checker asserts.
+   */
   const meta =
-    (p.customer ? '<b>' + esc(p.customer) + '</b> \u00b7 ' : '') + focus +
-    // Folded into the meta line rather than added as another grid child: `.proj`
-    // is a two-column grid whose child count the checker asserts.
-    (helper ? esc(helper) + ' \u00b7 ' : '') +
+    '<b>' + esc(ownerLine(snap, p)) + '</b> \u00b7 ' +
+    (p.customer ? esc(p.customer) + ' \u00b7 ' : '') + focus +
     (p.status === 'new'
       ? '<span class="chip new">New</span> ' +
         (p.fromOpp
@@ -788,14 +789,6 @@ function whoFields(snap, tab, withSupport) {
       ? '<select class="fld" name="support" aria-label="Supporting (optional)">' +
         peopleOptions(snap, tab, '', 'Supporting\u2026 (optional)') + '</select>'
       : '');
-}
-
-/** "with Sam Reed", or nothing. */
-function supportLine(snap, record) {
-  const id = record && record.support;
-  if (!id) return '';
-  const p = person(snap, id);
-  return p ? 'with ' + p.name : '';
 }
 
 /** Owner options, by NAME, because that is what an action stores. */

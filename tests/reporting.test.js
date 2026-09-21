@@ -93,7 +93,9 @@ test('An opportunity row says who is helping', () => {
   }), { today: '2026-09-22', modes: MODES, identity: { kind: 'local', personId: 'p1' } });
 
   ok(html.indexOf('class="it-s"') >= 0, 'on its own line under the title');
-  ok(/class="it-s">with [A-Z]/.test(html), 'naming them, not showing an id');
+  // Owner first, then the helper - the line carries both now that the per-person
+  // heading is gone and the row is the only place either name appears.
+  ok(/class="it-s">[^<]+ · with [A-Z]/.test(html), 'naming them, not showing an id');
 });
 
 test('A project row says who is helping, without gaining a grid child', () => {

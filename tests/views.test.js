@@ -583,24 +583,43 @@ test('A selected project uses .sel, which the stylesheet defines', () => {
   notOk(/psel/.test(html), 'not psel, which is for something else');
 });
 
-group('Person rows use the record-row layout');
+group('The reporting segments are flat lists');
 
-test('Each person is an .rp row with a heading and a body', () => {
-  // Previously `.block`, which the stylesheet does not define, wrapping `.pname`,
-  // which is the clickable project-name button.
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
-
-  ok(/<div class="rp"><div class="rp-h">/.test(html), 'record row with a heading');
-  ok(/class="rp-b"/.test(html), 'and a body column');
-  notOk(/class="block"/.test(html), 'the undefined class is gone');
+/*
+ * These replace two tests that defended the per-person blocks - each segment used to
+ * group its items under a heading per person, and the heading was the only place the
+ * owner appeared. The blocks are gone at the owner's request, so what matters now is
+ * that every row carries its own name: without it there is no way to tell whose an
+ * item is.
+ */
+[
+  ['Wins & Losses', 0],
+  ['New Opportunities', 1],
+  ['Current Projects', 2]
+].forEach(function (seg) {
+  test(seg[0] + ' renders one list, not a block per person', () => {
+    const html = render({ view: 'tab', tab: 't1', steps: { t1: seg[1] } });
+    const stage = html.slice(html.indexOf('stg-body'));
+    notOk(/<div class="rp"><div class="rp-h">/.test(stage),
+      'no person heading in the segment');
+  });
 });
 
-test('The heading shows the name and their title', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
-  const head = /<div class="rp-h">([\s\S]*?)<\/div>/.exec(html)[1];
+test('Every win and loss says whose it is', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 },
+    dates: { t1: demoBoard().entries[0].meeting } });
+  const rows = html.match(/<li class="item (?:win|loss)">[\s\S]*?<\/li>/g) || [];
+  ok(rows.length > 0, 'there are wins and losses to show');
+  rows.forEach(function (r) {
+    ok(/<span class="it-s">[^<]+<\/span>/.test(r), 'the row names its owner');
+  });
+});
 
-  ok(head.indexOf('<b>') >= 0, 'name in bold');
-  ok(head.indexOf('<span>') >= 0, 'title beside it');
+test('A project row leads with the owner', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const row = /<span class="meta"><b>([^<]*)<\/b>/.exec(html);
+  ok(row, 'the meta line starts with a bold name');
+  if (row) ok(row[1].trim().length > 0 && row[1] !== 'Unassigned', 'a real one');
 });
 
 test('A project row keeps exactly the three cells its grid has', () => {
