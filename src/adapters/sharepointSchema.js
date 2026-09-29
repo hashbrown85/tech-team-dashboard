@@ -61,6 +61,9 @@ export const SCHEMA = {
     fields: {
       name: { col: 'PersonName', kind: 'text' },
       title: { col: 'JobTitle', kind: 'text' },
+      // No longer shown or collected: a person's area is now the area meetings they
+      // attend. Kept so values typed before that change survive a save - remove it
+      // before provisioning, or SharePoint gets a HomeArea column nothing uses.
       home: { col: 'HomeArea', kind: 'text' },
       // Matches the signed-in user to a person. See src/identity.js.
       upn: { col: 'Upn', kind: 'text' }

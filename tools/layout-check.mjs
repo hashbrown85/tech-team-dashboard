@@ -344,6 +344,20 @@ function matrix() {
     clashing.people[1].upn = 'SHARED@example.invalid';
   }
   out.push(['people, clashing emails', { view: 'people' }, clashing, LIVE, LOCAL_ID]);
+
+  /*
+   * Somebody in two area meetings, so the Area cell holds a list rather than one
+   * name - and the add form open, so its per-meeting role pickers render somewhere.
+   */
+  const multiArea = fullBoard();
+  const p0 = multiArea.people[0];
+  if (p0) {
+    multiArea.tabs.filter(function (t) { return t.kind === 'area'; }).forEach(function (t) {
+      if ((t.members || []).indexOf(p0.id) < 0) t.optional = (t.optional || []).concat([p0.id]);
+    });
+  }
+  out.push(['people, several areas, adding', { view: 'people', open: 'person' },
+    multiArea, LIVE, LOCAL_ID]);
   out.push(['local board, overview', { view: 'overview' }, full, LIVE, LOCAL_ID]);
   out.push(['local board, slim sidebar',
     { view: 'overview', sideSlim: true }, full, LIVE, LOCAL_ID]);

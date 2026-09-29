@@ -37,7 +37,7 @@ import {
   deleteNote, renameListValue
 } from './domain/cascade.js';
 import {
-  meetingDate, toggleRating, setNote, documentId, meetingSummary
+  meetingDate, toggleRating, setNote, documentId, meetingSummary, withRole, ROLE_LISTS
 } from './domain/meetings.js';
 
 /**
@@ -745,14 +745,7 @@ export function createHandlers(app) {
     tabRole: function (el) {
       const t = currentTab();
       if (!t) return;
-      const personId = el.dataset.id;
-      const role = el.dataset.v;
-      const patch = {};
-      ['members', 'support', 'optional'].forEach(function (r) {
-        const without = (t[r] || []).filter(function (x) { return x !== personId; });
-        patch[r] = r === role ? without.concat([personId]) : without;
-      });
-      store.update('tabs', t.id, patch).then(render);
+      store.update('tabs', t.id, withRole(t, el.dataset.id, el.dataset.v)).then(render);
       render();
     },
 
@@ -783,7 +776,6 @@ export function createHandlers(app) {
     },
 
     personTitle: function (el) { store.update('people', el.dataset.id, { title: el.value }); },
-    personHome: function (el) { store.update('people', el.dataset.id, { home: el.value }); },
 
     /*
      * Lower-cased on the way in, the same as the add form, because `identify`
@@ -1114,18 +1106,39 @@ export function createHandlers(app) {
       });
     },
 
+    /*
+     * A new person, and optionally a role in any number of meetings.
+     *
+     * Their area is not typed any more: it is whichever area meetings they attend,
+     * so putting them into meetings here IS setting their area. After this,
+     * attendance is changed in each meeting's settings - the one place that owns it.
+     *
+     * One batch: the person and every meeting they join. People and tabs are both in
+     * the `settings` permission group, so a refusal cannot mark an unrelated part of
+     * the board read-only (the mixed-batch trap described in store.js).
+     */
     person: function (fd) {
       const name = String(fd.get('name') || '').trim();
       if (!name) return;
       ui.open = null;
-      store.set('people', store.newId(), {
+
+      const id = store.newId();
+      /** @type {any[]} */
+      const ops = [{ op: 'set', col: 'people', id: id, data: {
         name: name,
         title: String(fd.get('title') || '').trim(),
-        home: String(fd.get('home') || '').trim(),
         // Lower-cased on the way in, because identify() matches case-insensitively
         // and storing it consistently means the match is obvious when read by eye.
-        upn: String(fd.get('upn') || '').trim().toLowerCase()
-      }).then(render);
+        upn: upnKey(fd.get('upn'))
+      } }];
+
+      store.snapshot().tabs.forEach(function (t) {
+        const role = String(fd.get('role:' + t.id) || 'none');
+        if (role === 'none' || ROLE_LISTS.indexOf(role) < 0) return;
+        ops.push({ op: 'update', col: 'tabs', id: t.id, patch: withRole(t, id, role) });
+      });
+
+      store.batch(ops).then(render);
       render();
     },
 

@@ -42,6 +42,7 @@ import './cascade.test.js';
 import './store.test.js';
 import './identity.test.js';
 import './roster.test.js';
+import './attendance.test.js';
 import './views.test.js';
 import './flow.test.js';
 import './reporting.test.js';

@@ -12,7 +12,8 @@
 
 import { esc } from '../lib/dom.js';
 import { rosterGaps } from '../identity.js';
-import { pickList } from '../domain/queries.js';
+import { pickList, areasFor } from '../domain/queries.js';
+import { ROLES } from '../domain/constants.js';
 import { byName } from '../lib/seq.js';
 import { pageHeader } from './shell.js';
 import { RENAMEABLE_LISTS, countUsing } from '../domain/projects.js';
@@ -55,8 +56,10 @@ export function renderPeople(snap, ui, env) {
       '" data-edit="personName" data-id="' + esc(p.id) + '" aria-label="Name"' + dis(env) + '></td>' +
       '<td><input class="fld" type="text" value="' + esc(p.title || '') +
       '" data-edit="personTitle" data-id="' + esc(p.id) + '" aria-label="Title"' + dis(env) + '></td>' +
-      '<td><input class="fld" type="text" value="' + esc(p.home || '') +
-      '" data-edit="personHome" data-id="' + esc(p.id) + '" aria-label="Area"' + dis(env) + '></td>' +
+      // Worked out, not typed: the area meetings they attend. It used to be a free
+      // text box that nothing read, so it could say one thing while their meetings
+      // said another. To move somebody, change who is in the meeting.
+      '<td>' + areaCell(snap, p.id) + '</td>' +
       // Editable here, not only on the add form. It went in once and could never be
       // seen or corrected - and it is the only thing that will match this person to
       // their Microsoft sign-in.
@@ -97,12 +100,12 @@ export function renderPeople(snap, ui, env) {
     ? '<form class="add" data-form="person">' +
       '<input class="fld" name="name" type="text" placeholder="Name" required>' +
       '<input class="fld" name="title" type="text" placeholder="Title">' +
-      '<input class="fld" name="home" type="text" placeholder="Area">' +
       // Optional, and worth the extra box: this is what matches somebody to their
       // Microsoft sign-in later. The column has always existed in the schema; the
       // form never collected it, so every person typed in now would have to be
       // hand-matched when SharePoint arrives.
       '<input class="fld" name="upn" type="email" placeholder="Work email (optional)">' +
+      firstMeetings(snap) +
       '<button class="btn" type="submit">Add</button>' +
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="person"' + dis(env) + '>+ Person</button>';
@@ -124,6 +127,57 @@ export function renderPeople(snap, ui, env) {
     managedList(snap, ui, env, 'resources', 'Potential resources', 'resource',
       'delResource') +
     boardFile(snap, env);
+}
+
+/**
+ * The Area cell: every area meeting this person attends, in any role.
+ *
+ * Internal meetings (Tech Directors, initiatives) are not areas and are left out;
+ * they still show, with the role, in the "In meetings" column beside it.
+ *
+ * @param {Snapshot} snap
+ * @param {string} personId
+ */
+function areaCell(snap, personId) {
+  const names = areasFor(snap, personId).map(function (t) { return esc(t.name); });
+  return names.length ? names.join(', ') : '<span class="muted sm">—</span>';
+}
+
+/**
+ * On the add form: which meetings the new person joins, and as what.
+ *
+ * Every meeting, defaulting to "Not in", grouped as the sidebar groups them. This is
+ * the one place outside a meeting's own settings that sets attendance, because a new
+ * starter has to land somewhere; after this, meeting settings owns it. Both go
+ * through withRole(), so they cannot disagree about what a role means.
+ *
+ * The number of selects follows the number of meetings. restoreForms abandons a
+ * form whose field count changed, so adding a meeting while this form is open clears
+ * it - rare enough to accept, and the alternative is restoring values into the
+ * wrong boxes.
+ *
+ * @param {Snapshot} snap
+ */
+function firstMeetings(snap) {
+  const areas = snap.tabs.filter(function (t) { return t.kind === 'area'; });
+  const other = snap.tabs.filter(function (t) { return t.kind !== 'area'; });
+
+  function pick(t) {
+    const opts = ROLES.map(function (r) {
+      return '<option value="' + r[0] + '"' + (r[0] === 'none' ? ' selected' : '') + '>' +
+        esc(r[1]) + '</option>';
+    }).join('');
+    return '<label class="fchk">' + esc(t.name) +
+      ' <select name="role:' + esc(t.id) + '" aria-label="Role in ' + esc(t.name) + '">' +
+      opts + '</select></label>';
+  }
+  function group(title, tabs) {
+    if (!tabs.length) return '';
+    return '<fieldset class="oppf"><legend class="lbl">' + title + '</legend>' +
+      tabs.map(pick).join('') + '</fieldset>';
+  }
+  return group('Area meetings — sets their area', areas) +
+    group('Internal &amp; initiatives', other);
 }
 
 /**

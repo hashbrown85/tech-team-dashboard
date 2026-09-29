@@ -91,6 +91,33 @@ export function meetingDate(tab, today, override) {
   return override || nextOn(today, Number(tab.weekday));
 }
 
+/** The three attendance lists, in the order they are shown. */
+export const ROLE_LISTS = ['members', 'support', 'optional'];
+
+/**
+ * The patch that puts a person in one role on a meeting, and in no other.
+ *
+ * Strips them from all three lists, then adds them to the one asked for - or to
+ * none, for 'none'. The lists are meant to be exclusive and nothing else enforces
+ * it, so this is the one place a role is set: meeting settings uses it, and so does
+ * the add-person form. Two copies of this rule is how somebody ends up Reporting
+ * and Optional at once.
+ *
+ * @param {any} tab
+ * @param {string} personId
+ * @param {string} role - 'members' | 'support' | 'optional' | 'none'
+ * @returns {{members: string[], support: string[], optional: string[]}}
+ */
+export function withRole(tab, personId, role) {
+  /** @type {any} */
+  const patch = {};
+  ROLE_LISTS.forEach(function (r) {
+    const without = ((tab && tab[r]) || []).filter(function (x) { return x !== personId; });
+    patch[r] = r === role ? without.concat([personId]) : without;
+  });
+  return patch;
+}
+
 /**
  * The meeting after `date` - what "push it to next time" means.
  *
