@@ -34,9 +34,12 @@ export function demoBoard(from) {
 
   return {
     people: [
-      { id: 'p1', name: 'Alex Morgan', title: 'Area Technical Lead', home: 'Northern' },
-      { id: 'p2', name: 'Priya Raman', title: 'Applications Chemist', home: 'Northern' },
-      { id: 'p3', name: 'Sam Okafor', title: 'Process Engineer', home: 'Southern' },
+      { id: 'p1', name: 'Alex Morgan', title: 'Area Technical Lead', home: 'Northern',
+        upn: 'alex.morgan@example.invalid' },
+      { id: 'p2', name: 'Priya Raman', title: 'Applications Chemist', home: 'Northern',
+        upn: 'priya.raman@example.invalid' },
+      { id: 'p3', name: 'Sam Okafor', title: 'Process Engineer', home: 'Southern',
+        upn: 'sam.okafor@example.invalid' },
       { id: 'p4', name: 'Dana Whitfield', title: 'Technical Director', home: 'National' },
       { id: 'p5', name: 'Ravi Chandra', title: 'Lab Technician', home: 'Southern' }
     ],

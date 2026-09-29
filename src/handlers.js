@@ -20,6 +20,7 @@ import { toast, flash, focusFirst } from './lib/dom.js';
 import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import { looksLikeSnapshot } from './adapters/localAdapter.js';
+import { upnKey } from './identity.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
   recordConfidence, SORT_COLUMNS, firstDirFor, canonicalValue
@@ -746,7 +747,17 @@ export function createHandlers(app) {
     },
 
     personTitle: function (el) { store.update('people', el.dataset.id, { title: el.value }); },
-    personHome: function (el) { store.update('people', el.dataset.id, { home: el.value }); }
+    personHome: function (el) { store.update('people', el.dataset.id, { home: el.value }); },
+
+    /*
+     * Lower-cased on the way in, the same as the add form, because `identify`
+     * matches on the lower-cased value. Storing it consistently means the match is
+     * obvious when somebody reads the roster rather than depending on how it was
+     * typed.
+     */
+    personUpn: function (el) {
+      store.update('people', el.dataset.id, { upn: upnKey(el.value) });
+    }
   };
 
   /**

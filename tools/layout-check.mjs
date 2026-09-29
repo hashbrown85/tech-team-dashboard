@@ -332,6 +332,18 @@ function matrix() {
 
   const LOCAL_ID = { kind: 'local', displayName: 'Alex Morgan', person: null, personId: 'p1' };
   out.push(['local board, people', { view: 'people' }, full, LIVE, LOCAL_ID]);
+
+  /*
+   * A roster with two people sharing a work email. The "missing" half of the note
+   * renders from the demo board already, but the duplicate half does not - and a
+   * branch no state reaches is a branch check (b) cannot see.
+   */
+  const clashing = fullBoard();
+  if (clashing.people[0] && clashing.people[1]) {
+    clashing.people[0].upn = 'shared@example.invalid';
+    clashing.people[1].upn = 'SHARED@example.invalid';
+  }
+  out.push(['people, clashing emails', { view: 'people' }, clashing, LIVE, LOCAL_ID]);
   out.push(['local board, overview', { view: 'overview' }, full, LIVE, LOCAL_ID]);
   out.push(['local board, slim sidebar',
     { view: 'overview', sideSlim: true }, full, LIVE, LOCAL_ID]);

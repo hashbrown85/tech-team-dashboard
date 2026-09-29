@@ -43,6 +43,55 @@ import { byName } from './lib/seq.js';
  *   from the demo, which is why it is a parameter rather than a lookup.
  * @returns {Identity}
  */
+/**
+ * The key a work email is matched on.
+ *
+ * One function, used by both the matcher and the warning below it. If the warning
+ * compared differently - case-sensitively, say - it would cheerfully report a clean
+ * roster while `identify` failed to match, which is worse than no warning at all.
+ *
+ * @param {string} [upn]
+ * @returns {string}
+ */
+export function upnKey(upn) {
+  return String(upn || '').trim().toLowerCase();
+}
+
+/**
+ * What would stop somebody being recognised when they sign in.
+ *
+ * The work email is the ONLY link between a roster entry and a Microsoft account, so
+ * a person without one cannot act as themselves: no point of view, nothing assignable
+ * to them by id, and no editing their own notes.
+ *
+ * Duplicates are the quieter problem. `identify` takes the FIRST match, so if two
+ * people share an address one of them signs in and silently becomes the other -
+ * including for note authorship. Nothing about that is visible at the time.
+ *
+ * @param {import('./domain/queries.js').Snapshot} snap
+ * @returns {{missing: any[], duplicates: {key: string, people: any[]}[], total: number}}
+ */
+export function rosterGaps(snap) {
+  const people = (snap && snap.people) || [];
+  const missing = people.filter(function (p) { return !upnKey(p.upn); });
+
+  /** @type {Record<string, any[]>} */
+  const byKey = {};
+  people.forEach(function (p) {
+    const k = upnKey(p.upn);
+    if (!k) return;
+    if (!byKey[k]) byKey[k] = [];
+    byKey[k].push(p);
+  });
+
+  const duplicates = Object.keys(byKey)
+    .filter(function (k) { return byKey[k].length > 1; })
+    .sort()
+    .map(function (k) { return { key: k, people: byKey[k] }; });
+
+  return { missing: missing, duplicates: duplicates, total: people.length };
+}
+
 export function identify(snap, account, local) {
   if (!account || !account.username) {
     /*
@@ -74,9 +123,9 @@ export function identify(snap, account, local) {
     };
   }
 
-  const upn = String(account.username).trim().toLowerCase();
+  const upn = upnKey(account.username);
   const match = snap.people.find(function (p) {
-    return p.upn && String(p.upn).trim().toLowerCase() === upn;
+    return upnKey(p.upn) === upn && upnKey(p.upn) !== '';
   }) || null;
 
   if (match) {

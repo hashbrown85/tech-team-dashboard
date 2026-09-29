@@ -11,6 +11,7 @@
  */
 
 import { esc } from '../lib/dom.js';
+import { rosterGaps } from '../identity.js';
 import { byName } from '../lib/seq.js';
 import { pageHeader } from './shell.js';
 import { RENAMEABLE_LISTS, countUsing } from '../domain/projects.js';
@@ -55,15 +56,40 @@ export function renderPeople(snap, ui, env) {
       '" data-edit="personTitle" data-id="' + esc(p.id) + '" aria-label="Title"' + dis(env) + '></td>' +
       '<td><input class="fld" type="text" value="' + esc(p.home || '') +
       '" data-edit="personHome" data-id="' + esc(p.id) + '" aria-label="Area"' + dis(env) + '></td>' +
+      // Editable here, not only on the add form. It went in once and could never be
+      // seen or corrected - and it is the only thing that will match this person to
+      // their Microsoft sign-in.
+      '<td><input class="fld" type="email" value="' + esc(p.upn || '') +
+      '" data-edit="personUpn" data-id="' + esc(p.id) +
+      '" placeholder="none" aria-label="Work email"' + dis(env) + '></td>' +
       '<td><div class="mchips">' + memberships + '</div></td>' +
       '<td>' + (readonly ? '' : '<button class="x" type="button" data-act="delPerson" data-id="' + esc(p.id) +
         '" aria-label="Remove ' + esc(p.name) + '">×</button>') + '</td></tr>';
   }).join('');
 
+  /*
+   * What would stop somebody being recognised when they sign in. Only rendered when
+   * there is something to say - a clean roster gets no line at all, so the note
+   * means "look at this" rather than becoming furniture.
+   */
+  const gaps = rosterGaps(snap);
+  const notes = [];
+  if (gaps.missing.length) {
+    notes.push(gaps.missing.length + ' of ' + gaps.total +
+      ' have no work email, so they will not match a sign-in later.');
+  }
+  gaps.duplicates.forEach(function (d) {
+    notes.push(d.people.length + ' people share <b>' + esc(d.key) +
+      '</b> — only the first would be recognised.');
+  });
+  const rosterNote = notes.length
+    ? '<p class="scope-note">' + notes.join(' ') + '</p>'
+    : '';
+
   const table = '<div class="tbl-scroll"><table class="t">' +
-    '<thead><tr><th>Name</th><th>Title</th><th>Area</th><th>In meetings</th>' +
-    '<th></th></tr></thead>' +
-    '<tbody>' + (rows || '<tr><td colspan="5"><p class="none">Nobody on the roster yet.</p></td></tr>') +
+    '<thead><tr><th>Name</th><th>Title</th><th>Area</th><th>Work email</th>' +
+    '<th>In meetings</th><th></th></tr></thead>' +
+    '<tbody>' + (rows || '<tr><td colspan="6"><p class="none">Nobody on the roster yet.</p></td></tr>') +
     '</tbody></table></div>';
 
   const addForm = ui.open === 'person'
@@ -86,7 +112,7 @@ export function renderPeople(snap, ui, env) {
    * adds it here - so they are the ones that need looking at.
    */
   return pageHeader('People &amp; settings', 'The roster, and the lists projects pick from') +
-    table + addForm +
+    rosterNote + table + addForm +
     managedList(snap, ui, env, 'field', 'Fields', 'fieldVal', 'delFieldVal',
       'Grows on its own when somebody types a new one on a project.') +
     managedList(snap, ui, env, 'projectType', 'Project types', 'typeVal',

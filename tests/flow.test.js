@@ -698,6 +698,28 @@ function multiFields(pairs) {
   };
 }
 
+group('Correcting a work email');
+
+test('Editing it in place stores it lower-cased', async () => {
+  // identify() matches on the lower-cased value, so storing it any other way means
+  // the roster reads one way and matches another.
+  const a = await app();
+  a.H.edits.personUpn(/** @type {any} */ ({
+    dataset: { id: 'p1' }, value: '  Alex.Morgan@EXAMPLE.invalid '
+  }));
+  await settle();
+  const p = a.snap().people.find(function (x) { return x.id === 'p1'; });
+  eq(p.upn, 'alex.morgan@example.invalid', 'trimmed and folded');
+});
+
+test('Clearing it leaves a blank rather than undefined', async () => {
+  const a = await app();
+  a.H.edits.personUpn(/** @type {any} */ ({ dataset: { id: 'p1' }, value: '' }));
+  await settle();
+  const p = a.snap().people.find(function (x) { return x.id === 'p1'; });
+  eq(p.upn, '', 'a blank, which reads as "none" rather than as the word undefined');
+});
+
 group('An item always has an owner');
 
 /*
