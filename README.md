@@ -53,7 +53,7 @@ a screen is still wrong, suspect the matrix before the check.
 
 Browser storage belongs to an exact address: what is saved at `localhost:8010` is
 invisible at `:8011` or at `127.0.0.1`. **Always serve it the same way.** The
-**Download a copy** button on People & settings produces the portable form — the
+**Download a copy** button on Board settings produces the portable form — the
 backup, the way to move machines, and the file that will be loaded into SharePoint.
 
 See [`docs/REHEARSAL.md`](docs/REHEARSAL.md) before running the board in a real

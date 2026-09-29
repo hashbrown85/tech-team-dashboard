@@ -69,6 +69,7 @@ const SCREENS = [
   ['the timeline', { view: 'timeline' }],
   ['the timeline by person', { view: 'timeline', tlGroup: 'person' }],
   ['the roster', { view: 'people' }],
+  ['board settings', { view: 'config' }],
   ['project details, when visible', { view: 'tab', tab: 't1', steps: { t1: 2 }, iam: 'p1' }],
   ['the summary preview', { view: 'tab', tab: 't1', steps: { t1: 4 }, sumShow: true }]
 ];

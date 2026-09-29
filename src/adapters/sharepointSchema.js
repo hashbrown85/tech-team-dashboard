@@ -65,6 +65,8 @@ export const SCHEMA = {
       // attend. Kept so values typed before that change survive a save - remove it
       // before provisioning, or SharePoint gets a HomeArea column nothing uses.
       home: { col: 'HomeArea', kind: 'text' },
+      // Who is SHOWN the settings controls. The lock is the site's admin group.
+      admin: { col: 'IsAdmin', kind: 'flag' },
       // Matches the signed-in user to a person. See src/identity.js.
       upn: { col: 'Upn', kind: 'text' }
       // detailAreas is gone: who may see project value is now decided by the

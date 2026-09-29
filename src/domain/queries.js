@@ -26,6 +26,9 @@
  * @property {any[]} actions
  * @property {Record<string, any>} meetings
  * @property {Record<string, any>} settings
+ * @property {string[]} [denied] - collections the store refused to send
+ * @property {string[]} [scopedTo] - when set, the only meetings on this board
+ *   (see domain/scope.js); absent means every meeting
  */
 
 import { byId, alphabetically } from '../lib/seq.js';
@@ -91,7 +94,7 @@ export function withheldLabels(snap) {
  * @param {Snapshot} snap
  */
 export function boardIsComplete(snap) {
-  return withheld(snap).length === 0;
+  return withheld(snap).length === 0 && !snap.scopedTo;
 }
 
 /**

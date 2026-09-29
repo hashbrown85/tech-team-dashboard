@@ -214,6 +214,8 @@ const ICONS = {
   projects: '<path d="M4 15.2V8.4M9 15.2V3.6M14 15.2v-4.4"/>',
   timeline: '<path d="M2.5 4.5h7M5.5 9h10M2.5 13.5h6"/>',
   people: '<circle cx="9" cy="6" r="3"/><path d="M3.4 15.4c0-3 2.5-4.9 5.6-4.9s5.6 1.9 5.6 4.9"/>',
+  config: '<circle cx="9" cy="9" r="2.4"/>' +
+    '<path d="M9 2.5v2M9 13.5v2M2.5 9h2M13.5 9h2M4.4 4.4l1.4 1.4M12.2 12.2l1.4 1.4M4.4 13.6l1.4-1.4M12.2 5.8l1.4-1.4"/>',
   hide: '<path d="M11.5 4L6.5 9l5 5"/>',
   show: '<path d="M6.5 4l5 5-5 5"/>'
 };
@@ -315,7 +317,7 @@ export function renderSide(snap, ui, env) {
   }
 
   /*
-   * `label` is already HTML (People & settings carries an entity), so `title` takes
+   * `label` may be HTML (an entity, say), so `title` takes
    * the plain text separately rather than being derived from it.
    */
   function item(view, label, title, extra) {
@@ -374,7 +376,8 @@ export function renderSide(snap, ui, env) {
         return ACTIVE_STATUSES.indexOf(p.status) >= 0;
       }).length + '</span>') +
     item('timeline', 'Timeline', 'Timeline') +
-    item('people', 'People &amp; settings', 'People & settings') +
+    item('people', 'People', 'People') +
+    item('config', 'Board settings', 'Board settings') +
     '</nav>' +
     '<div class="side-foot">' + whoAmI(env) + mePicker(snap, env, ui) +
     '<label class="lbl" for="f-person">Show items for</label>' +
@@ -396,7 +399,8 @@ export function renderSide(snap, ui, env) {
     // Was absent, so below 860px the Projects list could not be reached at all.
     opt('projects', 'Projects', ui.view === 'projects') +
     opt('timeline', 'Timeline', ui.view === 'timeline') +
-    opt('people', 'People &amp; settings', ui.view === 'people') +
+    opt('people', 'People', ui.view === 'people') +
+    opt('config', 'Board settings', ui.view === 'config') +
     '</optgroup>';
 
   const mnav = '<div class="mnav"><span class="shield" role="img" aria-label="Perfex"></span>' +

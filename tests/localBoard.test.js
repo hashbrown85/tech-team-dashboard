@@ -117,19 +117,19 @@ group('Getting the board out of the browser');
 test('A local board offers to download a copy', () => {
   // Browser storage is one address on one machine and a cleared cache away from
   // gone. The downloaded file is the only form that survives that.
-  const html = render(asLocal('p1'), { view: 'people' });
+  const html = render(asLocal('p1'), { view: 'config' });
   ok(html.indexOf('data-act="downloadBoard"') >= 0);
   ok(html.indexOf('data-act="loadBoard"') >= 0, 'and to load one back');
 });
 
 test('It says what is on the board, so a load can be judged', () => {
-  const html = render(asLocal('p1'), { view: 'people' });
+  const html = render(asLocal('p1'), { view: 'config' });
   ok(html.indexOf(snap.projects.length + ' projects') >= 0, 'the counts are shown');
 });
 
 test('The demo board does not offer to save itself', () => {
   // There is nothing worth keeping, and offering would suggest otherwise.
-  const html = render(identify(snap, null, null), { view: 'people' });
+  const html = render(identify(snap, null, null), { view: 'config' });
   notOk(html.indexOf('data-act="downloadBoard"') >= 0);
 });
 
@@ -139,7 +139,7 @@ test('There is no file input in the page for a redraw to destroy', () => {
   // dialog stays open longer than that, and the redraw detached the input mid-pick.
   // The choice then fired on an element nothing was listening to: no dialog, no
   // message, nothing - and the user reasonably concluded loading did not work.
-  const html = render(asLocal('p1'), { view: 'people' });
+  const html = render(asLocal('p1'), { view: 'config' });
   notOk(/<input[^>]*type="file"/.test(html), 'no file input is rendered');
   ok(/<button[^>]*data-act="loadBoard"/.test(html), 'a real button instead');
 });

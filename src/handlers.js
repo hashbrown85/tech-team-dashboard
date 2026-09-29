@@ -21,6 +21,7 @@ import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import { looksLikeSnapshot } from './adapters/localAdapter.js';
 import { upnKey } from './identity.js';
+import { adminsOf, viewerIsAdmin } from './domain/scope.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
   recordConfidence, SORT_COLUMNS, firstDirFor, canonicalValue
@@ -785,6 +786,44 @@ export function createHandlers(app) {
      */
     personUpn: function (el) {
       store.update('people', el.dataset.id, { upn: upnKey(el.value) });
+    },
+
+    /*
+     * The admin switch. Two guards, both about not locking the board by accident:
+     *
+     * - The last admin cannot be switched off. With none, isAdmin() treats EVERYBODY
+     *   as one - right for a board being set up, wrong for one that has been.
+     * - A change that would leave you without admin asks first. That includes
+     *   naming the first admin when it is somebody else: from then on only admins
+     *   get the controls, and you are not one.
+     *
+     * This decides who is SHOWN the controls. On SharePoint the lock is the site's
+     * admin group - see domain/scope.js.
+     */
+    personAdmin: function (el) {
+      const snap = store.snapshot();
+      const id = el.dataset.id;
+      const on = !!el.checked;
+      const after = Object.assign({}, snap, {
+        people: snap.people.map(function (p) {
+          return p.id === id ? Object.assign({}, p, { admin: on }) : p;
+        })
+      });
+
+      if (!on && adminsOf(snap).length && !adminsOf(after).length) {
+        el.checked = true;
+        toast('There has to be at least one admin. Make somebody else one first.');
+        return;
+      }
+      const who = app.identity ? app.identity() : null;
+      if (viewerIsAdmin(snap, who) && !viewerIsAdmin(after, who) &&
+        !ask('After this you will not be an admin, so you will no longer be able to ' +
+          'change the roster or the board settings. Carry on?')) {
+        el.checked = !on;
+        return;
+      }
+      store.update('people', id, { admin: on }).then(render);
+      render();
     }
   };
 
@@ -1180,7 +1219,7 @@ export function createHandlers(app) {
    * Append a value to one of the settings lists.
    *
    * De-duped by canonicalValue, NOT by an exact string match. An exact match would
-   * let the Add form on People & settings create "Corrosion" and "corrosion" as two
+   * let the Add form on Board settings create "Corrosion" and "corrosion" as two
    * entries - which is the very fragmentation this whole design exists to prevent,
    * arriving through the one door that does not go via a project.
    *

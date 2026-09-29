@@ -43,14 +43,16 @@ Each step needs the one before it, so do them in order.
 
 ### 1. The people
 
-**People & settings → + Person**, once for everyone in the meeting.
+**People → + Person**, once for everyone in the meeting. The form lists every
+meeting with a role picker; set their role in any that already exist.
 
 Fill in the **work email** even though it says optional. It is what matches somebody
 to their Microsoft sign-in later; skipping it means hand-matching everyone at
-cutover.
+cutover. It stays editable in the table afterwards.
 
-> ⚠️ You cannot see the email again after you type it — it is not in the table. Get
-> it right first time, or you will be editing the downloaded file later.
+Then tick **Admin** for yourself. Until somebody is an admin, everybody is treated as
+one and sees everything; once somebody is, only admins get the roster and settings
+controls, and everybody else sees only the meetings they attend.
 
 ### 2. Say who you are
 
@@ -96,7 +98,7 @@ the past, so you can see the overdue handling in Part 2.
 
 ### 6. Save
 
-**People & settings → Download a copy.** Check it lands in your Downloads. You have
+**Board settings → Download a copy.** Check it lands in your Downloads. You have
 just spent half an hour; do not leave it in one browser.
 
 ---

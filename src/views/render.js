@@ -15,6 +15,8 @@ import { renderMeeting } from './meeting.js';
 import { renderActions } from './actions.js';
 import { renderTimeline } from './timeline.js';
 import { renderPeople } from './people.js';
+import { renderConfig } from './config.js';
+import { scopeBoard, viewerIsAdmin } from '../domain/scope.js';
 import { renderMeetingSettings } from './settings.js';
 import { renderProject } from './project.js';
 import { renderProjects } from './projects.js';
@@ -35,7 +37,7 @@ import { byId } from '../lib/seq.js';
  * @param {{content: string, settings: string, details: string}} modes
  */
 export function areaReadonly(ui, modes) {
-  if (ui.view === 'people') return modes.settings !== 'live';
+  if (ui.view === 'people' || ui.view === 'config') return modes.settings !== 'live';
   if (ui.view === 'tab' && ui.settings) return modes.settings !== 'live';
   return modes.content !== 'live';
 }
@@ -51,6 +53,27 @@ export function areaReadonly(ui, modes) {
  * @returns {string}
  */
 export function renderApp(snap, ui, env) {
+  /*
+   * Who is looking decides two things before any screen is drawn.
+   *
+   * Which meetings: the board is trimmed to theirs, so every screen - the sidebar,
+   * the totals, the registers - draws from the same smaller board and none of them
+   * needs to know. That is also exactly what the store will send once it can
+   * enforce areas, so nothing here changes then. See domain/scope.js for why this
+   * is a view and not yet protection.
+   *
+   * Whether they are an admin: if not, the settings group is drawn read-only. The
+   * store's own answer is kept too, because an admin whose saves SharePoint refuses
+   * needs telling why - the People page does that.
+   */
+  const who = env.identity;
+  const admin = viewerIsAdmin(snap, who);
+  const board = scopeBoard(snap, who);
+  const modes = admin ? env.modes : Object.assign({}, env.modes, { settings: 'readonly' });
+  const settingsRefused = !!env.modes && env.modes.settings === 'readonly';
+  snap = board;
+  env = Object.assign({}, env, { modes: modes, admin: admin, settingsRefused: settingsRefused });
+
   /*
    * `details` is the third permission group and it is NOT a screen: the annual
    * value sits on a project page among fields anybody may edit. So it cannot be
@@ -87,6 +110,8 @@ export function renderApp(snap, ui, env) {
     main = renderTimeline(snap, ui, full);
   } else if (ui.view === 'people') {
     main = renderPeople(snap, ui, full);
+  } else if (ui.view === 'config') {
+    main = renderConfig(snap, ui, full);
   } else {
     main = renderOverview(snap, ui, full);
   }

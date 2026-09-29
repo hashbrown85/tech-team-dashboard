@@ -266,8 +266,9 @@ function matrix() {
     ['register, follow-up', { view: 'actions', follow: true }],
     ['timeline', { view: 'timeline' }],
     ['timeline by person', { view: 'timeline', tlGroup: 'person' }],
-    ['people & settings', { view: 'people' }],
-    ['people, renaming', { view: 'people', open: 'listval:field:Coatings' }],
+    ['people', { view: 'people' }],
+    ['board settings', { view: 'config' }],
+    ['board settings, renaming', { view: 'config', open: 'listval:field:Coatings' }],
     ['project page', { view: 'project', project: 'pr1' }],
     ['project page, note editor', { view: 'project', project: 'pr2', open: 'note:n1' }],
     ['projects list', { view: 'projects' }],
@@ -331,7 +332,25 @@ function matrix() {
   });
 
   const LOCAL_ID = { kind: 'local', displayName: 'Alex Morgan', person: null, personId: 'p1' };
-  out.push(['local board, people', { view: 'people' }, full, LIVE, LOCAL_ID]);
+  out.push(['local board, board settings', { view: 'config' }, full, LIVE, LOCAL_ID]);
+
+  /*
+   * A board with an admin, seen by somebody scoped to one area and not an admin.
+   * The Overview's "only the meetings you attend" note, the read-only People page
+   * with its "only admins can" note, and the ticked Admin box all render nowhere
+   * else - the demo board has no admin, so everybody there sees everything.
+   */
+  const scoped = fullBoard();
+  const admin = scoped.people.filter(function (p) { return p.id === 'p4'; })[0];
+  if (admin) admin.admin = true;
+  const PRIYA = { kind: 'signed-in', displayName: 'Priya Raman', personId: 'p2' };
+  out.push(['scoped: overview', { view: 'overview' }, scoped, LIVE, PRIYA]);
+  out.push(['scoped: people, not an admin', { view: 'people' }, scoped, LIVE, PRIYA]);
+  out.push(['scoped: in no meeting', { view: 'overview' }, scoped, LIVE,
+    { kind: 'unknown-user', displayName: 'Someone Else', person: null, personId: null }]);
+  out.push(['admin refused by SharePoint', { view: 'people' }, scoped,
+    { content: 'live', settings: 'readonly', details: 'live' },
+    { kind: 'signed-in', displayName: 'Dana Whitfield', personId: 'p4' }]);
 
   /*
    * A roster with two people sharing a work email. The "missing" half of the note
@@ -386,7 +405,8 @@ function matrix() {
     // a 62-character customer. bhz2 is long but breakable, so on its own it leaves
     // check (f) with nothing to find on this screen.
     ['big: project page, hazards', { view: 'project', project: 'bhz1' }],
-    ['big: people & settings', { view: 'people' }],
+    ['big: people', { view: 'people' }],
+    ['big: board settings', { view: 'config' }],
     ['big: empty meeting', { view: 'tab', tab: 'techdir', steps: { techdir: 2 } }]
   ].forEach(function (s) {
     out.push([s[0], s[1], big, LIVE, { personId: 'bp0', displayName: 'Kappa Feldspar' }]);

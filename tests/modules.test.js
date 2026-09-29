@@ -33,6 +33,7 @@ const MODULES = [
   // domain
   '../src/domain/constants.js',
   '../src/domain/queries.js',
+  '../src/domain/scope.js',
   '../src/domain/dueness.js',
   '../src/domain/projects.js',
   '../src/domain/issues.js',
@@ -55,6 +56,7 @@ const MODULES = [
   '../src/views/actions.js',
   '../src/views/timeline.js',
   '../src/views/people.js',
+  '../src/views/config.js',
   '../src/views/settings.js',
   // Added late and easy to forget - which is exactly what this list is for. A
   // module nothing imports can carry a syntax error and the suite stays green.

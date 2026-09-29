@@ -32,7 +32,7 @@ const base = loadUi();
 function page(opts) {
   const o = opts || {};
   const snap = o.snap || demoBoard();
-  return renderApp(snap, Object.assign({}, base, { view: 'people' }, o.ui || {}), {
+  return renderApp(snap, Object.assign({}, base, { view: o.view || 'config' }, o.ui || {}), {
     today: today(),
     modes: o.modes || MODES,
     identity: { personId: 'p1', displayName: 'Alex Morgan' }
@@ -247,16 +247,30 @@ test('A list that cannot be renamed is refused', () => {
   notOk(RENAMEABLE_LISTS.products, 'and it is not on the list of renameable ones');
 });
 
-group('People & settings');
+group('People, and Board settings');
 
-test('The screen is named for both halves of what it holds', () => {
-  const html = page();
-  ok(html.indexOf('<h1>People &amp; settings</h1>') > 0, 'the heading');
+test('The roster and the lists are two pages, each named for what it holds', () => {
+  const people = page({ view: 'people' });
+  const config = page();
+  ok(people.indexOf('<h1>People</h1>') > 0, 'People has its own heading');
+  ok(config.indexOf('<h1>Board settings</h1>') > 0, 'and so does Board settings');
   // Pinned to the label element, not to a character window after the attribute:
   // the nav items carry an inline icon now, and a distance-based match would go
   // vacuous the moment anything else is added between the two.
-  ok(/data-v="people"[\s\S]{0,400}?<span class="ni-t">People &amp; settings<\/span>/.test(html),
-    'the nav item');
+  ok(/data-v="people"[\s\S]{0,400}?<span class="ni-t">People<\/span>/.test(config),
+    'the People nav item');
+  ok(/data-v="config"[\s\S]{0,400}?<span class="ni-t">Board settings<\/span>/.test(people),
+    'the Board settings nav item');
+});
+
+test('Each page holds only its own half', () => {
+  const people = page({ view: 'people' });
+  const config = page();
+  ok(people.indexOf('data-edit="personName"') > 0, 'the roster is on People');
+  notOk(people.indexOf('data-form="fieldVal"') >= 0 || people.indexOf('openForm" data-v="fieldVal"') >= 0,
+    'the pick-lists are not');
+  ok(config.indexOf('data-v="fieldVal"') > 0, 'they are on Board settings');
+  notOk(config.indexOf('data-edit="personName"') >= 0, 'and the roster is not');
 });
 
 test('The route id is unchanged, so a remembered session still lands here', () => {

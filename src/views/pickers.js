@@ -16,7 +16,7 @@
  *
  * ## Both halves already existed in the stylesheet
  *
- * `.pchip` with an `.x` is what the People & settings screen uses for exactly this,
+ * `.pchip` with an `.x` is what the Board settings screen uses for exactly this,
  * and `select.fld` is the dropdown used everywhere else. Nothing new was needed.
  */
 
@@ -43,7 +43,7 @@ export function pickerControl(snap, env, p, field, noun) {
 
   if (!options.length) {
     return '<span class="why">Nothing in this list yet — it is maintained on ' +
-      'the People &amp; settings screen.</span>';
+      'the Board settings screen.</span>';
   }
 
   const chips = chosen.length

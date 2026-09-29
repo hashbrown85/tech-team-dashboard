@@ -85,7 +85,7 @@ export function renderMeetingSettings(snap, ui, env, tab) {
           }).join('') + '</tr>';
       }).join('') +
       '</tbody></table></div>'
-    : '<p class="none">Add people on the People &amp; settings screen first.</p>';
+    : '<p class="none">Add people on the People screen first.</p>';
 
   const attendance = '<section class="panel"><div class="pan-h"><h2>Who attends</h2>' +
     '<span class="sub">Reporting members are the ones the agenda goes round</span></div>' +

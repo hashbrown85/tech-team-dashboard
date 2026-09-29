@@ -28,8 +28,9 @@ absent (not null) when unset, because the code uses `delete` to unset them.
 | `id` | string | `uid()`, or a hand-set seed id |
 | `name` | string | **Used as an identifier elsewhere.** See `actions.owner`. |
 | `title` | string | Job title, display only |
-| `home` | string | Which area they belong to, display only |
+| `home` | string | **Retired.** No longer shown or collected; a person's area is the area meetings they attend. Drop before provisioning. |
 | `upn` | string *optional* | Work account, matched against the sign-in |
+| `admin` | flag *optional* | Shown the roster and settings controls. The real lock is the SharePoint admin group. |
 
 `upn` is how the board knows who you are: the signed-in account's username is
 matched against it, case-insensitively. Somebody with no match still sees the
@@ -183,7 +184,7 @@ project was chemically made of; the rename happened before any SharePoint list
 existed, so the column went with it.
 
 The authoritative product list lives in **Dataverse**; nothing in the app can reach it yet, so the picker is fed
-from a `products` row in `settings`, maintained by hand on the People & settings
+from a `products` row in `settings`, maintained by hand on the Board settings
 screen. When Dataverse becomes reachable only the *source* of that list changes —
 the project stores the chosen values either way, so no migration follows.
 

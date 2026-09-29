@@ -351,7 +351,7 @@ test('An empty list says where to fill it in rather than showing nothing', () =>
   const html = page('pr1', { snap: snap });
 
   ok(html.indexOf('Product selection') > 0, 'the row is still there');
-  ok(html.indexOf('maintained on the People') > 0, 'and says where the list lives');
+  ok(html.indexOf('maintained on the Board settings') > 0, 'and says where the list lives');
 });
 
 test('A read-only board offers no way to change any of them', () => {

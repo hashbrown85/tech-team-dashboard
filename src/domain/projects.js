@@ -773,7 +773,7 @@ export function canonicalValue(items, raw) {
 /**
  * How many projects use one value of a list.
  *
- * Shown on the chip in People & settings, where it is what makes a typo visible: a
+ * Shown on the chip in Board settings, where it is what makes a typo visible: a
  * slip reads 1 beside a real category's 14.
  *
  * @param {Snapshot} snap

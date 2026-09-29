@@ -370,7 +370,7 @@ a gap nobody can account for.
 
 `field`, `projectType`, `focus` and `resources` hold their values on a project **by
 value**, the same way an action holds its owner by name. So renaming one on the
-People & settings screen has to cascade, exactly as renaming a person rewrites every
+Board settings screen has to cascade, exactly as renaming a person rewrites every
 action they own (`renameListValue` in `src/domain/cascade.js`).
 
 This is what makes a self-growing list safe to have. Anybody typing a new Field adds
@@ -414,8 +414,21 @@ Be honest about these — three of them look like controls and aren't:
   read-only *after* the first refusal.
 - **There are no per-tab write permissions.** Anyone who can write can write to any
   meeting.
-- **Role arrays aren't exclusive.** Nothing stops a person being in `members` and
-  `optional` at once.
+- **Seeing only your own meetings is a view, not protection** (`src/domain/scope.js`).
+  Once a board has an admin, a person who is neither an admin nor in Tech Directors
+  is shown only the meetings they attend, and everything filed against them. The
+  whole board still reaches their browser: SharePoint permissions are per list, and
+  every area's rows share one. Real isolation needs a store that can refuse rows
+  (Dataverse, or a site per area). When it exists it should send exactly what
+  `scopeBoard` produces, and the screens need no change.
+- **The Admin switch shows controls; it does not grant them.** Non-admins get the
+  roster, board settings and meeting settings drawn read-only. On SharePoint the
+  lock is the site's admin group; an admin not in it has their saves refused, and the
+  People page says why. A board with no admin treats everybody as one, and the last
+  admin cannot be switched off.
+- ~~**Role arrays aren't exclusive.**~~ **Fixed.** Every role change goes through
+  `withRole` (`src/domain/meetings.js`), which removes the person from the other two
+  lists.
 - **Losses require a "what we'll do differently"** (board.html:1572) — this one *is*
   enforced, and it's the only content validation in the app beyond required fields.
 

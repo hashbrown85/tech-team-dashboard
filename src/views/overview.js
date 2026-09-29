@@ -14,7 +14,7 @@ import { esc } from '../lib/dom.js';
 import { fmt, fmtDay, addDays, rel } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import {
-  issueItems, openActsFor, personName, person, boardIsComplete, withheldLabels
+  issueItems, openActsFor, personName, person, boardIsComplete, withheldLabels, withheld
 } from '../domain/queries.js';
 import { stats, isOverdue, dueLabel, personOk } from '../domain/dueness.js';
 import { lastScore, meetingDate } from '../domain/meetings.js';
@@ -45,9 +45,19 @@ export function renderOverview(snap, ui, env) {
   const scopeNote = complete ? 'across all meetings' : 'across what you can see';
 
   let html = pageHeader('Overview',
-    'Every meeting, action item and issue as of ' + fmtDay(today));
+    (snap.scopedTo ? 'Your meetings, action items and issues as of '
+      : 'Every meeting, action item and issue as of ') + fmtDay(today));
 
-  if (!complete) {
+  if (snap.scopedTo) {
+    // Say which meetings, so "I can't find Southern's projects" has an answer on
+    // screen rather than looking like lost data.
+    html += '<p class="scope-note">' + (snap.tabs.length
+      ? 'Showing only the meetings you attend: <b>' +
+        esc(snap.tabs.map(function (t) { return t.name; }).join(', ')) + '</b>.'
+      : 'You are not in any meeting yet, so there is nothing to show. ' +
+        'Ask an admin to add you to one.') + '</p>';
+  }
+  if (withheld(snap).length) {
     html += '<p class="scope-note">Some of this board was not sent to you: <b>' +
       esc(withheldLabels(snap).join(', ')) + '</b>. What is below counts only what you ' +
       'can see.</p>';
