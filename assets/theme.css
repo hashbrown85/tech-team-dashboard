@@ -110,7 +110,7 @@ a{color:var(--brand)}
 .app.slim .page{max-width:1600px}
 .app.slim .wm,.app.slim .appname,.app.slim .ng-plain,.app.slim .ni-s,
 .app.slim .iam-name,.app.slim .iam-note,.app.slim .side-foot .lbl,
-.app.slim #f-person,.app.slim .cnt.n{display:none}
+.app.slim #f-person,.app.slim #f-theme,.app.slim .cnt.n{display:none}
 .app.slim .ni-t,.app.slim .ng-t{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .app.slim .nicon{display:block}
 .app.slim .nicon.nini{display:grid}

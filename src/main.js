@@ -25,6 +25,7 @@ import { today as todayString } from './lib/dates.js';
 import { segmentsFor } from './domain/constants.js';
 import { byId } from './lib/seq.js';
 import { demoBoard } from './demo-data.js';
+import { readTheme, applyTheme } from './lib/theme.js';
 import { identify } from './identity.js';
 import { renderPreservingForms } from './lib/formstate.js';
 
@@ -108,6 +109,9 @@ export async function start(options) {
   }
 
   const ui = loadUi();
+  // The theme outlives the tab, so it comes from its own store, not sessionStorage.
+  ui.theme = readTheme();
+  applyTheme(document.documentElement, ui.theme);
 
   const store = createStore(adapter, {
     onMessage: function (msg) { toast(msg); },

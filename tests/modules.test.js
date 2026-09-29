@@ -64,7 +64,8 @@ const MODULES = [
   '../src/views/projects.js',
   '../src/views/pickers.js',
   '../src/views/spark.js',
-  '../src/lib/formstate.js'
+  '../src/lib/formstate.js',
+  '../src/lib/theme.js'
 ];
 
 group('Every module loads');

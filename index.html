@@ -6,6 +6,14 @@
 <title>Technical Operations &amp; Innovation Board</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Michroma&family=Saira+Condensed:wght@500;600;700&family=Saira+Semi+Condensed:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="assets/theme.css">
+<script>
+  /* The chosen theme, before anything paints - otherwise a dark-mode user gets a
+     white flash on every load. Same key and values as src/lib/theme.js. */
+  try {
+    var t = localStorage.getItem('techops-board:theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* blocked storage: follow Windows */ }
+</script>
 <style>
   /* Only what the extracted stylesheet does not already cover. */
   .sr-only {

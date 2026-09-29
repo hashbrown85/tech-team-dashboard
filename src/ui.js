@@ -19,6 +19,8 @@ const KEY = 'techops-board2:ui3';
 function defaults() {
   return {
     view: 'overview',   // which screen
+    // Mirrors lib/theme.js, which owns it (in localStorage); main.js sets it on load.
+    theme: 'auto',
     tab: null,          // which meeting, when view === 'tab'
     settings: false,    // showing that meeting's settings
     dates: {},          // per-meeting week override: {tabId: 'YYYY-MM-DD'}

@@ -21,6 +21,7 @@ import { newNote, editNote, canEditNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import { looksLikeSnapshot } from './adapters/localAdapter.js';
 import { upnKey } from './identity.js';
+import { setTheme } from './lib/theme.js';
 import { adminsOf, viewerIsAdmin } from './domain/scope.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
@@ -518,6 +519,9 @@ export function createHandlers(app) {
 
   const edits = {
     personFilter: function (el) { ui.person = el.value; render(); },
+
+    /* Per browser, never the shared board. See lib/theme.js. */
+    theme: function (el) { ui.theme = setTheme(el.value); render(); },
 
     /*
      * Who you are, on a local board. Only reachable there - see mePicker.

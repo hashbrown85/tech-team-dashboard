@@ -20,15 +20,9 @@ scaling is an effective **1280px**, which is past the point where the meeting sc
 drops its side rail below the agenda instead of beside it. Write the number down; step
 9 uses it.
 
-**The theme.** Nothing in the app chooses light or dark — it follows Windows. For the
-live run, open `index.html` and add `data-theme="light"` to the `<html>` tag:
-
-```html
-<html lang="en" data-theme="light">
-```
-
-One attribute, no code, and an OS setting can no longer flip your board mid-meeting.
-Rehearse dark anyway at step 8, in case the attribute gets lost.
+**The theme.** Sidebar → **Theme** → **Light** for the live run. It is remembered in
+this browser, and stops a Windows setting flipping your board mid-meeting. Rehearse
+Dark anyway at step 8.
 
 **Serve it properly.** `python tools/serve.py 8010`, then open
 `http://localhost:8010/`. Browsers refuse ES modules opened as files.
@@ -123,7 +117,7 @@ BOARD** so you cannot show it to anyone by mistake.
 | 5 | **→ Issues** | half the meeting lives here. 90-odd issues, all three severities, a resolved one, and one issue carrying fifteen actions |
 | 6 | **→ Rate the meeting** | 20 raters, the trend line, and the summary preview |
 | 7 | **Between meetings** | Projects list — type in the search box, sort by each of Value, Win and Due, use the Field and Type filters, then hit Reset and confirm the search box actually empties. Then the Action register, the Timeline in both groupings, a Project page, People and Board settings |
-| 8 | **Dark mode** | switch Windows to dark (or set `data-theme="dark"`) and repeat 1, 4 and 5 quickly. **Nothing has ever rendered this.** The brand colour changes from dark red to light red, so check the header, chips, the selected-project outline, and that focus outlines are still visible |
+| 8 | **Dark mode** | Sidebar → Theme → Dark and repeat 1, 4 and 5 quickly. **Nothing has ever rendered this.** The brand colour changes from dark red to light red, so check the header, chips, the selected-project outline, and that focus outlines are still visible |
 | 9 | **Narrow** | drag the window to roughly 1100, 980, 700 and 560 px. Each is a point where the layout rearranges. You will not present narrow, but a laptop screen mid-meeting is one alt-tab away |
 | 10 | **Reload mid-flow** | with a timer running and a half-filled form open, press F5. The form should keep what you typed and the meeting should come back where you left it |
 | 11 | **The collapsed menu** | press the toggle at the top of the sidebar. Check the tiles actually get wider (see the note below), that the meeting initials read clearly at ten meetings, that the strip scrolls if it needs to, and that you can reach every screen from it without expanding. Tab to the toggle and press Space twice — focus must still be on it |

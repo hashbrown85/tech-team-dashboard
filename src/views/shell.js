@@ -19,6 +19,7 @@
  * From board.html:678-727.
  */
 
+import { THEMES } from '../lib/theme.js';
 import { esc } from '../lib/dom.js';
 import { ACTIVE_STATUSES } from '../domain/constants.js';
 import { fmtShort } from '../lib/dates.js';
@@ -382,6 +383,13 @@ export function renderSide(snap, ui, env) {
     '<div class="side-foot">' + whoAmI(env) + mePicker(snap, env, ui) +
     '<label class="lbl" for="f-person">Show items for</label>' +
     '<select class="fld" id="f-person" data-edit="personFilter">' + personSel + '</select>' +
+    // Yours alone, in this browser - not a board setting, which is why it is here
+    // rather than on Board settings, where everything is shared and admin-only.
+    '<label class="lbl" for="f-theme">Theme</label>' +
+    '<select class="fld" id="f-theme" data-edit="theme">' + THEMES.map(function (t) {
+      return '<option value="' + t[0] + '"' + (ui.theme === t[0] ? ' selected' : '') + '>' +
+        t[1] + '</option>';
+    }).join('') + '</select>' +
     connPill(env.modes, env.areaReadonly) + '</div></aside>';
 
   function opt(value, label, selected) {
