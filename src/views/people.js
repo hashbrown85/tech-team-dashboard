@@ -12,6 +12,7 @@
 
 import { esc } from '../lib/dom.js';
 import { rosterGaps } from '../identity.js';
+import { pickList } from '../domain/queries.js';
 import { byName } from '../lib/seq.js';
 import { pageHeader } from './shell.js';
 import { RENAMEABLE_LISTS, countUsing } from '../domain/projects.js';
@@ -182,7 +183,7 @@ function boardFile(snap, env) {
  * @param {string} [sub]
  */
 function managedList(snap, ui, env, key, title, formName, delAct, sub) {
-  const items = (snap.settings[key] && snap.settings[key].items) || [];
+  const items = pickList(snap, key);
   const renameable = !!RENAMEABLE_LISTS[key];
 
   const chips = items.length

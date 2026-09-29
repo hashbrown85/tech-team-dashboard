@@ -28,7 +28,7 @@
  * @property {Record<string, any>} settings
  */
 
-import { byId } from '../lib/seq.js';
+import { byId, alphabetically } from '../lib/seq.js';
 import { TECHDIR_TAB_ID } from './constants.js';
 
 /**
@@ -92,6 +92,27 @@ export function withheldLabels(snap) {
  */
 export function boardIsComplete(snap) {
   return withheld(snap).length === 0;
+}
+
+/**
+ * One of the curated pick-lists - Fields, Project types, Products, Focus, Potential
+ * resources - in alphabetical order.
+ *
+ * Sorted when it is READ, not when it is written. The stored order is simply the
+ * order things were added in; sorting on write would reorder the saved list on
+ * every addition and rename for no gain. And there is one reader, so a screen added
+ * later cannot forget to sort: it used to be read in four places, three of which
+ * showed it in whatever order it was typed.
+ *
+ * Returns a copy - the snapshot is never reordered in place.
+ *
+ * @param {Snapshot} snap
+ * @param {string} key - 'field' | 'projectType' | 'products' | 'focus' | 'resources'
+ * @returns {string[]}
+ */
+export function pickList(snap, key) {
+  const s = snap && snap.settings && snap.settings[key];
+  return ((s && s.items) || []).slice().sort(alphabetically);
 }
 
 /**

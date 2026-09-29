@@ -21,7 +21,7 @@ import { pickerControl } from './pickers.js';
 import { spark } from './spark.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen
+  personName, person, attendeeIds, isOpen, pickList
 } from '../domain/queries.js';
 import { byPriority, confidencePoints } from '../domain/projects.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
@@ -892,7 +892,7 @@ function confidenceTrend(p, bare) {
  * currently nowhere to put that until the project exists a week later.
  */
 function opportunityForm(snap, env, tab) {
-  const focusOptions = (snap.settings.focus && snap.settings.focus.items) || [];
+  const focusOptions = pickList(snap, 'focus');
 
   const focusBoxes = focusOptions.length
     ? '<fieldset class="oppf"><legend class="lbl">Focus</legend>' +

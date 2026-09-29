@@ -15,7 +15,7 @@
 
 import { issueItems, personName, actsOf, isOpen } from './queries.js';
 import { addDays, fmtLong, fmtDay, fmtStamp } from '../lib/dates.js';
-import { byId } from '../lib/seq.js';
+import { byId, alphabetically } from '../lib/seq.js';
 import { actionLabel } from './actions.js';
 import { notesFor } from './notes.js';
 import { STATUS_LABELS } from './constants.js';
@@ -703,11 +703,9 @@ export function distinctValues(projects, key) {
 
   return Object.keys(seen)
     .map(function (k) { return seen[k]; })
-    .sort(function (a, b) {
-      const la = a.label.toLowerCase();
-      const lb = b.label.toLowerCase();
-      return la < lb ? -1 : la > lb ? 1 : 0;
-    });
+    // The same comparator as every pick-list, so a dropdown and its settings panel
+    // cannot disagree about where "Resin 10" goes.
+    .sort(function (a, b) { return alphabetically(a.label, b.label); });
 }
 
 
@@ -841,9 +839,7 @@ export function valueOptions(projects, items, key) {
 
   return Object.keys(seen)
     .map(function (k) { return seen[k]; })
-    .sort(function (a, b) {
-      const la = a.label.toLowerCase();
-      const lb = b.label.toLowerCase();
-      return la < lb ? -1 : la > lb ? 1 : 0;
-    });
+    // The same comparator as every pick-list, so a dropdown and its settings panel
+    // cannot disagree about where "Resin 10" goes.
+    .sort(function (a, b) { return alphabetically(a.label, b.label); });
 }

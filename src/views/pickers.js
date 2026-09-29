@@ -21,6 +21,7 @@
  */
 
 import { esc } from '../lib/dom.js';
+import { pickList } from '../domain/queries.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -38,7 +39,7 @@ import { esc } from '../lib/dom.js';
  */
 export function pickerControl(snap, env, p, field, noun) {
   const chosen = p[field] || [];
-  const options = (snap.settings[field] && snap.settings[field].items) || [];
+  const options = pickList(snap, field);
 
   if (!options.length) {
     return '<span class="why">Nothing in this list yet — it is maintained on ' +

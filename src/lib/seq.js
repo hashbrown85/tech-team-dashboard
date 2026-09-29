@@ -33,6 +33,25 @@ export function byName(a, b) {
 }
 
 /**
+ * Sort comparator for plain strings, the way a person reads a list.
+ *
+ * Case-insensitive, and numbers compared as numbers - so "Resin 2" sorts before
+ * "Resin 10", which plain text comparison gets backwards. Total: if two values are
+ * the same apart from case, the raw string decides, so the order never depends on
+ * the order the list happened to be stored in.
+ *
+ * @param {string} a
+ * @param {string} b
+ */
+export function alphabetically(a, b) {
+  const x = String(a == null ? '' : a);
+  const y = String(b == null ? '' : b);
+  const c = x.localeCompare(y, undefined, { sensitivity: 'base', numeric: true });
+  if (c !== 0) return c;
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+/**
  * A short random id, the same shape the app has always generated.
  *
  * Not cryptographically random and doesn't need to be — it just has to not collide
