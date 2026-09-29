@@ -152,9 +152,13 @@ function boardFile(snap, env) {
     'and nowhere else. Download a copy at the end of every meeting.</p>' +
     '<div class="filters">' +
     '<button class="btn" type="button" data-act="downloadBoard">Download a copy</button>' +
-    '<label class="btn ghost" for="f-load">Load a copy…</label>' +
-    '<input class="sr-only" type="file" id="f-load" accept="application/json,.json" ' +
-    'data-edit="loadBoard"' + dis(env) + '>' +
+    // A plain button, NOT a label pointing at a hidden file input in the page.
+    // The board redraws on a 60-second poll, and a file dialog is open for longer
+    // than that - the input would be destroyed mid-choice and the pick would fire
+    // on a detached element that nothing is listening to. The handler creates its
+    // own input instead, which no redraw can touch.
+    '<button class="btn ghost" type="button" data-act="loadBoard"' + dis(env) +
+    '>Load a copy…</button>' +
     '</div>' +
     '<p class="sub">Loading replaces everything on this board. It asks first.</p>' +
     '</section>';

@@ -234,9 +234,37 @@ export function createHandlers(app) {
      * the copy that survives that.
      */
     downloadBoard: function () {
-      const name = 'board-' + app.today() + '.json';
+      // Time as well as date. Two copies saved on the same day used to share a name,
+      // so the browser quietly appended "(1)" - and picking the older one by mistake
+      // looks exactly like the load having failed.
+      const stamp = new Date().toTimeString().slice(0, 5).replace(':', '');
+      const name = 'board-' + app.today() + '-' + stamp + '.json';
       const ok = downloadFile(name, JSON.stringify(store.snapshot(), null, 2));
       toast(ok ? 'Saved as ' + name + ' in your downloads.' : 'This browser cannot download files.');
+    },
+
+    /*
+     * Ask for a file, using an input this handler creates and owns.
+     *
+     * It used to be a hidden <input type="file"> in the rendered page, opened by a
+     * label. That is the ordinary way to do it, and here it was silently broken: the
+     * board redraws on a 60-second poll, a file dialog stays open longer than that,
+     * and the redraw detached the very input being chosen for. The pick then fired
+     * on an element no longer inside `root`, the delegated listener never saw it,
+     * and the result was no dialog, no message, nothing at all - reported exactly
+     * that way.
+     *
+     * An element made here is never part of the rendered page, so no redraw can
+     * reach it.
+     */
+    loadBoard: function () {
+      if (typeof document === 'undefined') return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json,.json';
+      // Its own listener rather than the delegated one - it is not in the page.
+      input.addEventListener('change', function () { edits.loadBoard(input); });
+      input.click();
     },
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
@@ -529,12 +557,20 @@ export function createHandlers(app) {
           return;
         }
 
-        const now = store.snapshot();
-        const going = now.projects.length + ' projects and ' + now.actions.length + ' actions';
-        const coming = (incoming.projects || []).length + ' projects and ' +
-          (incoming.actions || []).length + ' actions';
-        if (!ask('Replace this board (' + going + ') with the file (' + coming + ')?\n\n' +
+        /*
+         * People are counted too. Without them, deleting somebody and then loading a
+         * copy showed identical numbers on both sides - "3 projects and 5 actions"
+         * twice - so the question gave no sign of what was about to change.
+         */
+        function describe(b) {
+          return (b.people || []).length + ' people, ' + (b.projects || []).length +
+            ' projects and ' + (b.actions || []).length + ' actions';
+        }
+        if (!ask('Replace this board (' + describe(store.snapshot()) + ') with the file (' +
+          describe(incoming) + ')?\n\n' +
           'This cannot be undone. Download a copy first if you are unsure.')) {
+          // Said out loud: a silent "no" is indistinguishable from a failure.
+          toast('Nothing was loaded.');
           return;
         }
 

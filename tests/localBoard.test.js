@@ -18,6 +18,7 @@ import { demoBoard } from '../src/demo-data.js';
 import { today } from '../src/lib/dates.js';
 import { loadUi } from '../src/ui.js';
 import { identify } from '../src/identity.js';
+import { createHandlers } from '../src/handlers.js';
 
 const MODES = { content: 'live', settings: 'live' };
 const snap = demoBoard();
@@ -118,7 +119,7 @@ test('A local board offers to download a copy', () => {
   // gone. The downloaded file is the only form that survives that.
   const html = render(asLocal('p1'), { view: 'people' });
   ok(html.indexOf('data-act="downloadBoard"') >= 0);
-  ok(html.indexOf('data-edit="loadBoard"') >= 0, 'and to load one back');
+  ok(html.indexOf('data-act="loadBoard"') >= 0, 'and to load one back');
 });
 
 test('It says what is on the board, so a load can be judged', () => {
@@ -132,14 +133,46 @@ test('The demo board does not offer to save itself', () => {
   notOk(html.indexOf('data-act="downloadBoard"') >= 0);
 });
 
-test('The file input is reachable by keyboard, not just by its label', () => {
-  // It is visually hidden behind a styled label; hidden with .sr-only rather than
-  // display:none precisely so it can still be focused and activated.
+test('There is no file input in the page for a redraw to destroy', () => {
+  // THE regression this guards. It used to be a hidden <input type="file"> in the
+  // rendered page, opened by a label. The board redraws on a 60-second poll, a file
+  // dialog stays open longer than that, and the redraw detached the input mid-pick.
+  // The choice then fired on an element nothing was listening to: no dialog, no
+  // message, nothing - and the user reasonably concluded loading did not work.
   const html = render(asLocal('p1'), { view: 'people' });
-  const input = /<input[^>]*data-edit="loadBoard"[^>]*>/.exec(html);
-  ok(input, 'the input is rendered');
-  if (!input) return;
-  ok(input[0].indexOf('class="sr-only"') >= 0, 'clipped, not removed');
-  ok(html.indexOf('for="f-load"') >= 0 && input[0].indexOf('id="f-load"') >= 0,
-    'and the label points at it');
+  notOk(/<input[^>]*type="file"/.test(html), 'no file input is rendered');
+  ok(/<button[^>]*data-act="loadBoard"/.test(html), 'a real button instead');
+});
+
+test('Load a copy makes its own file input, outside the page', () => {
+  // A stand-in document records what the handler creates, so we can see it builds
+  // an input, wires its OWN listener, and opens the picker - none of which depends
+  // on anything surviving a redraw.
+  const made = [];
+  const saved = globalThis.document;
+  globalThis.document = /** @type {any} */ ({
+    createElement: function (tag) {
+      const el = {
+        tag: tag, type: '', accept: '', listeners: {}, clicked: false,
+        addEventListener: function (ev, fn) { this.listeners[ev] = fn; },
+        click: function () { this.clicked = true; }
+      };
+      made.push(el);
+      return el;
+    }
+  });
+  try {
+    const H = createHandlers(/** @type {any} */ ({
+      store: { snapshot: function () { return snap; } }, ui: {}, render: function () {},
+      today: function () { return '2026-09-29'; }
+    }));
+    H.clicks.loadBoard(null, '', '');
+  } finally {
+    globalThis.document = saved;
+  }
+
+  eq(made.length, 1, 'one element made');
+  eq(made[0].type, 'file', 'a file input');
+  ok(typeof made[0].listeners.change === 'function', 'with its own change listener');
+  ok(made[0].clicked, 'and the picker is opened');
 });

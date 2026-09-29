@@ -210,13 +210,15 @@ async function loadableBoard(answer) {
   await store.load();
   await store.set('projects', 'keep', { tab: 't1', name: 'Already here', status: 'on' });
 
+  /** Every question the handler asked, so a test can read what it said. */
+  const asked = [];
   const handlers = createHandlers({
     store: store, ui: loadUi(), render: function () {}, today: today,
     identity: function () { return { kind: 'local', personId: null }; },
     // Injected rather than global, so concurrent tests cannot answer for each other.
-    confirm: function () { return answer !== false; }
+    confirm: function (q) { asked.push(q); return answer !== false; }
   });
-  return { store: store, H: handlers };
+  return { store: store, H: handlers, asked: asked };
 }
 
 /** A stand-in for the file input, holding one file with this text in it. */
@@ -273,4 +275,19 @@ test('A real board replaces what was there, and only if you agree', async () => 
   await settle();
   eq(agreed.store.snapshot().projects.length, 1);
   eq(agreed.store.snapshot().projects[0].name, 'From the file', 'saying yes loads it');
+});
+
+test('The question counts people, so deleting one shows in it', async () => {
+  // Reported: delete a person, load the earlier copy. The question counted only
+  // projects and actions, so it read the same on both sides and said nothing about
+  // what was about to change.
+  const incoming = Object.assign(blankSnapshot(), {
+    people: [{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }]
+  });
+  const b = await loadableBoard(false);
+  b.H.edits.loadBoard(pickedFile(JSON.stringify(incoming)));
+  await settle();
+  eq(b.asked.length, 1, 'it asked');
+  ok(b.asked[0].indexOf('0 people') >= 0, 'says the board has none');
+  ok(b.asked[0].indexOf('2 people') >= 0, 'and the file has two');
 });
