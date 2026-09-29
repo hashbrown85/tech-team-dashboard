@@ -20,7 +20,7 @@
 
 import { group, test, eq, ok, notOk } from './harness.js';
 import {
-  captureForms, restoreForms, renderPreservingForms
+  captureForms, restoreForms, renderPreservingForms, captureEditing
 } from '../src/lib/formstate.js';
 
 /* ---------------------------------------------------------------- a fake DOM */
@@ -383,3 +383,73 @@ test('An ordinary field in the same form is still restored', () => {
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
+
+/* ------------------------------------------- a data-edit field, mid-sentence */
+
+group('A field that saves when you leave it, while you are still in it');
+
+/*
+ * Reported: typing into a project's Mission, the text vanished after about a
+ * minute. Mission saves on CHANGE, which fires when you leave the box - so while
+ * you are still typing, the text is on screen and nowhere else, and the 60-second
+ * redraw drew the last saved value over it.
+ */
+
+function mission(id, value, extra) {
+  return el('textarea', Object.assign({
+    'data-edit': 'projMission', 'data-id': id, type: 'textarea', value: value
+  }, extra || {}));
+}
+
+test('What is being typed survives the redraw, with focus and caret', () => {
+  const typing = mission('pr1', 'Qualify the new resin for', { selectionStart: 10, selectionEnd: 10 });
+  const redrawn = mission('pr1', '');   // the store still holds the saved value: nothing
+  const root = liveRoot([typing], [redrawn]);
+
+  renderPreservingForms(root, '<new>', typing);
+
+  eq(redrawn.value, 'Qualify the new resin for', 'the half-typed text is back');
+  ok(redrawn.focused, 'still in the box');
+  eq(redrawn.selection, [10, 10], 'caret where it was');
+});
+
+test('It goes back into the same project, not another one', () => {
+  const typing = mission('pr1', 'Typed for pr1');
+  const other = mission('pr2', 'Saved for pr2');
+  const same = mission('pr1', '');
+  const root = liveRoot([typing], [other, same]);
+
+  renderPreservingForms(root, '<new>', typing);
+
+  eq(other.value, 'Saved for pr2', 'the other project is untouched');
+  eq(same.value, 'Typed for pr1');
+});
+
+test('A field nobody is in shows what the store says', () => {
+  // Only the focused field can hold unsaved text: leaving a box saves it.
+  const idle = mission('pr1', 'stale DOM text');
+  const redrawn = mission('pr1', 'Saved by a colleague');
+  const root = liveRoot([idle], [redrawn]);
+
+  renderPreservingForms(root, '<new>', null);
+
+  eq(redrawn.value, 'Saved by a colleague');
+});
+
+test('A checkbox is not carried - it saved the moment it changed', () => {
+  const box = el('input', { 'data-edit': 'personAdmin', 'data-id': 'p1', type: 'checkbox' });
+  eq(captureEditing(box), null);
+});
+
+test('A field inside an add form is left to the form handling', () => {
+  const f = el('input', { 'data-edit': 'x', name: 'n' });
+  f.form = { getAttribute: function (k) { return k === 'data-form' ? 'person' : null; } };
+  eq(captureEditing(f), null);
+});
+
+test('If the field is gone after the redraw, nothing breaks', () => {
+  const typing = mission('pr1', 'Deleted under me');
+  const root = liveRoot([typing], []);
+  renderPreservingForms(root, '<new>', typing);
+  ok(true, 'no throw');
+});

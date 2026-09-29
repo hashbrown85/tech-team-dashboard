@@ -14,9 +14,13 @@
  * point every time, for no reason the person typing can see. A reload on window
  * focus does the same thing the moment you alt-tab to check something.
  *
- * Fields carrying `data-edit` never had this problem: they write on change, so the
- * store already has the value and the next render puts it back. It is only the
- * creation forms — the ones where nothing has been saved yet — that lose anything.
+ * Fields carrying `data-edit` have it too, in a narrower way. They write on
+ * CHANGE, and change fires when you leave the box - so while somebody is still
+ * typing a Mission or a project name, what they have typed is in the DOM and
+ * nowhere else, and the next render puts back the last SAVED value over it. This
+ * file used to say those fields were safe. They were not, and it was reported.
+ * Only the focused field can be in that state - leaving a box saves it - so that
+ * one field is carried across the render too (see captureEditing).
  *
  * ## The approach
  *
@@ -54,9 +58,78 @@ export function renderPreservingForms(root, html, active) {
    */
   const focusId = idOf(active);
   const typed = captureForms(root, active);
+  const editing = captureEditing(active);
   root.innerHTML = html;
   restoreForms(root, typed);
+  restoreEditing(root, editing);
   if (focusId) refocusById(root, focusId);
+}
+
+/*
+ * What identifies a `data-edit` field across a render. Several fields share a
+ * data-edit name (every project's Mission is `projMission`), so the record it
+ * belongs to - and for pickers, which field and which value - are part of the key.
+ */
+const EDIT_KEYS = ['data-edit', 'data-id', 'data-f', 'data-key', 'data-v'];
+
+/* Field types whose value is typed rather than picked. A checkbox or a select
+   saves the moment it changes, so there is never anything unsaved to carry. */
+const PICKED = ['checkbox', 'radio', 'file', 'select-one', 'select-multiple',
+  'button', 'submit', 'reset'];
+
+function editKey(el) {
+  return EDIT_KEYS.map(function (a) { return String(el.getAttribute(a) || ''); }).join('|');
+}
+
+/**
+ * The half-typed contents of the focused `data-edit` field, or null.
+ *
+ * Fields inside a `form[data-form]` are left to captureForms, which already
+ * handles them.
+ *
+ * @param {any} active
+ * @returns {{key: string, value: string, start?: number, end?: number} | null}
+ */
+export function captureEditing(active) {
+  if (!active || typeof active.getAttribute !== 'function') return null;
+  if (!active.getAttribute('data-edit')) return null;
+  if (active.form && active.form.getAttribute && active.form.getAttribute('data-form')) return null;
+  if (PICKED.indexOf(String(active.type || '')) >= 0) return null;
+  const sel = selectionOf(active);
+  return {
+    key: editKey(active),
+    value: active.value == null ? '' : String(active.value),
+    start: sel ? sel.start : undefined,
+    end: sel ? sel.end : undefined
+  };
+}
+
+/**
+ * Put the half-typed text back into the same field, with focus and caret.
+ *
+ * What was typed wins over what the render drew, because the render drew the last
+ * saved value and the person has not finished. When they leave the box, change
+ * fires and saves it as normal. If the field is gone - the project was deleted
+ * under them - there is nowhere to put it, and nothing is done.
+ *
+ * @param {any} root
+ * @param {{key: string, value: string, start?: number, end?: number} | null} saved
+ */
+export function restoreEditing(root, saved) {
+  if (!saved || !root || !root.querySelectorAll) return;
+  const match = Array.prototype.filter.call(root.querySelectorAll('[data-edit]'), function (el) {
+    return typeof el.getAttribute === 'function' && el.getAttribute('data-edit') &&
+      editKey(el) === saved.key;
+  })[0];
+  if (!match) return;
+  match.value = saved.value;
+  if (typeof match.focus === 'function') match.focus();
+  if (saved.start == null || typeof match.setSelectionRange !== 'function') return;
+  try {
+    match.setSelectionRange(saved.start, saved.end);
+  } catch (e) {
+    /* See restoreForms: focus back is what matters. */
+  }
 }
 
 /** A plain, selector-safe id. Anything else is not worth escaping for. */
