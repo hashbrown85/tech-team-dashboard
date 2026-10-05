@@ -1225,3 +1225,43 @@ test('Opening the editor targets one value on one list', async () => {
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
+
+/* --------------------------------------------- the customer on a project tile */
+
+group('A project tile leads with its customer');
+
+function stageHtml(ui) {
+  return renderApp(demoBoard(), Object.assign(loadUi(), ui), { today: today(),
+    modes: { content: 'live', settings: 'live', details: 'live' }, identity: { personId: 'p1' } });
+}
+
+/** The <li class="proj"> for one project. */
+function tile(html, id) {
+  const start = html.indexOf('id="proj-' + id + '"');
+  if (start < 0) return '';
+  const end = html.indexOf('</li>', start);
+  return html.slice(start, end);
+}
+
+test('Customer, then project name, at the top of the tile', () => {
+  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 2 } }), 'pr1');
+  ok(t, 'pr1 is on the stage');
+  ok(t.indexOf('title="Open this project">Meridian Coatings - Coating additive trial</button>') > 0);
+});
+
+test('The customer is not said again in the line underneath', () => {
+  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 2 } }), 'pr1');
+  const meta = /<span class="meta">[\s\S]*?<\/span>\s*<\/div>/.exec(t);
+  ok(meta, 'the meta line is there');
+  if (meta) notOk(meta[0].indexOf('Meridian Coatings') >= 0, 'only once, in the title');
+});
+
+test('A project with no customer is titled by its name alone', () => {
+  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 2 } }), 'pr3');
+  ok(t.indexOf('title="Open this project">Pigment supplier qualification</button>') > 0);
+});
+
+test('The Tech Directors review titles projects the same way', () => {
+  const html = stageHtml({ view: 'tab', tab: 'techdir', steps: { techdir: 1 } });
+  ok(html.indexOf('<span class="it-t">Meridian Coatings - Coating additive trial</span>') > 0);
+});

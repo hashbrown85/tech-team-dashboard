@@ -23,7 +23,7 @@ import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
   personName, person, attendeeIds, isOpen, pickList
 } from '../domain/queries.js';
-import { byPriority, confidencePoints } from '../domain/projects.js';
+import { byPriority, confidencePoints, projectTitle } from '../domain/projects.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
@@ -278,7 +278,7 @@ function businessReview(snap, tab) {
       live.map(function (p) {
         return '<li class="item"><span class="chip ps-' + esc(p.status) + '">' +
           STATUS_LABELS[p.status] + '</span>' +
-          '<span class="it-t">' + esc(p.name) + '</span>' +
+          '<span class="it-t">' + esc(projectTitle(p)) + '</span>' +
           '<span class="why">' + esc(personName(snap, p.personId)) + '</span></li>';
       }).join('') + '</ul></div>';
   }).join('');
@@ -364,8 +364,8 @@ function projectRow(snap, ui, env, p, idx, count) {
    * `.proj` is a two-column grid whose child count the checker asserts.
    */
   const meta =
-    '<b>' + esc(ownerLine(snap, p)) + '</b> \u00b7 ' +
-    (p.customer ? esc(p.customer) + ' \u00b7 ' : '') + focus +
+    // No customer here: it leads the title above, so it would only say it twice.
+    '<b>' + esc(ownerLine(snap, p)) + '</b> \u00b7 ' + focus +
     (p.status === 'new'
       ? '<span class="chip new">New</span> ' +
         (p.fromOpp
@@ -390,7 +390,7 @@ function projectRow(snap, ui, env, p, idx, count) {
     '" id="proj-' + esc(p.id) + '">' +
     '<div class="pname">' +
     '<button type="button" class="it-t pname-open" data-act="openProject" data-id="' +
-    esc(p.id) + '" title="Open this project">' + esc(p.name) + '</button>' +
+    esc(p.id) + '" title="Open this project">' + esc(projectTitle(p)) + '</button>' +
     '<span class="meta">' + meta + ' · ' +
     '<button type="button" class="linkbtn pfilter" data-act="selectProject" data-id="' +
     esc(p.id) + '" aria-pressed="' + selected + '">' +
