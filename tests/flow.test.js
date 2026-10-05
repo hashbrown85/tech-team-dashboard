@@ -833,6 +833,39 @@ test('An opportunity carries its project fields through to the project', async (
   eq(p.status, 'new', 'and it joins as a new project');
 });
 
+/** The New Opportunities segment as it would be drawn now. */
+function oppTiles(a) {
+  const html = renderApp(a.snap(), a.ui, { today: today(),
+    modes: { content: 'live', settings: 'live', details: 'live' }, identity: { personId: 'p1' } });
+  return (html.match(/<li class="item opp">[\s\S]*?<\/li>/g) || []).join('');
+}
+
+test('The opportunity tile leads with its customer', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [['customer', 'Demo Quartz Works'], ['text', 'Downhole scale trial']]);
+  await settle();
+  ok(oppTiles(a).indexOf('<span class="it-t">Demo Quartz Works - Downhole scale trial</span>') >= 0,
+    'customer, then what was said');
+});
+
+test('A corrected customer shows on the tile too', async () => {
+  // It is read from the project, so fixing it on the project page fixes it here.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [['customer', 'Demo Qaurtz'], ['text', 'Downhole scale trial']]);
+  await settle();
+  await a.store.update('projects', newestProject(a).id, { customer: 'Demo Quartz Works' });
+  const tiles = oppTiles(a);
+  ok(tiles.indexOf('Demo Quartz Works - Downhole scale trial') >= 0, 'the correction');
+  notOk(tiles.indexOf('Qaurtz') >= 0, 'not the typo');
+});
+
+test('No customer, no dangling dash', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  raise(a, [['text', 'Just a thought']]);
+  await settle();
+  ok(oppTiles(a).indexOf('<span class="it-t">Just a thought</span>') >= 0);
+});
+
 test('Its confidence is seeded, so one revision later makes a trend', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
   raise(a, [['text', 'Downhole scale trial'], ['winPct', '40']]);

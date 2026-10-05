@@ -244,9 +244,13 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
   const list = mine.length
       ? '<ul class="items">' + mine.map(function (e) {
           const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
+          // The customer lives on the project the opportunity created, so a correction
+          // made on the project page shows here too. Same "Customer - name" order as
+          // a Current Projects tile; the name stays what was SAID, from the entry.
+          const customer = pj ? String(pj.customer || '').trim() : '';
           return '<li class="item opp">' +
             '<span class="chip">Opportunity</span>' +
-            '<span class="it-t">' + esc(e.text) + '</span>' +
+            '<span class="it-t">' + (customer ? esc(customer) + ' - ' : '') + esc(e.text) + '</span>' +
             '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
             (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
             (pj && pj.start ? '<span class="it-c">Joins Current Projects ' + fmtDay(pj.start) + '</span>' : '') +
