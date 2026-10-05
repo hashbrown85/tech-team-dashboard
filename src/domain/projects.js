@@ -187,6 +187,9 @@ export function newOpportunity({
     due: '',
     start: startsOn,
     fromOpp: entryId,
+    // What Current Projects keys on - see raisedOn() in queries.js. `start` stays
+    // for older readers and means nothing to visibility for an opportunity now.
+    raisedOn: meetingDate,
     note: why || '',
     winReason: winReason || '',
     focus: focus && focus.length ? focus.slice() : []

@@ -150,6 +150,7 @@ export const SCHEMA = {
       start: { col: 'StartDate', kind: 'date' },
       added: { col: 'AddedMeeting', kind: 'date' },
       fromOpp: { col: 'FromOpp', kind: 'text' },
+      raisedOn: { col: 'RaisedOn', kind: 'date' },
       note: { col: 'Note', kind: 'note' },
       statusMeeting: { col: 'StatusMeeting', kind: 'date' },
       prevStatus: { col: 'PrevStatus', kind: 'text' },

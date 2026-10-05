@@ -302,7 +302,7 @@ export function meetingSummary(snap, tab, d) {
     const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
     return personName(snap, e.personId) + ': ' + e.text +
       (e.why ? ' (challenge: ' + e.why + ')' : '') +
-      (pj && pj.start ? '. Joins Current Projects ' + fmtDay(pj.start) : '');
+      (pj ? '. Joins Current Projects ' + fmtDay(nextMeetingAfter(tab, e.meeting)) : '');
   }), 'None');
 
   const chg = snap.projects

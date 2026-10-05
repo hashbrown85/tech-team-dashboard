@@ -122,7 +122,9 @@ the queue ordering entirely.
 Projects if **all three** hold:
 
 1. It belongs to that tab, and
-2. it has no `start` date, or `start` is on/before that meeting date, and
+2. it has started: for a project raised as an opportunity, that meeting is **after**
+   the one it was raised in (rule 5); for any other, it has no `start` date or
+   `start` is on/before that meeting date, and
 3. its status is active (`new`/`on`/`off`/`hold`) **or** it was closed
    (`done`/`cancelled`) on *exactly* that meeting date.
 
@@ -130,15 +132,23 @@ Consequence worth understanding: a project marked done in one meeting is visible
 that meeting forever (you can scroll back to it), but disappears the following week.
 Closed work doesn't accumulate in the list.
 
-## 5. An opportunity becomes a project next week, not this week
+## 5. An opportunity becomes a project at the next meeting, not this one
 
 `F.opp` (board.html:1577-1585) creates two documents at once: the `entries` row and a
-`projects` row with `status: 'new'`, `fromOpp` pointing back at the entry, and
-**`start` = the meeting date + 7 days**.
+`projects` row with `status: 'new'`, `fromOpp` pointing back at the entry,
+**`raisedOn` = the meeting date**, and `start` = the meeting date + 7 days.
 
 Combined with rule 4, that means an opportunity raised today is *not* in Current
 Projects today — it appears at the next meeting. Deliberate: you discuss it as a new
 opportunity this week, then it becomes something you're accountable for.
+
+**"Next meeting" is decided by `raisedOn`, not by `start`** (`raisedOn()` and
+`projVisible` in `src/domain/queries.js`). It used to wait for `start`, which assumed
+meetings are exactly a week apart. Moving a meeting's weekday broke that: a Monday
+meeting four days after a Thursday one left that week's opportunities gone from New
+Opportunities and not yet in Current Projects. Older opportunities without `raisedOn`
+are read as `start` − 7 days, which is what it always was. `start` is kept but no
+longer decides anything for an opportunity, and the project page does not show it.
 
 `H.delEntry` (board.html:1384-1394) undoes both, but **only if** the linked project is
 still `status:'new'` and has no actions. Once someone has worked on it, deleting the

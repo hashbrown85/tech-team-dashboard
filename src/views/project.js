@@ -31,7 +31,7 @@
 import { esc } from '../lib/dom.js';
 import { fmt, fmtDay, diffDays, fmtWhen, rel } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
-import { isOpen, actsOf, personName, detailsArrived } from '../domain/queries.js';
+import { isOpen, actsOf, personName, detailsArrived, raisedOn } from '../domain/queries.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
@@ -72,6 +72,38 @@ export function moneyShort(n) {
   if (a >= 1000000) return '$' + (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
   if (a >= 1000) return '$' + Math.round(v / 1000) + 'k';
   return '$' + v;
+}
+
+/**
+ * Which meeting the project is discussed in - for an area meeting, which area.
+ *
+ * Offers the meetings on this board, which for somebody who sees only their own
+ * meetings is only those: a project cannot be moved somewhere its owner's
+ * colleague could then not see. Grouped as the sidebar groups them.
+ *
+ * @param {Snapshot} snap
+ * @param {any} env
+ * @param {any} p
+ */
+function meetingPicker(snap, env, p) {
+  function opts(tabs) {
+    return tabs.map(function (t) {
+      return '<option value="' + esc(t.id) + '"' + (t.id === p.tab ? ' selected' : '') + '>' +
+        esc(t.name) + '</option>';
+    }).join('');
+  }
+  const areas = snap.tabs.filter(function (t) { return t.kind === 'area'; });
+  const other = snap.tabs.filter(function (t) { return t.kind !== 'area'; });
+  // A project whose meeting is gone, or out of view, must still show what it holds
+  // rather than silently displaying the first option as if it were chosen.
+  const orphan = byId(snap.tabs, p.tab) ? '' :
+    '<option value="" selected disabled>(no longer on this board)</option>';
+  return '<select class="fld" data-edit="projTab" data-id="' + esc(p.id) +
+    '" aria-label="Meeting"' + dis(env) + '>' + orphan +
+    (areas.length ? '<optgroup label="Area meetings">' + opts(areas) + '</optgroup>' : '') +
+    (other.length ? '<optgroup label="Internal &amp; initiatives">' + opts(other) + '</optgroup>' : '') +
+    '</select>' +
+    '<span class="why">Its action items move with it.</span>';
 }
 
 /**
@@ -142,8 +174,10 @@ export function renderProject(snap, ui, env, p) {
       esc(p.projectType || '') +
       '" data-edit="projType" data-id="' + esc(p.id) +
       '" placeholder="e.g. Trial" aria-label="Project type"' + dis(env) + '>') +
+    // Not on the shared project sheet, so after its four rows rather than among them.
+    row('Meeting', meetingPicker(snap, env, p)) +
     /*
-     * The suggestions behind those two boxes: the curated list from People &
+     * The suggestions behind those two boxes: the curated list from Board
      * settings, UNIONED with whatever is already in use on a project.
      *
      * Neither source alone works. The curated list alone loses every value typed
@@ -238,7 +272,9 @@ export function renderProject(snap, ui, env, p) {
       '" data-edit="projDue" data-id="' + esc(p.id) + '" aria-label="Due date"' +
       dis(env) + '>' +
       (p.due ? '<span class="why">' + rel(p.due, today) + '</span>' : '')) +
-    (p.start ? row('Starts', '<span class="why">' + fmtDay(p.start) + '</span>') : '') +
+    // An opportunity's `start` no longer decides anything - see raisedOn - so it is
+    // not shown as if it did. Origin, below, says when it was raised.
+    (p.start && !raisedOn(p) ? row('Starts', '<span class="why">' + fmtDay(p.start) + '</span>') : '') +
     (origin ? row('Origin', '<span class="why">' + origin + '</span>') : '') +
     '</section>';
 

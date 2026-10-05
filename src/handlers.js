@@ -35,7 +35,7 @@ import {
   ACTION_SORT_COLUMNS, firstActionDirFor
 } from './domain/actions.js';
 import {
-  deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab,
+  deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab, moveProject,
   deleteNote, renameListValue
 } from './domain/cascade.js';
 import {
@@ -689,6 +689,13 @@ export function createHandlers(app) {
      * Both are silent, so the field keeps the caret while it is being typed in. The
      * heading above catches up on the next render.
      */
+    /* Which meeting a project is discussed in. Its actions go with it; see
+       moveProject. Not silent: the page header and the back button name the
+       meeting, and they should change with it. */
+    projTab: function (el) {
+      cascade(moveProject(store.snapshot(), el.dataset.id, el.value));
+    },
+
     projCustomer: function (el) {
       store.update('projects', el.dataset.id, { customer: el.value }, { silent: true });
     },

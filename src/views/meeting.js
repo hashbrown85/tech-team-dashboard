@@ -21,7 +21,7 @@ import { pickerControl } from './pickers.js';
 import { spark } from './spark.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen, pickList
+  personName, person, attendeeIds, isOpen, pickList, raisedOn
 } from '../domain/queries.js';
 import { byPriority, confidencePoints, projectTitle } from '../domain/projects.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
@@ -253,7 +253,10 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
             '<span class="it-t">' + (customer ? esc(customer) + ' - ' : '') + esc(e.text) + '</span>' +
             '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
             (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
-            (pj && pj.start ? '<span class="it-c">Joins Current Projects ' + fmtDay(pj.start) + '</span>' : '') +
+            // The next meeting after this one, by the meeting's own weekday - the
+            // same rule projVisible applies, so the promise and the outcome agree.
+            (pj ? '<span class="it-c">Joins Current Projects ' +
+              fmtDay(nextMeetingAfter(tab, e.meeting)) + '</span>' : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'
@@ -369,7 +372,7 @@ function projectRow(snap, ui, env, p, idx, count) {
     (p.status === 'new'
       ? '<span class="chip new">New</span> ' +
         (p.fromOpp
-          ? 'From ' + (p.start ? fmt(addDays(p.start, -7)) : 'last week') +
+          ? 'From ' + (raisedOn(p) ? fmt(raisedOn(p)) : 'last week') +
             '’s opportunities · set a status'
           : 'Set a status') + ' · '
       : '') +

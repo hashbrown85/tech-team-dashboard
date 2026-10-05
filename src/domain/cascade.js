@@ -221,6 +221,51 @@ export function deleteProject(snap, id) {
 }
 
 /**
+ * Move a project to another meeting.
+ *
+ * Not a delete, but the same shape, because it is the same kind of change: one
+ * record and the ones that hang off it, and a need to take it back.
+ *
+ * Its action items move with it - an action is filed against a meeting by `tab`,
+ * and left behind it would keep showing in the old meeting's rail for a project
+ * that is no longer discussed there. Notes and values hang off the project by id
+ * and follow on their own. The opportunity entry it came from does NOT move: that
+ * is the record of what was said, in the meeting where it was said.
+ *
+ * Its priority is cleared, so it joins the bottom of the new meeting's list rather
+ * than claiming a position that meant something only in the old one.
+ *
+ * @param {Snapshot} snap
+ * @param {string} id
+ * @param {string} toTab
+ * @returns {Cascade}
+ */
+export function moveProject(snap, id, toTab) {
+  const p = byId(snap.projects, id);
+  const to = byId(snap.tabs, toTab);
+  if (!p || !to || p.tab === toTab) return nothing();
+
+  const acts = snap.actions.filter(function (a) {
+    return a.parent && a.parent.type === 'project' && a.parent.id === id;
+  });
+  const update = /** @type {'update'} */ ('update');
+  const n = acts.length;
+  return {
+    writes: [{ op: update, col: 'projects', id: id, patch: { tab: toTab, priority: null } }]
+      .concat(acts.map(function (a) {
+        return { op: update, col: 'actions', id: a.id, patch: { tab: toTab } };
+      })),
+    undo: [{ op: update, col: 'projects', id: id,
+      patch: { tab: p.tab, priority: p.priority == null ? null : p.priority } }]
+      .concat(acts.map(function (a) {
+        return { op: update, col: 'actions', id: a.id, patch: { tab: a.tab } };
+      })),
+    message: 'Moved to ' + to.name + (n ? ', with its ' + n + ' action item' +
+      (n > 1 ? 's' : '') : '') + '.'
+  };
+}
+
+/**
  * Delete an issue. Its actions survive, detached. board.html:1405-1414.
  *
  * @param {Snapshot} snap

@@ -32,6 +32,7 @@
  */
 
 import { byId, alphabetically } from '../lib/seq.js';
+import { addDays } from '../lib/dates.js';
 import { TECHDIR_TAB_ID } from './constants.js';
 
 /**
@@ -481,7 +482,7 @@ export function actionedItems(snap, tid) {
 /**
  * Should this project show up in a given meeting occurrence?
  *
- * Three conditions: right tab; hasn't started in the future; and is either still
+ * Three conditions: right tab; has started (see below); and is either still
  * active, or was closed on exactly this meeting date. That last clause is why
  * finished work stays visible in the meeting it was finished in and disappears the
  * week after. See rule 4 in docs/BUSINESS_RULES.md.
@@ -494,5 +495,29 @@ export function actionedItems(snap, tid) {
 export function projVisible(x, tid, d) {
   var active = x.status === 'new' || x.status === 'on' || x.status === 'off' || x.status === 'hold';
   var closedToday = (x.status === 'done' || x.status === 'cancelled') && x.doneMeeting === d;
-  return x.tab === tid && (!x.start || x.start <= d) && (active || closedToday);
+  // An opportunity's project joins at the NEXT MEETING after the one it was raised
+  // in - whenever that falls. It used to wait for `start`, a fixed seven days on,
+  // so moving a meeting's weekday stranded it: gone from New Opportunities, not yet
+  // in Current Projects, until a meeting happened to land past that date.
+  var raised = raisedOn(x);
+  var begun = raised ? raised < d : (!x.start || x.start <= d);
+  return x.tab === tid && begun && (active || closedToday);
+}
+
+/**
+ * The meeting date an opportunity's project was raised in, or '' for a project
+ * that did not start as an opportunity.
+ *
+ * Stored as `raisedOn` since it started deciding visibility. Older opportunities
+ * have only `start`, which was always raised + 7 days, so it is worked back from
+ * that - no stored data needs rewriting.
+ *
+ * @param {any} x - a project
+ * @returns {string}
+ */
+export function raisedOn(x) {
+  if (!x) return '';
+  if (x.raisedOn) return String(x.raisedOn);
+  if (x.fromOpp && x.start) return addDays(x.start, -7);
+  return '';
 }
