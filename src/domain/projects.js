@@ -121,16 +121,18 @@ export function statusChange(snap, project, newStatus, tid, meetingDate) {
  * @param {object} args
  * @param {string} args.tab
  * @param {string} args.personId
+ * @param {string} [args.customer] - optional; internal work has none
  * @param {string} args.name
  * @param {string} [args.due]
  * @param {string} args.meetingDate
  * @returns {any} the document to write
  */
-export function newProject({ tab, personId, support, name, due, meetingDate }) {
+export function newProject({ tab, personId, support, customer, name, due, meetingDate }) {
   return {
     tab: tab,
     personId: personId,
     support: support || '',
+    customer: customer || '',
     name: name,
     status: 'on',
     due: due || '',

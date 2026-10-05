@@ -768,6 +768,37 @@ test('A supporting person is optional, and stored when given', async () => {
   if (solo) eq(solo.support, '', 'with a blank rather than undefined');
 });
 
+test('A new project takes a customer, which leads its title', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  a.H.forms.project(fields([['customer', '  Demo Quartz Works '], ['name', 'Resin swap'],
+    ['due', ''], ['who', 'p1']]));
+  await settle();
+  const made = a.snap().projects.find(function (p) { return p.name === 'Resin swap'; });
+  ok(made, 'it was created');
+  if (made) {
+    eq(made.customer, 'Demo Quartz Works', 'trimmed and stored');
+    eq(projectTitle(made), 'Demo Quartz Works - Resin swap', 'and it leads the title');
+  }
+
+  a.H.forms.project(fields([['name', 'Internal tidy-up'], ['due', ''], ['who', 'p1']]));
+  await settle();
+  const internal = a.snap().projects.find(function (p) { return p.name === 'Internal tidy-up'; });
+  if (internal) eq(internal.customer, '', 'none given is a blank, not undefined');
+});
+
+test('The add-project form asks for the customer, before the name', () => {
+  const html = renderApp(demoBoard(), Object.assign(loadUi(),
+    { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' }),
+    { today: today(), modes: { content: 'live', settings: 'live', details: 'live' },
+      identity: { personId: 'p1' } });
+  const form = /<form class="add" data-form="project">[\s\S]*?<\/form>/.exec(html);
+  ok(form, 'the form is open');
+  if (!form) return;
+  const c = form[0].indexOf('name="customer"');
+  ok(c > 0, 'it has a customer box');
+  ok(c < form[0].indexOf('name="name"'), 'ahead of the project name');
+});
+
 function raise(a, pairs) {
   // `who` comes from the form now, not from whose block the button sat in.
   a.H.forms.opp(multiFields(pairs.concat([['who', 'p1']])));

@@ -304,6 +304,9 @@ function stageProjects(snap, ui, env, tab, d) {
 
   const addForm = ui.open === 'project'
     ? '<form class="add" data-form="project">' +
+      // Customer first: the title reads "Customer - Project name". Optional, because
+      // internal work has none.
+      '<input class="fld" name="customer" type="text" placeholder="Customer (optional)">' +
       '<input class="fld" name="name" type="text" placeholder="Project name" required>' +
       '<input class="fld" name="due" type="date" aria-label="Due date">' +
       whoFields(snap, tab, true) +

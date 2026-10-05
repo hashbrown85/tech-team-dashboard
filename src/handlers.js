@@ -1085,6 +1085,7 @@ export function createHandlers(app) {
         tab: t.id,
         personId: who,
         support: String(fd.get('support') || '').trim(),
+        customer: String(fd.get('customer') || '').trim(),
         name: name,
         due: String(fd.get('due') || ''),
         meetingDate: currentDate(t)

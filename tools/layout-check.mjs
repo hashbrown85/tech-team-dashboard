@@ -254,6 +254,7 @@ function matrix() {
     ['opportunities', { view: 'tab', tab: 't1', steps: { t1: 1 } }],
     ['opportunity form', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp:p1' }],
     ['projects stage', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
+    ['projects stage, adding', { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' }],
     ['projects stage, details open',
       { view: 'tab', tab: 't1', steps: { t1: 2 }, openDetails: { pr1: true } }],
     ['issues', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
