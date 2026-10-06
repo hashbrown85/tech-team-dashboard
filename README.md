@@ -56,6 +56,17 @@ invisible at `:8011` or at `127.0.0.1`. **Always serve it the same way.** The
 **Download a copy** button on Board settings produces the portable form — the
 backup, the way to move machines, and the file that will be loaded into SharePoint.
 
+### Keeping it running
+
+The board only opens while `tools/serve.py` is serving it. `tools/start-board.ps1`
+starts it hidden, does nothing if it is already running, and logs to `output/`.
+On Kevin's machine two shortcuts call it:
+
+- **Startup folder** — `Tech Team Board server`, so it starts at every login.
+- **Desktop** — `Tech Team Board`, which starts it if needed and opens the board.
+
+To stop it starting at login, delete the Startup shortcut (Win+R, `shell:startup`).
+
 See [`docs/REHEARSAL.md`](docs/REHEARSAL.md) before running the board in a real
 meeting; step 0a is the one that decides whether it is safe to.
 
