@@ -300,6 +300,10 @@ button.kpi:hover{background:var(--surface-2)}
 .item > .it-t{grid-column:2}
 .item > .why,.item > .it-c,.item > .it-s{grid-column:2}
 .item > .x{grid-column:3;grid-row:1}
+/* An opportunity's details panel: the same one a project tile has. Under the
+   title, across the title and x columns, on a row of its own - so it can never
+   sit beside the title in an auto track. */
+.item > .dtl{grid-column:2 / -1}
 /* The Reopen button on a resolved issue. Auto-placed it landed in column 3 beside
    the title - and a .btn is 34px tall with 14px of padding either side, so it is a
    real aggressor against a track floored at zero. Pinned where the x goes; the two

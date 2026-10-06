@@ -688,6 +688,12 @@ export function createHandlers(app) {
       pickValue(el.dataset.id, el.dataset.f, value, true);
     },
 
+    // The major challenge: raised with an opportunity, kept through promotion, and
+    // editable on the tile's details panel and the project page alike.
+    projChallenge: function (el) {
+      store.update('projects', el.dataset.id, { note: el.value }, { silent: true });
+    },
+
     projMission: function (el) {
       // Silent, like every other free-text field: a redraw mid-sentence would take
       // the caret with it. See the note on actionDue.
@@ -1112,6 +1118,7 @@ export function createHandlers(app) {
         support: String(fd.get('support') || '').trim(),
         customer: String(fd.get('customer') || '').trim(),
         name: name,
+        note: String(fd.get('challenge') || '').trim(),
         due: String(fd.get('due') || ''),
         meetingDate: currentDate(t)
       })).then(render);

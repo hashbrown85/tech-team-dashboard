@@ -314,6 +314,15 @@ export function renderProject(snap, ui, env, p) {
     '" placeholder="Why this project exists, in a sentence or two."' + dis(env) + '>' +
     esc(p.mission || '') + '</textarea></section>';
 
+  // Stored as `note`, which is what the opportunity form has always written it to.
+  // Shown for an opportunity and a project alike: promotion changes where it is
+  // listed, not what it records.
+  const challenge = '<section class="panel"><div class="pan-h"><h2>Major challenge</h2>' +
+    '<span class="sub">What could stop it</span></div>' +
+    '<textarea class="fld" rows="2" data-edit="projChallenge" data-id="' + esc(p.id) +
+    '" placeholder="The biggest thing in the way, if there is one."' + dis(env) + '>' +
+    esc(p.note || '') + '</textarea></section>';
+
   /* -------------------------------------------------------------- commercial */
 
   /*
@@ -383,7 +392,7 @@ export function renderProject(snap, ui, env, p) {
       : '') +
     '</section>';
 
-  return head + identity + numbers + statusPanel + mission + commercial +
+  return head + identity + numbers + statusPanel + mission + challenge + commercial +
     actionsPanel + renderNotes(snap, ui, env, p);
 }
 

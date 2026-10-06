@@ -122,13 +122,15 @@ export function statusChange(snap, project, newStatus, tid, meetingDate) {
  * @param {string} args.tab
  * @param {string} args.personId
  * @param {string} [args.customer] - optional; internal work has none
+ * @param {string} [args.note] - the major challenge, optional
  * @param {string} args.name
  * @param {string} [args.due]
  * @param {string} args.meetingDate
  * @returns {any} the document to write
  */
-export function newProject({ tab, personId, support, customer, name, due, meetingDate }) {
-  return {
+export function newProject({ tab, personId, support, customer, name, note, due, meetingDate }) {
+  /** @type {any} */
+  const p = {
     tab: tab,
     personId: personId,
     support: support || '',
@@ -138,6 +140,9 @@ export function newProject({ tab, personId, support, customer, name, due, meetin
     due: due || '',
     added: meetingDate
   };
+  // The major challenge, when given - `note`, as an opportunity stores it.
+  if (note) p.note = note;
+  return p;
 }
 
 /**

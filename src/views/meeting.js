@@ -259,9 +259,10 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
             stageChip(pj) +
             '<span class="it-t">' + (customer ? esc(customer) + ' - ' : '') + esc(e.text) + '</span>' +
             '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
-            (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
+            challengeLine(pj ? pj.note : e.why) +
             (pj ? decisionLine(pj, env) : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
+            (pj ? projectDetailsPanel(snap, ui, env, pj) : '') +
             '</li>';
         }).join('') + '</ul>'
       : '<p class="none">Nothing raised yet.</p>';
@@ -282,8 +283,9 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
           '<span class="it-t">' + esc(projectTitle(p)) + '</span>' +
           '<span class="it-s">' + esc(ownerLine(snap, p)) + ' · raised ' +
           fmtDay(raisedOn(p)) + '</span>' +
-          (p.note ? '<span class="why">Challenge: ' + esc(p.note) + '</span>' : '') +
-          decisionLine(p, env) + '</li>';
+          challengeLine(p.note) +
+          decisionLine(p, env) +
+          projectDetailsPanel(snap, ui, env, p) + '</li>';
       }).join('') + '</ul>'
     : '';
 
@@ -293,6 +295,15 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
       dis(env) + '>+ Opportunity</button>';
 
   return list + addForm + earlier;
+}
+
+/**
+ * The challenge, as a line under an opportunity's title. Read from the project
+ * record where there is one - that is what the details panel edits - so a change
+ * made there shows here, rather than the words first said in the meeting.
+ */
+function challengeLine(text) {
+  return text ? '<span class="why">Challenge: ' + esc(text) + '</span>' : '';
 }
 
 /** The chip on an opportunity tile: where it stands. */
@@ -369,6 +380,9 @@ function stageProjects(snap, ui, env, tab, d) {
       '<input class="fld" name="customer" type="text" placeholder="Customer (optional)">' +
       '<input class="fld" name="name" type="text" placeholder="Project name" required>' +
       '<input class="fld" name="due" type="date" aria-label="Due date">' +
+      // The same question the opportunity form asks, so a project and an
+      // opportunity are started with the same things recorded.
+      '<input class="fld full" name="challenge" type="text" placeholder="Major challenge (optional)">' +
       whoFields(snap, tab, true) +
       '<button class="btn" type="submit">Add</button>' +
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
@@ -490,8 +504,15 @@ function projectDetailsPanel(snap, ui, env, p) {
   // the background poll alone would otherwise shut the panel every minute while
   // somebody was still typing in it.
   const isOpen = !!(ui.openDetails && ui.openDetails[p.id]);
+  // The same panel on an opportunity's tile and a project's: promoting one changes
+  // which segment it is listed in, nothing about what it records.
   return '<details class="dtl" data-details="' + esc(p.id) + '"' + (isOpen ? ' open' : '') +
-    '><summary class="lbl">Project details</summary>' +
+    '><summary class="lbl">' + (isOpportunity(p) ? 'Opportunity' : 'Project') +
+    ' details</summary>' +
+    '<label class="lbl">Major challenge' +
+    '<textarea class="fld" rows="2" data-edit="projChallenge" data-id="' + esc(p.id) + '"' +
+    ' placeholder="What could stop it"' + dis(env) + '>' + esc(p.note || '') +
+    '</textarea></label>' +
     '<div class="sgrid">' +
     '<label class="lbl">Win confidence %' +
     '<input class="fld n" type="number" min="0" max="100" data-edit="pdWin" data-id="' +

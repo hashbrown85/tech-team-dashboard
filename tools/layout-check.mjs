@@ -477,7 +477,8 @@ const GRID_CHILDREN = [
    */
   ['arow', [3, 4, 5], 'four-column grid: the rail three, project page four, already-owed five'],
   ['is-h', [3], 'declares four columns; emits three children — see above'],
-  ['item', [2, 3, 4, 5, 6], 'auto minmax(0,1fr) auto, with conditional children']
+  // 7: an opportunity tile now carries the same details panel as a project's.
+  ['item', [2, 3, 4, 5, 6, 7], 'auto minmax(0,1fr) auto, with conditional children']
 ];
 
 
@@ -513,6 +514,8 @@ const PLACEMENT = [
       why:    'placed:2',
       'it-c': 'placed:2',
       'it-s': 'placed:2',
+      // The opportunity details panel - grid-column: 2 / -1, its own row.
+      dtl:    'placed:2',
       /*
        * Both of these sit beside the title on row 1, and both are SAFE there: a
        * button's width is bounded by a label we wrote, not by anything a user can
