@@ -21,8 +21,18 @@ import {
   personName,
   person,
   attendeeIds,
-  parentText
+  parentText,
+  isOpportunity,
+  oppStage,
+  raisedOn
 } from './queries.js';
+
+/** How a decided opportunity reads in the plain-text summary. */
+const OPP_SUMMARY = {
+  promoted: 'Promoted to a project',
+  hold: 'Put on hold',
+  cancelled: 'Cancelled'
+};
 import { STATUS_LABELS } from './constants.js';
 import { actionLabel } from './actions.js';
 
@@ -302,11 +312,18 @@ export function meetingSummary(snap, tab, d) {
     const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
     return personName(snap, e.personId) + ': ' + e.text +
       (e.why ? ' (challenge: ' + e.why + ')' : '') +
-      (pj ? '. Joins Current Projects ' + fmtDay(nextMeetingAfter(tab, e.meeting)) : '');
-  }), 'None');
+      (pj && oppStage(pj) !== 'open' ? '. ' + OPP_SUMMARY[oppStage(pj)] : '');
+  }).concat(snap.projects.filter(function (p) {
+    // Decided at this meeting, raised at an earlier one: the decision is news.
+    return p.tab === tab.id && p.oppDecided === d && raisedOn(p) < d;
+  }).map(function (p) {
+    return p.name + ' (raised ' + fmtDay(raisedOn(p)) + '): ' + OPP_SUMMARY[oppStage(p)];
+  })), 'None');
 
   const chg = snap.projects
-    .filter(function (x) { return x.tab === tab.id && (x.statusMeeting === d || x.added === d); })
+    .filter(function (x) {
+      return x.tab === tab.id && !isOpportunity(x) && (x.statusMeeting === d || x.added === d);
+    })
     .map(function (x) {
       const changed = x.statusMeeting === d && x.prevStatus && x.prevStatus !== x.status;
       return x.name + ' (' + personName(snap, x.personId) + '): ' +
@@ -315,7 +332,9 @@ export function meetingSummary(snap, tab, d) {
           : 'added, ' + STATUS_LABELS[x.status]);
     });
   const still = snap.projects
-    .filter(function (x) { return x.tab === tab.id && x.status === 'off' && x.statusMeeting !== d; })
+    .filter(function (x) {
+      return x.tab === tab.id && !isOpportunity(x) && x.status === 'off' && x.statusMeeting !== d;
+    })
     .map(function (x) { return x.name; });
   if (still.length) chg.push('Still off track: ' + still.join(', '));
   sec('Project status changes', chg, 'No changes');

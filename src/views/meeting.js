@@ -21,9 +21,12 @@ import { pickerControl } from './pickers.js';
 import { spark } from './spark.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen, pickList, raisedOn
+  personName, person, attendeeIds, isOpen, pickList, raisedOn, isOpportunity, oppStage
 } from '../domain/queries.js';
 import { byPriority, confidencePoints, projectTitle } from '../domain/projects.js';
+import {
+  OPP_STAGE_LABELS, OPP_STAGE_CHIPS, decisionsFor, carriedOpportunities
+} from '../domain/opportunities.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
@@ -240,6 +243,7 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
   if (tab.id === TECHDIR_TAB_ID) return businessReview(snap, tab);
 
   const mine = ents.filter(function (e) { return e.kind === 'opp'; });
+  const raisedHere = mine.map(function (e) { return e.projectId; });
 
   const list = mine.length
       ? '<ul class="items">' + mine.map(function (e) {
@@ -249,32 +253,78 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
           // a Current Projects tile; the name stays what was SAID, from the entry.
           const customer = pj ? String(pj.customer || '').trim() : '';
           return '<li class="item opp">' +
-            '<span class="chip">Opportunity</span>' +
+            stageChip(pj) +
             '<span class="it-t">' + (customer ? esc(customer) + ' - ' : '') + esc(e.text) + '</span>' +
             '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
             (e.why ? '<span class="why">Challenge: ' + esc(e.why) + '</span>' : '') +
-            // The next meeting after this one, by the meeting's own weekday - the
-            // same rule projVisible applies, so the promise and the outcome agree.
-            (pj ? '<span class="it-c">Joins Current Projects ' +
-              fmtDay(nextMeetingAfter(tab, e.meeting)) + '</span>' : '') +
+            (pj ? decisionLine(pj, env) : '') +
             '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
             '</li>';
         }).join('') + '</ul>'
       : '<p class="none">Nothing raised yet.</p>';
+
+  /*
+   * Opportunities do not become projects on their own any more: somebody decides.
+   * So the ones raised at earlier meetings and still undecided - or parked - come
+   * back here every week until they are, with the ones decided TODAY kept in view
+   * so the room can see what it just did.
+   */
+  const carried = carriedOpportunities(snap, tab.id, d).filter(function (p) {
+    return raisedHere.indexOf(p.id) < 0;
+  });
+  const earlier = carried.length
+    ? '<div class="lbl">From earlier meetings</div><ul class="items">' +
+      carried.map(function (p) {
+        return '<li class="item opp">' + stageChip(p) +
+          '<span class="it-t">' + esc(projectTitle(p)) + '</span>' +
+          '<span class="it-s">' + esc(ownerLine(snap, p)) + ' · raised ' +
+          fmtDay(raisedOn(p)) + '</span>' +
+          (p.note ? '<span class="why">Challenge: ' + esc(p.note) + '</span>' : '') +
+          decisionLine(p, env) + '</li>';
+      }).join('') + '</ul>'
+    : '';
 
   const addForm = ui.open === 'opp'
     ? opportunityForm(snap, env, tab)
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="opp"' +
       dis(env) + '>+ Opportunity</button>';
 
-  return list + addForm;
+  return list + addForm + earlier;
+}
+
+/** The chip on an opportunity tile: where it stands. */
+function stageChip(p) {
+  const s = oppStage(p) || 'open';
+  return '<span class="chip ' + OPP_STAGE_CHIPS[s] + '">' + OPP_STAGE_LABELS[s] + '</span>';
+}
+
+/**
+ * The decisions on an opportunity - Promote to project, Put on hold, Cancel - and a
+ * way into its page, where its notes, values and actions are.
+ *
+ * Inside the tile's existing `.it-c` sub-line rather than as a new child: `.item`
+ * is a grid whose child count the layout checker asserts, and the sub-line is
+ * already placed in column 2 under the title.
+ */
+function decisionLine(p, env) {
+  const s = oppStage(p);
+  const done = s === 'promoted' ? 'Promoted to Current Projects'
+    : s === 'cancelled' ? 'Cancelled' : '';
+  const buttons = decisionsFor(p).map(function (d) {
+    return '<button type="button" class="linkbtn edit-only" data-act="oppDecide" data-id="' +
+      esc(p.id) + '" data-v="' + d[0] + '"' + dis(env) + '>' + d[1] + '</button>';
+  });
+  const open = '<button type="button" class="linkbtn" data-act="openProject" data-id="' +
+    esc(p.id) + '">Details</button>';
+  return '<span class="it-c">' + (done ? done + ' · ' : '') +
+    buttons.concat([open]).join(' · ') + '</span>';
 }
 
 /** Every active project across every meeting — what the Tech Directors group reviews. */
 function businessReview(snap, tab) {
   const groups = snap.tabs.filter(function (t) { return t.id !== tab.id; }).map(function (t) {
     const live = snap.projects.filter(function (p) {
-      return p.tab === t.id && ACTIVE_STATUSES.indexOf(p.status) >= 0;
+      return p.tab === t.id && ACTIVE_STATUSES.indexOf(p.status) >= 0 && !isOpportunity(p);
     });
     if (!live.length) return '';
     return '<div class="mgroup"><div class="lbl">' + esc(t.name) + '</div><ul class="items">' +
@@ -817,8 +867,17 @@ function ownerOptions(snap, tab, selected, blankLabel) {
 
 /** What an action can be attached to. */
 function relatedOptions(snap, tab, selected) {
-  const projects = snap.projects.filter(function (p) {
+  const live = snap.projects.filter(function (p) {
     return p.tab === tab.id && ACTIVE_STATUSES.indexOf(p.status) >= 0;
+  });
+  // Opportunities carry actions too - "I'll call them Thursday" is often the first
+  // thing said about one - so they are offered, but under their own heading: an
+  // opportunity is not a project until somebody promotes it. A cancelled one is
+  // not going anywhere and is left out.
+  const projects = live.filter(function (p) { return !isOpportunity(p); });
+  const opps = live.filter(function (p) {
+    const s = oppStage(p);
+    return s === 'open' || s === 'hold';
   });
   const open = snap.issues.filter(function (i) { return i.tab === tab.id && i.status === 'open'; });
 
@@ -830,6 +889,10 @@ function relatedOptions(snap, tab, selected) {
     (projects.length ? '<optgroup label="Projects">' + projects.map(function (p) {
       return opt('p:' + p.id, 'Project · ' + esc(p.name) +
         (p.status !== 'on' ? ' (' + STATUS_LABELS[p.status].toLowerCase() + ')' : ''));
+    }).join('') + '</optgroup>' : '') +
+    (opps.length ? '<optgroup label="Opportunities">' + opps.map(function (p) {
+      return opt('p:' + p.id, 'Opportunity · ' + esc(projectTitle(p)) +
+        (oppStage(p) === 'hold' ? ' (on hold)' : ''));
     }).join('') + '</optgroup>' : '') +
     (open.length ? '<optgroup label="Open issues">' + open.map(function (i) {
       return opt('i:' + i.id, 'Issue · ' + esc(i.text));

@@ -499,9 +499,53 @@ export function projVisible(x, tid, d) {
   // in - whenever that falls. It used to wait for `start`, a fixed seven days on,
   // so moving a meeting's weekday stranded it: gone from New Opportunities, not yet
   // in Current Projects, until a meeting happened to land past that date.
+  // An undecided opportunity is not a project yet, at any meeting - see oppStage.
+  if (isOpportunity(x)) return false;
   var raised = raisedOn(x);
-  var begun = raised ? raised < d : (!x.start || x.start <= d);
+  var begun = x.promotedOn ? x.promotedOn <= d
+    : raised ? raised < d
+    : (!x.start || x.start <= d);
   return x.tab === tid && begun && (active || closedToday);
+}
+
+/**
+ * Where an opportunity stands, or null for a project that never was one.
+ *
+ *   open       raised, nobody has decided yet
+ *   hold       parked - still listed under New Opportunities
+ *   cancelled  not going ahead
+ *   promoted   a project now: in Current Projects and the Projects list
+ *
+ * Only `promoted` makes it a project. That is a decision somebody makes in a
+ * meeting, not something that happens because a week went by.
+ *
+ * Boards from before this was recorded have no `oppStage`. One still at status
+ * `new` was never touched, so it is undecided; one somebody gave a status to was
+ * already being run as a project, so it is promoted. Null counts as absent, which
+ * is what undo writes back.
+ *
+ * @param {any} p - a project
+ * @returns {'open'|'hold'|'cancelled'|'promoted'|null}
+ */
+export function oppStage(p) {
+  if (!p || !p.fromOpp) return null;
+  const s = p.oppStage;
+  if (s === 'open' || s === 'hold' || s === 'cancelled' || s === 'promoted') return s;
+  return p.status === 'new' ? 'open' : 'promoted';
+}
+
+/**
+ * Is this still an opportunity rather than a project? Open, on hold or cancelled.
+ *
+ * Everything that lists PROJECTS asks this - Current Projects, the Projects list,
+ * its sidebar count, the Timeline, the Business Review, the meeting summary - so an
+ * opportunity cannot leak into one of them by a screen forgetting.
+ *
+ * @param {any} p
+ */
+export function isOpportunity(p) {
+  const s = oppStage(p);
+  return s !== null && s !== 'promoted';
 }
 
 /**

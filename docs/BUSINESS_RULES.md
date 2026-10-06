@@ -132,23 +132,34 @@ Consequence worth understanding: a project marked done in one meeting is visible
 that meeting forever (you can scroll back to it), but disappears the following week.
 Closed work doesn't accumulate in the list.
 
-## 5. An opportunity becomes a project at the next meeting, not this one
+## 5. An opportunity becomes a project when somebody promotes it
 
 `F.opp` (board.html:1577-1585) creates two documents at once: the `entries` row and a
-`projects` row with `status: 'new'`, `fromOpp` pointing back at the entry,
-**`raisedOn` = the meeting date**, and `start` = the meeting date + 7 days.
+`projects` row with `status: 'new'`, `fromOpp` pointing back at the entry, and
+`raisedOn` = the meeting date. That project record lets the opportunity carry notes,
+values and actions from the start — but it is **not a project** until a decision is
+made (`src/domain/opportunities.js`):
 
-Combined with rule 4, that means an opportunity raised today is *not* in Current
-Projects today — it appears at the next meeting. Deliberate: you discuss it as a new
-opportunity this week, then it becomes something you're accountable for.
+- **Promote to project** — in Current Projects from the meeting that decided it
+  (`promotedOn`), and in the Projects list.
+- **Put on hold** — parked; it stays under New Opportunities.
+- **Cancel** — not going ahead; it shows as cancelled at that meeting, then leaves.
 
-**"Next meeting" is decided by `raisedOn`, not by `start`** (`raisedOn()` and
-`projVisible` in `src/domain/queries.js`). It used to wait for `start`, which assumed
-meetings are exactly a week apart. Moving a meeting's weekday broke that: a Monday
-meeting four days after a Thursday one left that week's opportunities gone from New
-Opportunities and not yet in Current Projects. Older opportunities without `raisedOn`
-are read as `start` − 7 days, which is what it always was. `start` is kept but no
-longer decides anything for an opportunity, and the project page does not show it.
+Until then it is listed under New Opportunities at every meeting of its tab (raised
+earlier and still open or on hold), and left out of everything that lists projects:
+Current Projects, the Projects list and its count, the Timeline, the Business
+Review and the meeting summary's project section. `isOpportunity()` in
+`src/domain/queries.js` is the one question all of those ask. Actions can attach to
+it; they are offered under an "Opportunities" heading.
+
+Every decision comes with Undo. A decision is recorded as `oppStage` and
+`oppDecided`. Boards from before this have no `oppStage`: an opportunity still at
+status `new` was never touched and counts as undecided; one somebody gave a status
+to was already being run as a project and counts as promoted.
+
+History: it used to become a project automatically a week later (`start` = meeting +
+7 days), then at the next meeting after it was raised. Both were replaced by the
+decision, at Kevin's request.
 
 `H.delEntry` (board.html:1384-1394) undoes both, but **only if** the linked project is
 still `status:'new'` and has no actions. Once someone has worked on it, deleting the

@@ -145,9 +145,9 @@ would come up with unprompted.
 
 So you can tell a decision from a defect:
 
-- **An opportunity does not become a project until the next meeting.** Deliberate. It
-  joins Current Projects at the meeting after the one it was raised in, whatever day
-  that is.
+- **An opportunity does not become a project until somebody promotes it.** Deliberate.
+  Use the Promote to project / Put on hold / Cancel links on its tile under New
+  Opportunities. Undecided ones come back there every meeting.
 - **The board says "Local board — this computer only".** Correct until SharePoint.
 - **A fresh board is completely empty.** There is no sample data on your board; the
   demo moved to `?board=demo`.

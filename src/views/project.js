@@ -31,7 +31,9 @@
 import { esc } from '../lib/dom.js';
 import { fmt, fmtDay, diffDays, fmtWhen, rel } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
-import { isOpen, actsOf, personName, detailsArrived, raisedOn } from '../domain/queries.js';
+import {
+  isOpen, actsOf, personName, detailsArrived, raisedOn, oppStage, isOpportunity
+} from '../domain/queries.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
@@ -40,6 +42,9 @@ import {
   projectTitle, confidencePoints, valueOptions
 } from '../domain/projects.js';
 import { pageHeader, kpi } from './shell.js';
+import {
+  OPP_STAGE_LABELS, OPP_STAGE_CHIPS, decisionsFor
+} from '../domain/opportunities.js';
 import { pickerControl } from './pickers.js';
 import { spark } from './spark.js';
 
@@ -148,7 +153,7 @@ export function renderProject(snap, ui, env, p) {
     back +
     '<button class="btn ghost sm" type="button" data-act="copyProject" data-id="' +
     esc(p.id) + '">Copy summary</button>',
-    'Project');
+    isOpportunity(p) ? 'Opportunity' : 'Project');
 
   /* --------------------------------------------- what the project is, in short */
 
@@ -254,19 +259,41 @@ export function renderProject(snap, ui, env, p) {
       (entry && entry.personId ? ' by ' + esc(personName(snap, entry.personId)) : '');
   }
 
+  /*
+   * An undecided opportunity has no project status yet - On track or Off track
+   * means nothing until somebody has decided to run it. It gets the decision
+   * instead, the same three as on its tile in New Opportunities.
+   */
+  const stage = oppStage(p);
+  const deciding = isOpportunity(p);
+  const decisionRow = row('Decision',
+    '<span class="chip ' + OPP_STAGE_CHIPS[stage || 'open'] + '">' +
+    OPP_STAGE_LABELS[stage || 'open'] + '</span> ' +
+    decisionsFor(p).map(function (d) {
+      return '<button type="button" class="btn ghost sm edit-only" data-act="oppDecide" data-id="' +
+        esc(p.id) + '" data-v="' + d[0] + '"' + dis(env) + '>' + d[1] + '</button>';
+    }).join(' ') +
+    '<p class="why">' + (stage === 'cancelled'
+      ? 'Not going ahead.'
+      : 'Not in Current Projects or the Projects list until it is promoted. ' +
+        'It can carry actions and notes meanwhile.') + '</p>');
+
   const statusPanel = '<section class="panel">' +
-    '<div class="pan-h"><h2>Status</h2><span class="sub">' +
-    (daysInStatus == null
-      ? 'set in this meeting'
-      : daysInStatus + ' days as ' + (STATUS_LABELS[p.status] || p.status).toLowerCase()) +
-    '</span></div>' +
-    row('Status',
-      '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' +
-      statusButtons + '</div>' +
-      (p.status === 'off' && !open.length
-        ? '<p class="why"><b class="warnt">Off track with no action yet</b> — it is ' +
-          'sitting in the Issues queue until somebody owns a next step.</p>'
-        : '')) +
+    (deciding
+      ? '<div class="pan-h"><h2>Opportunity</h2><span class="sub">raised ' +
+        fmtDay(raisedOn(p)) + '</span></div>' + decisionRow
+      : '<div class="pan-h"><h2>Status</h2><span class="sub">' +
+        (daysInStatus == null
+          ? 'set in this meeting'
+          : daysInStatus + ' days as ' + (STATUS_LABELS[p.status] || p.status).toLowerCase()) +
+        '</span></div>' +
+        row('Status',
+          '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' +
+          statusButtons + '</div>' +
+          (p.status === 'off' && !open.length
+            ? '<p class="why"><b class="warnt">Off track with no action yet</b> — it is ' +
+              'sitting in the Issues queue until somebody owns a next step.</p>'
+            : ''))) +
     row('Due',
       '<input class="fld" type="date" value="' + esc(p.due || '') +
       '" data-edit="projDue" data-id="' + esc(p.id) + '" aria-label="Due date"' +

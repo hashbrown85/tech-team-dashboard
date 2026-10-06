@@ -26,6 +26,7 @@ import { fmtShort } from '../lib/dates.js';
 import { stats } from '../domain/dueness.js';
 import { meetingDate } from '../domain/meetings.js';
 import { byName } from '../lib/seq.js';
+import { isOpportunity } from '../domain/queries.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -374,7 +375,7 @@ export function renderSide(snap, ui, env) {
       s.over ? '<span class="cnt">' + s.over + '</span>' : '<span class="cnt n">' + s.open + '</span>') +
     item('projects', 'Projects', 'Projects',
       '<span class="cnt n">' + snap.projects.filter(function (p) {
-        return ACTIVE_STATUSES.indexOf(p.status) >= 0;
+        return ACTIVE_STATUSES.indexOf(p.status) >= 0 && !isOpportunity(p);
       }).length + '</span>') +
     item('timeline', 'Timeline', 'Timeline') +
     item('people', 'People', 'People') +

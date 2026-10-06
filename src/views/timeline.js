@@ -28,7 +28,7 @@
 
 import { esc } from '../lib/dom.js';
 import { fmt, fmtDay, addDays, diffDays, nextOn } from '../lib/dates.js';
-import { isOpen, personName } from '../domain/queries.js';
+import { isOpen, personName, isOpportunity } from '../domain/queries.js';
 import { dueClass, personOk, stats } from '../domain/dueness.js';
 import { actionLabel } from '../domain/actions.js';
 import { pageHeader } from './shell.js';
@@ -82,7 +82,8 @@ export function renderTimeline(snap, ui, env) {
   });
 
   const projects = snap.projects.filter(function (p) {
-    const live = p.status === 'on' || p.status === 'off' || p.status === 'new';
+    const live = (p.status === 'on' || p.status === 'off' || p.status === 'new') &&
+      !isOpportunity(p);
     const mine = ui.person === 'all' || personName(snap, p.personId) === ui.person;
     return live && p.due && mine;
   }).map(function (p) {

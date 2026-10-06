@@ -13,7 +13,7 @@
  * F.project (1586-1591).
  */
 
-import { issueItems, personName, actsOf, isOpen } from './queries.js';
+import { issueItems, personName, actsOf, isOpen, oppStage } from './queries.js';
 import { addDays, fmtLong, fmtDay, fmtStamp } from '../lib/dates.js';
 import { byId, alphabetically } from '../lib/seq.js';
 import { actionLabel } from './actions.js';
@@ -238,6 +238,10 @@ export function linkedProjectGoesToo(snap, entry) {
   if (!entry || !entry.projectId) return false;
   const p = snap.projects.find(function (x) { return x.id === entry.projectId; });
   if (!p || p.status !== 'new') return false;
+  // Somebody decided something about it - promoted, held or cancelled - so it has
+  // been touched, and outlives the entry like any other worked-on project.
+  const stage = oppStage(p);
+  if (stage && stage !== 'open') return false;
   return !snap.actions.some(function (a) { return a.parent && a.parent.id === p.id; });
 }
 

@@ -31,7 +31,7 @@
 import { esc } from '../lib/dom.js';
 import { fmt } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
-import { personName, openActsFor, detailsArrived } from '../domain/queries.js';
+import { personName, openActsFor, detailsArrived, isOpportunity } from '../domain/queries.js';
 import { STATUS_LABELS, ACTIVE_STATUSES } from '../domain/constants.js';
 import {
   projectTitle, byTitleThenId, projectSorter, matchesQuery, matchesValue,
@@ -113,6 +113,9 @@ export function renderProjects(snap, ui, env) {
   // ID where actions record a NAME, so this compares the resolved name rather than
   // the raw field - see the owner-id migration in the port plan.
   const scoped = snap.projects.filter(function (p) {
+    // Opportunities are not projects until promoted; they live under New
+    // Opportunities in their meeting until then.
+    if (isOpportunity(p)) return false;
     if (ui.projTab !== 'all' && p.tab !== ui.projTab) return false;
     if (ui.person !== 'all' && personName(snap, p.personId) !== ui.person) return false;
     return true;

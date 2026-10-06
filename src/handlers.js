@@ -38,6 +38,7 @@ import {
   deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab, moveProject,
   deleteNote, renameListValue
 } from './domain/cascade.js';
+import { decideOpportunity } from './domain/opportunities.js';
 import {
   meetingDate, toggleRating, setNote, documentId, meetingSummary, withRole, ROLE_LISTS
 } from './domain/meetings.js';
@@ -382,6 +383,20 @@ export function createHandlers(app) {
     },
 
     delProject: function (el, id) { cascade(deleteProject(store.snapshot(), id)); },
+
+    /*
+     * Promote, hold or cancel an opportunity. Dated to the meeting being looked at
+     * in the opportunity's own meeting - the week chosen there, if one is - so a
+     * promotion shows in Current Projects from exactly that meeting. The decision
+     * is validated in decideOpportunity; nothing off the page is trusted.
+     */
+    oppDecide: function (el, id, v) {
+      const snap = store.snapshot();
+      const p = byId(snap.projects, id);
+      const tab = p ? byId(snap.tabs, p.tab) : null;
+      if (!tab) return;
+      cascade(decideOpportunity(snap, id, v, currentDate(tab)));
+    },
 
     /**
      * Move a project up or down its owner's list.

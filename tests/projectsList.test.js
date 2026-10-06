@@ -23,6 +23,7 @@ import { matchesStatus, byWorkOrder } from '../src/views/projects.js';
 import { demoBoard } from '../src/demo-data.js';
 import { loadUi } from '../src/ui.js';
 import { today, addDays } from '../src/lib/dates.js';
+import { isOpportunity } from '../src/domain/queries.js';
 
 const MODES = { content: 'live', settings: 'live' };
 const TODAY = today();
@@ -68,10 +69,12 @@ test('Every live project is there, each opening its own page', () => {
   const snap = demoBoard();
   const html = page({ snap: snap });
   const live = snap.projects.filter(function (p) {
-    return ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0;
+    return ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0 && !isOpportunity(p);
   });
 
   eq(orderOf(html).length, live.length);
+  ok(snap.projects.some(isOpportunity), 'the demo has an undecided opportunity, left out');
+  notOk(html.indexOf('data-id="pr4"') > 0, 'pr4 is one, and is not listed');
   live.forEach(function (p) {
     ok(html.indexOf('data-id="' + p.id + '"') > 0, p.id + ' is listed');
   });
@@ -286,7 +289,7 @@ test('The sidebar offers Projects, with a count of the live ones', () => {
   const snap = demoBoard();
   const html = page({ snap: snap });
   const live = snap.projects.filter(function (p) {
-    return ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0;
+    return ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0 && !isOpportunity(p);
   }).length;
 
   const item = /<button[^>]*data-v="projects"[^>]*>[\s\S]*?<\/button>/.exec(html);

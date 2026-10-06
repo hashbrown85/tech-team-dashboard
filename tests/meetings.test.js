@@ -258,11 +258,23 @@ test('Wins and losses read differently, and a loss shows what changes', () => {
   ok(out.indexOf('• Loss · Second Person: lost the retender. Why: price. Doing differently: quote earlier') >= 0);
 });
 
-test('An opportunity says when it joins Current Projects', () => {
+test('An undecided opportunity reads as raised, with no promise attached', () => {
+  // It used to promise "Joins Current Projects <date>". Nothing joins on a date
+  // now: somebody promotes it.
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('• First Person: a new line (challenge: needs lab time)\n') >= 0);
+  notOk(out.indexOf('Joins Current Projects') >= 0);
+});
 
-  ok(out.indexOf('• First Person: a new line (challenge: needs lab time). Joins Current Projects Mon, Sep 21') >= 0);
+test('A decision made in the meeting is in its summary', () => {
+  const snap = fullBoard();
+  const opp = snap.projects.filter(function (p) { return p.fromOpp; })[0];
+  ok(opp, 'the fixture has an opportunity');
+  opp.oppStage = 'promoted';
+  opp.oppDecided = MEETING;
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('a new line (challenge: needs lab time). Promoted to a project') >= 0);
 });
 
 test('A status change reads as an arrow between the two labels', () => {

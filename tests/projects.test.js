@@ -294,7 +294,8 @@ test('16. It creates two linked records, starting a week out', () => {
   eq(project.start, NEXT_MEETING, 'seven days on');
 });
 
-test('It is deliberately NOT in Current Projects this week', () => {
+test('It is NOT in Current Projects until somebody promotes it', () => {
+  // A decision, not the calendar: a week going by used to promote it on its own.
   const { project } = newOpportunity({
     entryId: 'e1', projectId: 'pr1', tab: 't1', personId: 'p1',
     text: 'an opportunity', why: '', meetingDate: MEETING
@@ -302,7 +303,11 @@ test('It is deliberately NOT in Current Projects this week', () => {
   const stored = Object.assign({ id: 'pr1' }, project);
 
   notOk(projVisible(stored, 't1', MEETING), 'not today — you are still discussing it');
-  ok(projVisible(stored, 't1', NEXT_MEETING), 'but next week you own it');
+  notOk(projVisible(stored, 't1', NEXT_MEETING), 'nor next week, undecided');
+
+  const promoted = Object.assign({}, stored, { oppStage: 'promoted', promotedOn: NEXT_MEETING });
+  ok(projVisible(promoted, 't1', NEXT_MEETING), 'promoted, it is a project from that meeting');
+  notOk(projVisible(promoted, 't1', MEETING), 'and not retrospectively before it');
 });
 
 test('It carries the faithful oddities: empty due, and no "added" field', () => {

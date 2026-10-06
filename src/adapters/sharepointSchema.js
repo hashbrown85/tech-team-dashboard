@@ -151,6 +151,10 @@ export const SCHEMA = {
       added: { col: 'AddedMeeting', kind: 'date' },
       fromOpp: { col: 'FromOpp', kind: 'text' },
       raisedOn: { col: 'RaisedOn', kind: 'date' },
+      // An opportunity's decision - see domain/opportunities.js.
+      oppStage: { col: 'OppStage', kind: 'text' },
+      oppDecided: { col: 'OppDecided', kind: 'date' },
+      promotedOn: { col: 'PromotedOn', kind: 'date' },
       note: { col: 'Note', kind: 'note' },
       statusMeeting: { col: 'StatusMeeting', kind: 'date' },
       prevStatus: { col: 'PrevStatus', kind: 'text' },

@@ -255,6 +255,10 @@ function matrix() {
     ['opportunity form', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp:p1' }],
     ['projects stage', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
     ['projects stage, adding', { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' }],
+    // pr4 is an undecided opportunity raised on the 21st: carried to the next
+    // meeting under "From earlier meetings", and its own page shows the decision.
+    ['opportunities, carried', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } }],
+    ['opportunity page', { view: 'project', project: 'pr4' }],
     ['projects stage, details open',
       { view: 'tab', tab: 't1', steps: { t1: 2 }, openDetails: { pr1: true } }],
     ['issues', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
@@ -364,6 +368,13 @@ function matrix() {
     clashing.people[1].upn = 'SHARED@example.invalid';
   }
   out.push(['people, clashing emails', { view: 'people' }, clashing, LIVE, LOCAL_ID]);
+
+  // An opportunity on hold: its chip colour and the shorter decision line render
+  // nowhere else.
+  const held = fullBoard();
+  held.projects.forEach(function (p) { if (p.id === 'pr4') p.oppStage = 'hold'; });
+  out.push(['opportunity on hold', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } },
+    held, LIVE, LOCAL_ID]);
 
   /*
    * Somebody in two area meetings, so the Area cell holds a list rather than one

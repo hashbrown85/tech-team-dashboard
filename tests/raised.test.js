@@ -2,17 +2,15 @@
 /**
  * When an opportunity becomes a current project.
  *
- * Reported: meetings were moved to Monday, and that week's new opportunities left
- * New Opportunities without arriving in Current Projects. They waited on `start`,
- * a fixed seven days after the meeting they were raised in - and a Monday meeting
- * four days after a Thursday one is before that date. The rule now is the one the
- * board always meant: they join at the next meeting after the one they came up in.
+ * First reported as a gap: meetings moved to Monday, and that week's opportunities
+ * left New Opportunities without arriving in Current Projects, because they waited
+ * on a date seven days out. Then the rule itself changed: an opportunity becomes a
+ * project only when somebody promotes it - a decision, not the calendar.
  */
 
 import { group, test, eq, ok, notOk } from './harness.js';
 import { projVisible, raisedOn } from '../src/domain/queries.js';
 import { newOpportunity } from '../src/domain/projects.js';
-import { nextMeetingAfter } from '../src/domain/meetings.js';
 
 const THURSDAY = '2026-10-01';
 const MONDAY = '2026-10-05';
@@ -24,34 +22,45 @@ function raised(on) {
   }).project;
 }
 
-group('An opportunity joins Current Projects at the next meeting');
+group('An opportunity becomes a project when somebody promotes it');
+
+function promoted(on, at) {
+  return Object.assign(raised(on), { oppStage: 'promoted', promotedOn: at });
+}
 
 test('It records the meeting it was raised in', () => {
   eq(raised(THURSDAY).raisedOn, THURSDAY);
 });
 
-test('Not in Current Projects at the meeting it was raised in', () => {
-  // That meeting shows it under New Opportunities instead.
-  notOk(projVisible(raised(THURSDAY), 't1', THURSDAY));
+test('Undecided, it is never in Current Projects, however long it waits', () => {
+  notOk(projVisible(raised(THURSDAY), 't1', THURSDAY), 'not where it was raised');
+  notOk(projVisible(raised(THURSDAY), 't1', MONDAY), 'not at the next meeting');
+  notOk(projVisible(raised(THURSDAY), 't1', '2026-12-28'), 'not months later');
 });
 
-test('The reported case: the meeting moved to Monday, four days later', () => {
-  ok(projVisible(raised(THURSDAY), 't1', MONDAY), 'it is a current project on Monday');
+test('Promoted, it is a project from the meeting that decided it', () => {
+  // The reported case was a meeting moving weekday. With a decision instead of a
+  // date, the weekday cannot strand anything.
+  const p = promoted(THURSDAY, MONDAY);
+  ok(projVisible(p, 't1', MONDAY), 'the meeting it was promoted in');
+  ok(projVisible(p, 't1', '2026-10-12'), 'and after');
+  notOk(projVisible(p, 't1', THURSDAY), 'not before');
 });
 
-test('And at any later meeting', () => {
-  ok(projVisible(raised(THURSDAY), 't1', '2026-10-08'));
+test('Promoted at the meeting it was raised in, it is a project at once', () => {
+  ok(projVisible(promoted(THURSDAY, THURSDAY), 't1', THURSDAY));
 });
 
-test('Never at a meeting before it was raised', () => {
-  notOk(projVisible(raised(THURSDAY), 't1', '2026-09-28'));
-});
-
-test('Older opportunities, with only a start date, are worked out from it', () => {
-  // start was always raised + 7. No stored data needs rewriting.
+test('An older opportunity nobody touched is undecided', () => {
+  // Only `start` and status `new`: never worked on, so it waits for a decision.
   const old = { tab: 't1', status: 'new', fromOpp: 'e1', start: '2026-10-08' };
-  eq(raisedOn(old), THURSDAY);
-  ok(projVisible(old, 't1', MONDAY), 'so they are no longer stuck either');
+  eq(raisedOn(old), THURSDAY, 'its raised date is worked back from start');
+  notOk(projVisible(old, 't1', MONDAY));
+});
+
+test('An older one somebody gave a status to was already a project', () => {
+  const run = { tab: 't1', status: 'on', fromOpp: 'e1', start: '2026-10-08' };
+  ok(projVisible(run, 't1', MONDAY), 'so it stays in Current Projects');
 });
 
 test('A project that did not start as an opportunity still waits for its start', () => {
@@ -59,14 +68,6 @@ test('A project that did not start as an opportunity still waits for its start',
   eq(raisedOn(planned), '');
   notOk(projVisible(planned, 't1', MONDAY));
   ok(projVisible(planned, 't1', '2026-10-12'));
-});
-
-test('The tile promises the date the rule will deliver', () => {
-  // The "Joins Current Projects" date is the next meeting by the meeting's own
-  // weekday - the first date projVisible says yes.
-  const monday = { weekday: 1 };
-  eq(nextMeetingAfter(monday, THURSDAY), MONDAY);
-  ok(projVisible(raised(THURSDAY), 't1', nextMeetingAfter(monday, THURSDAY)));
 });
 
 /* ------------------------------------------------- moving a project's meeting */
