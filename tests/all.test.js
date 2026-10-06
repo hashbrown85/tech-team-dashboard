@@ -47,6 +47,7 @@ import './scope.test.js';
 import './theme.test.js';
 import './raised.test.js';
 import './opportunities.test.js';
+import './actionEdit.test.js';
 import './views.test.js';
 import './flow.test.js';
 import './reporting.test.js';

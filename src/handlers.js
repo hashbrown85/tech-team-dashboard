@@ -152,6 +152,9 @@ export function createHandlers(app) {
     openForm: function (el, id, v) { ui.open = v; render(); focusFirst(); },
     closeForm: function () { ui.open = null; render(); },
 
+    /* Open one action's editor, wherever it is listed. See views/actionEditor.js. */
+    editAction: function (el, id) { ui.open = 'act:' + id; render(); focusFirst(); },
+
     filter: function (el, id, v) { ui.filter = v; render(); },
     projStatusFilter: function (el, id, v) { ui.projStatus = v; render(); },
 
@@ -1128,6 +1131,28 @@ export function createHandlers(app) {
         sev: String(fd.get('sev') || 'stopper'),
         meetingDate: currentDate(t)
       })).then(render);
+      render();
+    },
+
+    /*
+     * Save an edited action: what it says, owner, support and due date. What it is
+     * related to is deliberately not editable here - see views/actionEditor.js.
+     * A blank text or owner is refused rather than saved: an action nobody owns, or
+     * that says nothing, is not one.
+     */
+    editAction: function (fd, form) {
+      const id = form && form.dataset ? form.dataset.id : '';
+      const a = byId(store.snapshot().actions, id);
+      const text = String(fd.get('text') || '').trim();
+      const owner = String(fd.get('owner') || '').trim();
+      if (!a || !text || !owner) return;
+      ui.open = null;
+      store.update('actions', id, {
+        text: text,
+        owner: owner,
+        support: String(fd.get('support') || '').trim(),
+        due: String(fd.get('due') || '') || a.due || ''
+      }).then(render);
       render();
     },
 

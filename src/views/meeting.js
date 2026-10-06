@@ -29,6 +29,9 @@ import {
 } from '../domain/opportunities.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
+  ownerOptions, actionEditor, editButton, editingAction
+} from './actionEditor.js';
+import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
   ACTIVE_STATUSES, segmentsFor, TECHDIR_TAB_ID
 } from '../domain/constants.js';
@@ -760,10 +763,15 @@ function renderRail(snap, ui, env, tab, step, d) {
 
   const rows = list.length
     ? '<ul class="alist">' + list.map(function (a) {
+        // Being edited: the row becomes the editor. A plain <li>, not .arow - the
+        // form is not one of that grid's children and must not be counted as one.
+        if (editingAction(ui, a)) {
+          return '<li id="row-' + esc(a.id) + '">' + actionEditor(snap, a) + '</li>';
+        }
         return '<li class="arow ' + dueClass(a, env.today) + '" id="row-' + esc(a.id) + '">' +
           '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
           (isOpen(a) ? '' : ' checked') + dis(env) + '><span class="aid">' + actionLabel(a) + '</span></label>' +
-          '<span class="atext">' + esc(a.text) + '</span>' +
+          '<span class="atext">' + esc(a.text) + editButton(a, env) + '</span>' +
           '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, env.today) + '</span>' +
           dueControls(a, tab, d, env) + '</li>';
       }).join('') + '</ul>'
@@ -849,20 +857,6 @@ function whoFields(snap, tab, withSupport) {
       ? '<select class="fld" name="support" aria-label="Supporting (optional)">' +
         peopleOptions(snap, tab, '', 'Supporting\u2026 (optional)') + '</select>'
       : '');
-}
-
-/** Owner options, by NAME, because that is what an action stores. */
-function ownerOptions(snap, tab, selected, blankLabel) {
-  const ids = attendeeIds(tab).filter(function (id) { return person(snap, id); });
-  const inMeeting = ids.map(function (id) { return person(snap, id); });
-  const rest = snap.people.filter(function (p) { return ids.indexOf(p.id) < 0; });
-  function opt(p) {
-    return '<option value="' + esc(p.name) + '"' +
-      (p.name === selected ? ' selected' : '') + '>' + esc(p.name) + '</option>';
-  }
-  return (blankLabel ? '<option value="">' + blankLabel + '</option>' : '') +
-    (inMeeting.length ? '<optgroup label="In this meeting">' + inMeeting.map(opt).join('') + '</optgroup>' : '') +
-    (rest.length ? '<optgroup label="Everyone else">' + rest.map(opt).join('') + '</optgroup>' : '');
 }
 
 /** What an action can be attached to. */

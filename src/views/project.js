@@ -46,6 +46,7 @@ import {
   OPP_STAGE_LABELS, OPP_STAGE_CHIPS, decisionsFor
 } from '../domain/opportunities.js';
 import { pickerControl } from './pickers.js';
+import { actionEditor, editButton, editingAction } from './actionEditor.js';
 import { spark } from './spark.js';
 
 /**
@@ -371,14 +372,14 @@ export function renderProject(snap, ui, env, p) {
     '<div class="r"><button class="btn ghost sm" type="button" data-act="showProjActions" ' +
     'data-id="' + esc(p.id) + '">Open in register</button></div></div>' +
     (open.length
-      ? actionRows(open, today, env)
+      ? actionRows(snap, ui, open, today, env)
       : '<p class="none">Nothing open on this project.</p>') +
     (closed.length
       ? '<details class="dtl"' +
         (ui.openDetails && ui.openDetails['closed-' + p.id] ? ' open' : '') +
         ' data-details="closed-' + esc(p.id) + '">' +
         '<summary class="lbl">' + closed.length + ' closed</summary>' +
-        actionRows(closed, today, env) + '</details>'
+        actionRows(snap, ui, closed, today, env) + '</details>'
       : '') +
     '</section>';
 
@@ -421,13 +422,17 @@ function picker(snap, env, p, field, label, noun) {
  * `dueClass` already returns 'done' for a closed action, and `.arow.done .atext` is
  * what strikes the text through - there is no separate class to add.
  */
-function actionRows(list, today, env) {
+function actionRows(snap, ui, list, today, env) {
   return '<ul class="alist">' + list.map(function (a) {
+    // The same editor as the Action items table and the meeting rail.
+    if (editingAction(ui, a)) {
+      return '<li id="row-' + esc(a.id) + '">' + actionEditor(snap, a) + '</li>';
+    }
     return '<li class="arow ' + dueClass(a, today) + '" id="row-' + esc(a.id) + '">' +
       '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' +
       esc(a.id) + '"' + (isOpen(a) ? '' : ' checked') + dis(env) +
       '><span class="aid">' + actionLabel(a) + '</span></label>' +
-      '<span class="atext">' + esc(a.text) + '</span>' +
+      '<span class="atext">' + esc(a.text) + editButton(a, env) + '</span>' +
       '<span class="own">' + esc(a.owner || 'No owner') + '</span>' +
       '<span class="adue ' + dueClass(a, today) + '">' + dueLabel(a, today) + '</span>' +
       '</li>';

@@ -21,6 +21,7 @@ import {
 } from '../domain/actions.js';
 import { projectTitle } from '../domain/projects.js';
 import { pageHeader, sortableTh } from './shell.js';
+import { actionEditor, editButton, editingAction } from './actionEditor.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -148,7 +149,7 @@ export function renderActions(snap, ui, env) {
       th('due', 'Due', '') +
       '<th class="c"><span class="sr-only">Remove</span></th>' +
       '</tr></thead><tbody>' +
-      rows.map(function (a) { return actionRow(snap, env, a, today); }).join('') +
+      rows.map(function (a) { return actionRow(snap, ui, env, a, today); }).join('') +
       '</tbody></table></div>'
     : '<p class="none">' + emptyMessage(ui, scoped.length, narrowed.length) + '</p>';
 
@@ -170,15 +171,22 @@ export function renderActions(snap, ui, env) {
  * One row. `id="row-<id>"` is load-bearing: `focusAction` (handlers.js) scrolls to
  * it and flashes it when you arrive from the Overview or the Timeline.
  */
-function actionRow(snap, env, a, today) {
+function actionRow(snap, ui, env, a, today) {
   const tab = byId(snap.tabs, a.tab);
   const open = isOpen(a);
+
+  // Being edited: one cell across the whole row, holding the shared editor. A form
+  // cannot wrap table cells, so this is the only shape that keeps the table valid.
+  if (editingAction(ui, a)) {
+    return '<tr id="row-' + esc(a.id) + '"><td colspan="8">' + actionEditor(snap, a) +
+      '</td></tr>';
+  }
 
   return '<tr id="row-' + esc(a.id) + '"' + (open ? '' : ' class="done"') + '>' +
     '<td class="c"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
     (open ? '' : ' checked') + ' aria-label="Mark ' + actionLabel(a) + ' done"' + dis(env) + '></td>' +
     '<td class="mono' + (isOverdue(a, today) ? ' overdue' : '') + '">' + actionLabel(a) + '</td>' +
-    '<td><span class="atx">' + esc(a.text) + '</span></td>' +
+    '<td><span class="atx">' + esc(a.text) + '</span>' + editButton(a, env) + '</td>' +
     '<td class="orig">' + originCell(snap, a) + '</td>' +
     '<td>' + esc(a.owner || 'No owner') +
     (a.support ? ' <span class="k">(with ' + esc(a.support) + ')</span>' : '') + '</td>' +

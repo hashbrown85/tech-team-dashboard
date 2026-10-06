@@ -259,6 +259,10 @@ function matrix() {
     // meeting under "From earlier meetings", and its own page shows the decision.
     ['opportunities, carried', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } }],
     ['opportunity page', { view: 'project', project: 'pr4' }],
+    // The shared action editor, open in each of the three places it is offered.
+    ['register, editing an action', { view: 'actions', filter: 'all', open: 'act:a1' }],
+    ['rail, editing an action', { view: 'tab', tab: 't1', steps: { t1: 3 }, open: 'act:a1' }],
+    ['project page, editing an action', { view: 'project', project: 'pr2', open: 'act:a1' }],
     ['projects stage, details open',
       { view: 'tab', tab: 't1', steps: { t1: 2 }, openDetails: { pr1: true } }],
     ['issues', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
