@@ -27,14 +27,9 @@ import {
   raisedOn
 } from './queries.js';
 
-/** How a decided opportunity reads in the plain-text summary. */
-const OPP_SUMMARY = {
-  promoted: 'Promoted to a project',
-  hold: 'Put on hold',
-  cancelled: 'Cancelled'
-};
-import { STATUS_LABELS } from './constants.js';
+import { STATUS_LABELS, SEVERITY_LABELS } from './constants.js';
 import { actionLabel } from './actions.js';
+import { projectTitle } from './projects.js';
 
 /**
  * @typedef {import('./queries.js').Snapshot} Snapshot
@@ -260,113 +255,217 @@ export function trendPoints(snap, tid, limit) {
 
 /* ---------- the summary ---------- */
 
+/** How a decided opportunity reads in the summary. */
+const OPP_SUMMARY = {
+  promoted: 'Promoted to project',
+  hold: 'Put on hold',
+  cancelled: 'Cancelled'
+};
+
 /**
- * The plain-text meeting summary, for pasting into an email or a chat.
+ * The plain-text meeting summary, written to be emailed to the people in it.
  *
- * Deliberately plain text, not HTML: it has to survive being pasted anywhere.
+ * Plain text, not HTML: it has to survive being pasted into anything.
  *
- * Sections are always in the same order so it reads the same every week. Wins,
- * opportunities, status changes and actions always appear, saying "None" when empty,
- * because an empty section is itself worth seeing. Issues and the closing note appear
- * only when there is something to say.
+ * Four sections, always in this order, so it reads the same every week:
  *
- * Kept byte-for-byte compatible with board.html:875-897 — the bullet character, the
- * separators and the uppercase headings included. If you change the wording, you
- * change what lands in someone's inbox.
+ *   WHAT CHANGED     decisions on opportunities, and project status changes
+ *   NEW THIS MEETING wins and losses, opportunities, projects, issues, actions
+ *   DONE             actions finished this week, issues resolved
+ *   NEEDS ATTENTION  off track, without a path, overdue
+ *
+ * A section with nothing in it is left out, so a quiet week is short. If the
+ * first three are all empty it says so in one line rather than looking broken.
+ *
+ * "This meeting" is the meeting date `d`: things decided, raised or changed at
+ * it. "Done" is the week up to and including it. "Overdue" is as of `today`,
+ * because that is when it is being read.
+ *
+ * Projects are named the way every screen names them - customer, then project -
+ * so a name in the email matches what people see on the board.
  *
  * @param {Snapshot} snap
  * @param {any} tab
  * @param {string} d - meeting date
+ * @param {string} [today] - for what is overdue; defaults to the meeting date
  * @returns {string}
  */
-export function meetingSummary(snap, tab, d) {
+export function meetingSummary(snap, tab, d, today) {
+  const now = today || d;
   const r = ratingInfo(snap, tab.id, d);
   const total = attendeeIds(tab).filter(function (id) { return person(snap, id); }).length;
   const mt = snap.meetings[memoryKey(tab.id, d)] || {};
-
-  const ents = snap.entries.filter(function (e) { return e.tab === tab.id && e.meeting === d; });
-  const wl = ents.filter(function (e) { return e.kind === 'win' || e.kind === 'loss'; });
-  const opps = ents.filter(function (e) { return e.kind === 'opp'; });
+  const here = function (x) { return x && x.tab === tab.id; };
+  const who = function (id) { return personName(snap, id); };
 
   /** @type {string[]} */
   const L = [];
-  function sec(title, lines, empty) {
+  function sec(title, lines) {
+    if (!lines.length) return;
     L.push('', title.toUpperCase());
-    if (lines.length) lines.forEach(function (x) { L.push('• ' + x); });
-    else L.push('• ' + empty);
+    lines.forEach(function (x) { L.push('• ' + x); });
   }
 
   L.push(tab.name + ' · ' + fmtLong(d));
-  L.push(
-    'Meeting score: ' +
-      (r.n ? r.avg.toFixed(1) + ' / 5 (' + r.n + ' of ' + total + ' rated)' : 'not rated')
-  );
+  if (r.n) L.push('Meeting score: ' + r.avg.toFixed(1) + ' / 5 (' + r.n + ' of ' + total + ' rated)');
 
-  sec('Wins & losses', wl.map(function (e) {
-    return (e.kind === 'win' ? 'Win' : 'Loss') + ' · ' + personName(snap, e.personId) + ': ' + e.text +
-      (e.why ? '. Why: ' + e.why : '') +
-      (e.change ? (e.kind === 'loss' ? '. Doing differently: ' : '. Keep doing: ') + e.change : '');
-  }), 'None recorded');
-
-  sec('New opportunities', opps.map(function (e) {
-    const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
-    return personName(snap, e.personId) + ': ' + e.text +
-      (e.why ? ' (challenge: ' + e.why + ')' : '') +
-      (pj && oppStage(pj) !== 'open' ? '. ' + OPP_SUMMARY[oppStage(pj)] : '');
-  }).concat(snap.projects.filter(function (p) {
-    // Decided at this meeting, raised at an earlier one: the decision is news.
-    return p.tab === tab.id && p.oppDecided === d && raisedOn(p) < d;
+  /* What changed: decisions, then status changes. */
+  const decided = snap.projects.filter(function (p) {
+    return here(p) && p.oppDecided === d && OPP_SUMMARY[oppStage(p)];
   }).map(function (p) {
-    return p.name + ' (raised ' + fmtDay(raisedOn(p)) + '): ' + OPP_SUMMARY[oppStage(p)];
-  })), 'None');
+    return OPP_SUMMARY[oppStage(p)] + ': ' + projectTitle(p) + ' (' + who(p.personId) + ')';
+  });
+  const moved = snap.projects.filter(function (p) {
+    return here(p) && !isOpportunity(p) && p.statusMeeting === d &&
+      p.prevStatus && p.prevStatus !== p.status;
+  }).map(function (p) {
+    return projectTitle(p) + ' (' + who(p.personId) + '): ' +
+      STATUS_LABELS[p.prevStatus] + ' → ' + STATUS_LABELS[p.status];
+  });
+  const changed = decided.concat(moved);
 
-  const chg = snap.projects
-    .filter(function (x) {
-      return x.tab === tab.id && !isOpportunity(x) && (x.statusMeeting === d || x.added === d);
-    })
-    .map(function (x) {
-      const changed = x.statusMeeting === d && x.prevStatus && x.prevStatus !== x.status;
-      return x.name + ' (' + personName(snap, x.personId) + '): ' +
-        (changed
-          ? STATUS_LABELS[x.prevStatus] + ' → ' + STATUS_LABELS[x.status]
-          : 'added, ' + STATUS_LABELS[x.status]);
-    });
-  const still = snap.projects
-    .filter(function (x) {
-      return x.tab === tab.id && !isOpportunity(x) && x.status === 'off' && x.statusMeeting !== d;
-    })
-    .map(function (x) { return x.name; });
-  if (still.length) chg.push('Still off track: ' + still.join(', '));
-  sec('Project status changes', chg, 'No changes');
-
-  const na = snap.actions
-    .filter(function (a) { return a.tab === tab.id && a.meeting === d; })
+  /* New this meeting. */
+  const ents = snap.entries.filter(function (e) { return here(e) && e.meeting === d; });
+  const fresh = [];
+  ents.filter(function (e) { return e.kind === 'win' || e.kind === 'loss'; }).forEach(function (e) {
+    fresh.push((e.kind === 'win' ? 'Win' : 'Loss') + ' · ' + who(e.personId) + ': ' + e.text +
+      (e.why ? '. Why: ' + e.why : '') +
+      (e.change ? (e.kind === 'loss' ? '. Doing differently: ' : '. Keep doing: ') + e.change : ''));
+  });
+  ents.filter(function (e) { return e.kind === 'opp'; }).forEach(function (e) {
+    const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
+    // The project record holds the customer and the challenge as they stand now.
+    const challenge = pj && pj.note != null ? pj.note : e.why;
+    fresh.push('Opportunity · ' + who(e.personId) + ': ' + (pj ? projectTitle(pj) : e.text) +
+      (challenge ? '. Challenge: ' + challenge : ''));
+  });
+  snap.projects.filter(function (p) {
+    return here(p) && !p.fromOpp && p.added === d;
+  }).forEach(function (p) {
+    fresh.push('Project · ' + who(p.personId) + ': ' + projectTitle(p));
+  });
+  snap.issues.filter(function (i) { return here(i) && i.meeting === d; }).forEach(function (i) {
+    fresh.push('Issue · ' + who(i.personId) + ': ' + i.text +
+      (SEVERITY_LABELS[i.sev] ? ' (' + SEVERITY_LABELS[i.sev] + ')' : ''));
+  });
+  const newActs = snap.actions
+    .filter(function (a) { return here(a) && a.meeting === d; })
     .sort(function (a, b) { return a.num - b.num; });
-  sec('New actions', na.map(function (a) {
+  newActs.forEach(function (a) {
     const pt = parentText(snap, a);
-    return actionLabel(a) + ' ' + a.text +
+    fresh.push(actionLabel(a) + ' ' + a.text +
       ' · Owner: ' + (a.owner || 'none') +
       (a.support ? ' (with ' + a.support + ')' : '') +
       ' · Due ' + (a.due ? fmtDay(a.due) : 'no date') +
       (pt ? ' · Re: ' + pt : '') +
-      (isOpen(a) ? '' : ' · DONE');
-  }), 'None');
+      (isOpen(a) ? '' : ' · DONE'));
+  });
 
-  const res = snap.issues
-    .filter(function (i) {
-      return i.tab === tab.id && i.status === 'resolved' && i.resolvedMeeting === d;
-    })
-    .map(function (i) { return 'Resolved: ' + i.text; });
+  /* Done in the week up to the meeting. A new action already marked DONE above
+     is not listed twice. */
+  const weekStart = addDays(d, -7);
+  const done = snap.actions.filter(function (a) {
+    return here(a) && !isOpen(a) && a.doneOn && a.doneOn > weekStart && a.doneOn <= d &&
+      a.meeting !== d;
+  }).sort(function (a, b) { return a.num - b.num; }).map(function (a) {
+    return actionLabel(a) + ' ' + a.text + ' (' + (a.owner || 'no owner') + ')';
+  }).concat(snap.issues.filter(function (i) {
+    return here(i) && i.status === 'resolved' && i.resolvedMeeting === d;
+  }).map(function (i) { return 'Issue resolved: ' + i.text; }));
+
+  /* Needs attention. */
+  const attention = [];
+  const still = snap.projects.filter(function (p) {
+    return here(p) && !isOpportunity(p) && p.status === 'off' && p.statusMeeting !== d;
+  }).map(projectTitle);
+  if (still.length) attention.push('Still off track: ' + still.join(', '));
   const np = issueItems(snap, tab.id);
   if (np.length) {
-    res.push('Still without a path (' + np.length + '): ' +
-      np.map(function (it) { return it.o.text || it.o.name; }).join('; '));
+    attention.push('Without a path (' + np.length + '): ' +
+      np.map(function (it) { return it.o.text || projectTitle(it.o); }).join('; '));
   }
-  if (res.length) sec('Issues', res, '');
+  snap.actions.filter(function (a) {
+    return here(a) && isOpen(a) && a.due && a.due < now;
+  }).sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : a.num - b.num; })
+    .forEach(function (a) {
+      attention.push('Overdue: ' + actionLabel(a) + ' ' + a.text + ' (' + (a.owner || 'no owner') +
+        ', due ' + fmtDay(a.due) + ')');
+    });
 
-  if (mt.note) sec('One change for next time', [mt.note], '');
+  sec('What changed', changed);
+  sec('New this meeting', fresh);
+  sec('Done', done);
+  if (!changed.length && !fresh.length && !done.length) {
+    L.push('', 'Nothing new recorded at this meeting.');
+  }
+  sec('Needs attention', attention);
+  if (mt.note) sec('One change for next time', [mt.note]);
 
   return L.join('\n') + '\n';
+}
+
+/**
+ * Who a meeting's summary goes to: everybody in it, in any role, who has a work
+ * email - and who was left off for not having one, so it can be said rather than
+ * discovered when somebody asks why they never got it.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @returns {{to: string[], missing: string[]}}
+ */
+export function summaryRecipients(snap, tab) {
+  const to = [];
+  const missing = [];
+  attendeeIds(tab).forEach(function (id) {
+    const p = person(snap, id);
+    if (!p) return;
+    const upn = String(p.upn || '').trim();
+    if (upn) { if (to.indexOf(upn) < 0) to.push(upn); } else missing.push(p.name);
+  });
+  return { to: to, missing: missing };
+}
+
+/**
+ * The longest mailto link handed to the mail app with the body in it. Windows
+ * passes a link to Outlook through a call that cuts it off at about 2,000
+ * characters - so a long summary would arrive chopped mid-sentence, with nothing
+ * to say so. Over this, the body is left out and the summary is pasted instead.
+ */
+export const MAILTO_LIMIT = 1900;
+
+/** An address simple enough to put in a mailto link unencoded. */
+const PLAIN_ADDRESS = /^[^\s@,;?&]+@[^\s@,;?&]+$/;
+
+/**
+ * Everything the Email button needs: who, subject, body, and the mailto link.
+ *
+ * `bodyIncluded` is false when the summary is too long for the link (see
+ * MAILTO_LIMIT); the link then carries a line asking for it to be pasted, and the
+ * caller copies it to the clipboard either way.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} d
+ * @param {string} [today]
+ */
+export function summaryEmail(snap, tab, d, today) {
+  const rec = summaryRecipients(snap, tab);
+  const to = rec.to.filter(function (a) { return PLAIN_ADDRESS.test(a); });
+  const subject = tab.name + ' meeting summary, ' + fmtLong(d);
+  const body = meetingSummary(snap, tab, d, today);
+  const head = 'mailto:' + to.join(',') + '?subject=' + encodeURIComponent(subject);
+  // CRLF: Outlook shows bare newlines in a mailto body as one long line.
+  const full = head + '&body=' + encodeURIComponent(body.replace(/\n/g, '\r\n'));
+  const fits = full.length <= MAILTO_LIMIT;
+  return {
+    to: to,
+    missing: rec.missing,
+    subject: subject,
+    body: body,
+    bodyIncluded: fits,
+    href: fits ? full
+      : head + '&body=' + encodeURIComponent('(Paste the summary here: it is on your clipboard.)')
+  };
 }
 
 // Re-exported for callers that are already working with meetings.

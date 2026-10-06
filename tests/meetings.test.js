@@ -18,8 +18,9 @@ import {
   setNote,
   lastScore,
   trendPoints,
-  meetingSummary, nextMeetingAfter
+  meetingSummary, nextMeetingAfter, summaryRecipients
 } from '../src/domain/meetings.js';
+import { SEVERITY_LABELS } from '../src/domain/constants.js';
 
 const MEETING = '2026-09-14';
 
@@ -244,10 +245,12 @@ test('It opens with the meeting name, the full date and the score', () => {
   eq(lines[1], 'Meeting score: 4.5 / 5 (2 of 2 rated)');
 });
 
-test('An unrated meeting says so rather than showing a zero', () => {
+test('An unrated meeting leaves the score out rather than showing a zero', () => {
+  // It used to print "not rated", which in an email to the room reads as a
+  // complaint. Left out, a quiet meeting just has a shorter summary.
   const snap = board();
-  const lines = meetingSummary(snap, snap.tabs[0], MEETING).split('\n');
-  eq(lines[1], 'Meeting score: not rated');
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  notOk(out.indexOf('Meeting score') >= 0);
 });
 
 test('Wins and losses read differently, and a loss shows what changes', () => {
@@ -263,18 +266,27 @@ test('An undecided opportunity reads as raised, with no promise attached', () =>
   // now: somebody promotes it.
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ok(out.indexOf('• First Person: a new line (challenge: needs lab time)\n') >= 0);
+  ok(out.indexOf('• Opportunity · First Person: a new line. Challenge: needs lab time\n') >= 0);
   notOk(out.indexOf('Joins Current Projects') >= 0);
 });
 
-test('A decision made in the meeting is in its summary', () => {
+test('Decisions on opportunities lead WHAT CHANGED, one each', () => {
+  ['promoted', 'hold', 'cancelled'].forEach(function (stage) {
+    const snap = fullBoard();
+    const opp = snap.projects.filter(function (p) { return p.fromOpp; })[0];
+    Object.assign(opp, { oppStage: stage, oppDecided: MEETING, customer: 'Demo Quartz' });
+    const out = meetingSummary(snap, snap.tabs[0], MEETING);
+    const label = { promoted: 'Promoted to project', hold: 'Put on hold', cancelled: 'Cancelled' }[stage];
+    ok(out.indexOf('WHAT CHANGED\n• ' + label + ': Demo Quartz - a new line (First Person)') >= 0,
+      stage + ' reads as "' + label + '", with the customer');
+  });
+});
+
+test('A decision from an earlier meeting is not repeated', () => {
   const snap = fullBoard();
   const opp = snap.projects.filter(function (p) { return p.fromOpp; })[0];
-  ok(opp, 'the fixture has an opportunity');
-  opp.oppStage = 'promoted';
-  opp.oppDecided = MEETING;
-  const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ok(out.indexOf('a new line (challenge: needs lab time). Promoted to a project') >= 0);
+  Object.assign(opp, { oppStage: 'cancelled', oppDecided: '2026-09-07' });
+  notOk(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('Cancelled:') >= 0);
 });
 
 test('A status change reads as an arrow between the two labels', () => {
@@ -315,13 +327,57 @@ test('Resolved issues and the ones still without a path both show', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
 
-  ok(out.indexOf('• Resolved: sorted now') >= 0);
+  ok(out.indexOf('DONE\n') >= 0 && out.indexOf('• Issue resolved: sorted now') >= 0);
 
   // Counts issues and off-track projects together, since they share one queue -
   // but NOT pr1 ("slipping one"), which has an open action and therefore already
   // has a path. So: i1 the issue, and pr3 the project nobody has picked up.
-  ok(out.indexOf('Still without a path (2): no capacity; long-term problem') >= 0,
+  ok(out.indexOf('• Without a path (2): no capacity; long-term problem') >= 0,
     'in rank order, and only the ones with nobody on them');
+});
+
+test('A new issue is listed with who raised it and how serious it is', () => {
+  const snap = fullBoard();
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('• Issue · First Person: no capacity (' + SEVERITY_LABELS.stopper + ')') >= 0);
+});
+
+test('Actions finished in the week up to the meeting are under DONE', () => {
+  const snap = fullBoard();
+  snap.actions.push(
+    { id: 'a3', num: 3, tab: 't1', text: 'sent the samples', owner: 'Second Person',
+      status: 'done', doneOn: '2026-09-10', meeting: '2026-09-07' },
+    { id: 'a4', num: 4, tab: 't1', text: 'ancient history', owner: 'Second Person',
+      status: 'done', doneOn: '2026-08-20', meeting: '2026-08-17' });
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('• A-003 sent the samples (Second Person)') >= 0, 'this week');
+  notOk(out.indexOf('ancient history') >= 0, 'not weeks ago');
+  eq(out.split('call the supplier').length, 2,
+    'a new action already done is listed once, under NEW, not again under DONE');
+});
+
+test('Overdue actions are named, as of the day it is sent', () => {
+  const snap = fullBoard();
+  // a2 is due Sep 21: not overdue at the meeting, overdue by the 25th.
+  notOk(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('Overdue:') >= 0);
+  ok(meetingSummary(snap, snap.tabs[0], MEETING, '2026-09-25')
+    .indexOf('• Overdue: A-002 book the lab (First Person, due Mon, Sep 21)') >= 0);
+});
+
+test('Projects are named with their customer, as on the board', () => {
+  const snap = fullBoard();
+  snap.projects.filter(function (p) { return p.id === 'pr1'; })[0].customer = 'Demo Basalt';
+  ok(meetingSummary(snap, snap.tabs[0], MEETING)
+    .indexOf('• Demo Basalt - slipping one (First Person): On track → Off track') >= 0);
+});
+
+test('Who it goes to: everybody in the meeting with a work email', () => {
+  const snap = fullBoard();
+  const tab = snap.tabs[0];
+  snap.people.forEach(function (p, i) { if (i === 0) p.upn = 'first@example.invalid'; else delete p.upn; });
+  const r = summaryRecipients(snap, tab);
+  eq(r.to, ['first@example.invalid']);
+  ok(r.missing.length >= 1, 'and the ones without one are named, not dropped silently');
 });
 
 test('The closing note appears only when there is one', () => {
@@ -332,15 +388,15 @@ test('The closing note appears only when there is one', () => {
   notOk(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('ONE CHANGE FOR NEXT TIME') >= 0);
 });
 
-test('Empty sections say so, because an empty section is worth seeing', () => {
+test('Empty sections are left out, and a quiet meeting says so in one line', () => {
+  // Written for an email: four "None" headings would bury the one thing that did
+  // happen. A meeting where nothing at all was recorded says that, once.
   const snap = board();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-
-  ok(out.indexOf('WINS & LOSSES\n• None recorded') >= 0);
-  ok(out.indexOf('NEW OPPORTUNITIES\n• None') >= 0);
-  ok(out.indexOf('PROJECT STATUS CHANGES\n• No changes') >= 0);
-  ok(out.indexOf('NEW ACTIONS\n• None') >= 0);
-  notOk(out.indexOf('ISSUES') >= 0, 'but the Issues section is omitted entirely');
+  ['WHAT CHANGED', 'NEW THIS MEETING', 'DONE', 'NEEDS ATTENTION'].forEach(function (h) {
+    notOk(out.indexOf(h) >= 0, h + ' is left out when empty');
+  });
+  ok(out.indexOf('Nothing new recorded at this meeting.') >= 0);
 });
 
 test('It is plain text and ends with a newline', () => {
@@ -354,8 +410,8 @@ test('It is plain text and ends with a newline', () => {
 test('Sections always come in the same order', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  const order = ['WINS & LOSSES', 'NEW OPPORTUNITIES', 'PROJECT STATUS CHANGES',
-                 'NEW ACTIONS', 'ISSUES', 'ONE CHANGE FOR NEXT TIME'];
+  const order = ['WHAT CHANGED', 'NEW THIS MEETING', 'DONE', 'NEEDS ATTENTION',
+                 'ONE CHANGE FOR NEXT TIME'];
   const found = order.map((h) => out.indexOf('\n' + h));
 
   found.forEach(function (at, i) {

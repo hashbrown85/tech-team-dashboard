@@ -115,7 +115,7 @@ BOARD** so you cannot show it to anyone by mistake.
 | 3 | **→ New Opportunities** | open the form *and* close it again. It is the longest form in the app |
 | 4 | **→ Current Projects** ⚠ highest risk | the 73-character unbroken project name; the 206-character one; a project with six focus chips and four products; status buttons wrapping; the priority arrows; open a project's details and check the confidence line inside |
 | 5 | **→ Issues** | half the meeting lives here. 90-odd issues, all three severities, a resolved one, and one issue carrying fifteen actions |
-| 6 | **→ Rate the meeting** | 20 raters, the trend line, and the summary preview |
+| 6 | **→ Rate the meeting** | 20 raters, the trend line, then **Summary** (top right): check it reads sensibly, then press **Email** and confirm Outlook opens addressed to the meeting, with the summary in it or ready to paste |
 | 7 | **Between meetings** | Projects list — type in the search box, sort by each of Value, Win and Due, use the Field and Type filters, then hit Reset and confirm the search box actually empties. Then the Action register, the Timeline in both groupings, a Project page, People and Board settings |
 | 8 | **Dark mode** | Sidebar → Theme → Dark and repeat 1, 4 and 5 quickly. **Nothing has ever rendered this.** The brand colour changes from dark red to light red, so check the header, chips, the selected-project outline, and that focus outlines are still visible |
 | 9 | **Narrow** | drag the window to roughly 1100, 980, 700 and 560 px. Each is a point where the layout rearranges. You will not present narrow, but a laptop screen mid-meeting is one alt-tab away |

@@ -40,7 +40,8 @@ import {
 } from './domain/cascade.js';
 import { decideOpportunity } from './domain/opportunities.js';
 import {
-  meetingDate, toggleRating, setNote, documentId, meetingSummary, withRole, ROLE_LISTS
+  meetingDate, toggleRating, setNote, documentId, meetingSummary, withRole, ROLE_LISTS,
+  summaryEmail
 } from './domain/meetings.js';
 
 /**
@@ -63,6 +64,14 @@ export function createHandlers(app) {
    * a handler that reaches for a global is one the tests cannot pin down, and two
    * async tests setting `globalThis.confirm` raced each other into a false pass.
    */
+  /*
+   * Opening a link the page does not own - a mailto: one, handed to the mail app.
+   * Injectable, so a test can see what would have been opened without a browser.
+   */
+  const openLink = app.openLink || function (href) {
+    if (typeof window !== 'undefined' && window.location) window.location.href = href;
+  };
+
   const ask = app.confirm ||
     (typeof confirm === 'function' ? function (q) { return confirm(q); }
       : function () { return true; });
@@ -519,8 +528,23 @@ export function createHandlers(app) {
     copySummary: function () {
       const t = currentTab();
       if (!t) return;
-      const text = meetingSummary(store.snapshot(), t, currentDate(t));
+      const text = meetingSummary(store.snapshot(), t, currentDate(t), app.today());
       copyText(text);
+    },
+
+    /*
+     * A new email to everybody in the meeting, subject and summary filled in. The
+     * summary is copied as well, every time: if the mail app drops the body, or it
+     * was too long to put in the link at all, it is one paste away.
+     */
+    emailSummary: function () {
+      const t = currentTab();
+      if (!t) return;
+      const mail = summaryEmail(store.snapshot(), t, currentDate(t), app.today());
+      copyText(mail.body, mail.bodyIncluded
+        ? 'Opening an email. The summary is copied too.'
+        : 'Opening an email. The summary is too long to fill in, so it is copied: paste it in.');
+      openLink(mail.href);
     },
 
     /* --- staying fresh --- */

@@ -259,6 +259,8 @@ function matrix() {
     // meeting under "From earlier meetings", and its own page shows the decision.
     // The Wins & Losses add form, as a win and as a loss - the loss-only box
     // renders in no other state.
+    // The Summary panel opened from the header, mid-meeting.
+    ['summary from the header', { view: 'tab', tab: 't1', steps: { t1: 0 }, sumShow: true }],
     ['wins & losses, adding', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl' }],
     ['wins & losses, adding a loss', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl', wlKind: 'loss' }],
     ['opportunities, carried', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } }],

@@ -36,7 +36,8 @@ import {
   ACTIVE_STATUSES, segmentsFor, TECHDIR_TAB_ID
 } from '../domain/constants.js';
 import {
-  meetingDate, nextMeetingAfter, ratingInfo, getMeeting, trendPoints, meetingSummary
+  meetingDate, nextMeetingAfter, ratingInfo, getMeeting, trendPoints, meetingSummary,
+  summaryRecipients
 } from '../domain/meetings.js';
 import { actionLabel } from '../domain/actions.js';
 import { stepOf } from '../ui.js';
@@ -95,6 +96,10 @@ export function renderMeeting(snap, ui, env, tab) {
     '<div class="d"><b>' + fmtLong(d) + '</b><span>' + rel(d, today) + '</span></div>' +
     '<button class="icon" type="button" data-act="nextMeeting" aria-label="Next meeting">›</button></div>' +
     (d !== upcoming ? '<button class="btn ghost sm" type="button" data-act="thisMeeting">Upcoming</button>' : '') +
+    // The summary is for any meeting, at any point in it - not only from the last
+    // segment, where it used to live - so it sits in the header.
+    '<button class="btn sm" type="button" data-act="toggleSummary" aria-expanded="' +
+    (ui.sumShow ? 'true' : 'false') + '">Summary</button>' +
     '<button class="btn ghost sm" type="button" data-act="openSettings">Settings</button>';
 
   const head = '<header class="ph"><div><div class="lbl">' +
@@ -141,7 +146,8 @@ export function renderMeeting(snap, ui, env, tab) {
       : '') +
     '</div>' + (showTimer ? '<div class="t-hint" id="t-hint"></div>' : '');
 
-  return head + stepper + '<div class="mgrid">' +
+  return head + (ui.sumShow ? summaryPanel(snap, env, tab, d) : '') + stepper +
+    '<div class="mgrid">' +
     '<section class="panel stage" aria-live="polite">' +
     renderStage(snap, ui, env, tab, step, d, ents, segs) +
     '</section><aside class="rail">' + renderRail(snap, ui, env, tab, step, d) + '</aside></div>';
@@ -309,6 +315,44 @@ function stageOpportunities(snap, ui, env, tab, d, ents) {
  */
 function challengeLine(text) {
   return text ? '<span class="why">Challenge: ' + esc(text) + '</span>' : '';
+}
+
+/**
+ * The meeting summary, ready to send: who it goes to, Email and Copy, and the text.
+ *
+ * Email opens a new message in the mail app to everybody in the meeting with a
+ * work email, subject and body filled in (see handlers emailSummary). Anybody in
+ * the meeting without one is named here, so nobody is left off silently.
+ *
+ * @param {Snapshot} snap
+ * @param {any} env
+ * @param {any} tab
+ * @param {string} d
+ */
+function summaryPanel(snap, env, tab, d) {
+  const rec = summaryRecipients(snap, tab);
+  const to = rec.to.length
+    ? 'To the ' + rec.to.length + (rec.to.length === 1 ? ' person' : ' people') + ' in this meeting'
+    : 'Nobody in this meeting has a work email yet';
+  const missing = rec.missing.length
+    ? '<p class="scope-note">No work email for <b>' + esc(rec.missing.join(', ')) +
+      '</b>, so the email will not include them. Add one on the People page.</p>'
+    : '';
+  return '<section class="panel" aria-label="Meeting summary"><div class="pan-h">' +
+    '<h2>Meeting summary</h2><span class="sub">' + esc(to) + '</span>' +
+    '<div class="r">' +
+    '<button class="btn sm" type="button" data-act="emailSummary">Email</button> ' +
+    '<button class="btn ghost sm" type="button" data-act="copySummary">Copy</button> ' +
+    '<button class="btn ghost sm" type="button" data-act="toggleSummary">Close</button>' +
+    '</div></div>' + missing +
+    // Said up front, because it is the usual case: a link to the mail app can only
+    // carry about two thousand characters, and most meetings' summaries are longer.
+    '<p class="sub">Email opens a new message to them with the subject filled in. ' +
+    'The summary is copied at the same time; if it is not already in the message, ' +
+    'paste it in (Ctrl+V).</p>' +
+    '<div class="sumbox"><textarea class="fld mono" id="f-summary" rows="18" readonly ' +
+    'aria-label="Summary text">' + esc(meetingSummary(snap, tab, d, env.today)) +
+    '</textarea></div></section>';
 }
 
 /** The chip on an opportunity tile: where it stands. */
@@ -744,12 +788,11 @@ function stageRate(snap, ui, env, tab, d) {
     '<textarea class="fld" id="f-note" rows="2" data-edit="meetingNote"' + dis(env) + '>' +
     esc(m.note || '') + '</textarea></label>';
 
+  // Ending the meeting is when the summary gets sent, so it is offered here too -
+  // the same panel the header's Summary button opens, at the top of the page.
   const summary = '<div class="sumbox">' +
-    '<button class="btn ghost sm" type="button" data-act="toggleSummary">' +
-    (ui.sumShow ? 'Hide' : 'Preview') + ' summary</button>' +
-    '<button class="btn sm" type="button" data-act="copySummary">Copy meeting summary</button>' +
-    (ui.sumShow ? '<textarea class="fld mono" id="f-summary" rows="14" readonly>' +
-      esc(meetingSummary(snap, tab, d)) + '</textarea>' : '') + '</div>';
+    '<button class="btn sm" type="button" data-act="toggleSummary">' +
+    (ui.sumShow ? 'Hide' : 'Show') + ' the meeting summary</button></div>';
 
   return score + trend +
     groupRows(reporting, 'Reporting') +
