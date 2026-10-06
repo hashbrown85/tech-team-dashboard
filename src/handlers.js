@@ -149,7 +149,12 @@ export function createHandlers(app) {
     openSettings: function () { ui.settings = true; ui.open = null; render(); },
     closeSettings: function () { ui.settings = false; render(); },
 
-    openForm: function (el, id, v) { ui.open = v; render(); focusFirst(); },
+    openForm: function (el, id, v) {
+      ui.open = v;
+      if (v === 'wl') ui.wlKind = 'win';   // a fresh form starts as a win
+      render();
+      focusFirst();
+    },
     closeForm: function () { ui.open = null; render(); },
 
     /* Open one action's editor, wherever it is listed. See views/actionEditor.js. */
@@ -617,7 +622,14 @@ export function createHandlers(app) {
     },
 
     /** Show the "what we'll do differently" field only for a loss. */
+    /*
+     * Win or loss. Recorded in ui so a redraw keeps the loss-only box showing - it
+     * used to be unhidden in the DOM only, and the idle redraw hid it again. The
+     * DOM is still updated directly as well, so the box appears and takes focus at
+     * once without a redraw moving the caret.
+     */
     wlKind: function (el) {
+      ui.wlKind = el.value === 'loss' ? 'loss' : 'win';
       const form = el.form;
       const change = form && form.querySelector('[name="change"]');
       if (!change) return;
@@ -1060,6 +1072,7 @@ export function createHandlers(app) {
         return;
       }
       ui.open = null;
+      ui.wlKind = 'win';
       store.set('entries', store.newId(), {
         tab: t.id,
         meeting: currentDate(t),

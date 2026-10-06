@@ -21,6 +21,10 @@ function defaults() {
     view: 'overview',   // which screen
     // Mirrors lib/theme.js, which owns it (in localStorage); main.js sets it on load.
     theme: 'auto',
+    // Win or loss, on the open Wins & Losses form. Kept here rather than only on
+    // the page: the box a loss needs was being unhidden in the DOM alone, so the
+    // 60-second redraw hid it again under whatever had been typed into it.
+    wlKind: 'win',
     tab: null,          // which meeting, when view === 'tab'
     settings: false,    // showing that meeting's settings
     dates: {},          // per-meeting week override: {tabId: 'YYYY-MM-DD'}

@@ -257,6 +257,10 @@ function matrix() {
     ['projects stage, adding', { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' }],
     // pr4 is an undecided opportunity raised on the 21st: carried to the next
     // meeting under "From earlier meetings", and its own page shows the decision.
+    // The Wins & Losses add form, as a win and as a loss - the loss-only box
+    // renders in no other state.
+    ['wins & losses, adding', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl' }],
+    ['wins & losses, adding a loss', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl', wlKind: 'loss' }],
     ['opportunities, carried', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } }],
     ['opportunity page', { view: 'project', project: 'pr4' }],
     // The shared action editor, open in each of the three places it is offered.

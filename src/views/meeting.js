@@ -224,13 +224,18 @@ function stageWins(snap, ui, env, tab, d, ents) {
       : '<p class="none">Nothing recorded yet.</p>';
 
   // One form for the segment, at the bottom, the way Issues has always worked.
+  const loss = ui.wlKind === 'loss';
   const addForm = ui.open === 'wl'
     ? '<form class="add" data-form="wl">' +
       '<select class="fld" name="kind" data-edit="wlKind" aria-label="Win or loss">' +
-      '<option value="win">Win</option><option value="loss">Loss</option></select>' +
+      '<option value="win"' + (loss ? '' : ' selected') + '>Win</option>' +
+      '<option value="loss"' + (loss ? ' selected' : '') + '>Loss</option></select>' +
       '<input class="fld" name="text" type="text" placeholder="What happened" required>' +
       '<input class="fld" name="why" type="text" placeholder="Why did it happen" required>' +
-      '<input class="fld ifloss" name="change" type="text" placeholder="What we will do differently" hidden>' +
+      // Shown from ui.wlKind, so every redraw draws it the way it was left. See
+      // edits.wlKind.
+      '<input class="fld ifloss" name="change" type="text" placeholder="What we will do differently"' +
+      (loss ? '' : ' hidden') + '>' +
       whoFields(snap, tab, false) +
       '<button class="btn" type="submit">Add</button>' +
       '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
