@@ -26,9 +26,18 @@ $url = "http://localhost:$port/"
 $root = Split-Path -Parent $PSScriptRoot
 $logs = Join-Path $root 'output'
 
+# The check asks 127.0.0.1, NOT localhost. Windows resolves "localhost" to the IPv6
+# address first; serve.py listens on IPv4 only, and Windows takes about two seconds
+# to give up on the IPv6 attempt - exactly the timeout below. So a check against
+# localhost failed EVERY time, even with the board running: this script started a
+# second server each time and waited out its whole loop (about 2.5 minutes) before
+# opening the browser. Browsers fall back to IPv4 at once, so the address people
+# use stays localhost - which matters, because the saved board belongs to it.
+$check = "http://127.0.0.1:$port/"
+
 function Test-Board {
   try {
-    $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2
+    $r = Invoke-WebRequest -Uri $check -UseBasicParsing -TimeoutSec 2
     return $r.StatusCode -eq 200
   } catch {
     return $false

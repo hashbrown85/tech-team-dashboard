@@ -63,7 +63,14 @@ starts it hidden, does nothing if it is already running, and logs to `output/`.
 On Kevin's machine two shortcuts call it:
 
 - **Startup folder** — `Tech Team Board server`, so it starts at every login.
-- **Desktop** — `Tech Team Board`, which starts it if needed and opens the board.
+  Windows runs Startup items late on a busy sign-in - minutes, sometimes - so this
+  is a safety net, not the way in.
+- **Desktop, Start menu and this folder** — `Tech Team Board` / `Open Tech Team
+  Board`: start it if needed and open the board, in under ten seconds from cold.
+  Use one of these rather than typing the address straight after signing in.
+
+Shortcuts are per machine (`*.lnk` is gitignored); recreate them pointing at
+`tools/start-board.ps1 -Open` on another one.
 
 To stop it starting at login, delete the Startup shortcut (Win+R, `shell:startup`).
 

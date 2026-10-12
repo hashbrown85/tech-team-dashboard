@@ -2,3 +2,6 @@ data/
 output/
 node_modules/
 .env
+
+# Windows shortcuts made on one machine; they hold that machine's paths.
+*.lnk
