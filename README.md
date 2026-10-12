@@ -60,7 +60,7 @@ backup, the way to move machines, and the file that will be loaded into SharePoi
 
 The board only opens while `tools/serve.py` is serving it. `tools/start-board.ps1`
 starts it hidden, does nothing if it is already running, and logs to `output/`.
-On Kevin's machine two shortcuts call it:
+On Kevin's machine these shortcuts call it:
 
 - **Startup folder** — `Tech Team Board server`, so it starts at every login.
   Windows runs Startup items late on a busy sign-in - minutes, sometimes - so this
