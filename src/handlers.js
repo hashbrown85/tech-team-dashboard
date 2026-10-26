@@ -429,7 +429,7 @@ export function createHandlers(app) {
       if (!p) return;
 
       const d = currentDate(t);
-      const writes = reorderProjects(snap, t.id, p.personId, id, Number(v),
+      const writes = reorderProjects(snap, t.id, id, Number(v),
         function (x) { return projVisible(x, t.id, d); });
       if (!writes) return;
 

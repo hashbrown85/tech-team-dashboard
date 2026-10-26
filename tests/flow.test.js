@@ -458,60 +458,88 @@ test('Somebody else cannot edit it either', async () => {
   eq(a.snap().projectNotes.find(function (n) { return n.id === theirs.id; }).text, was);
 });
 
-group('Priority: each person orders their own projects');
+group('Priority: the arrows move a tile in Current Projects');
 
 /**
- * The ids of one person's projects in a meeting, in the order they render.
+ * The project ids in a meeting's Current Projects, in the order they are DRAWN.
  *
- * Visibility matters and used to be missing here. `reorderProjects` moves a project
- * among the ones actually SHOWN, and a project starting next week is not shown - so
- * this helper's idea of the order disagreed with the product's on any Monday, when
- * the demo board's `pr4` starts the following week rather than this one. The tests
- * then failed on the one morning somebody would want to trust them.
+ * Read off the rendered page on purpose. These tests used to compute each owner's
+ * order from the data, and passed for weeks while the arrows did nothing anybody
+ * could see: the order they checked changed, the tiles on screen did not. Reading
+ * the page is the only order that matters, so it is the only one tested.
  */
-function orderOf(a, tabId, personId) {
-  return orderIn(a, a.snap().projects, tabId, personId);
-}
-
-/** The same rule, applied to any list of projects - so no test can use a different one. */
-function orderIn(a, projects, tabId, personId) {
-  const tab = a.snap().tabs.filter(function (t) { return t.id === tabId; })[0];
-  const d = meetingDate(tab, today(), a.ui.dates[tabId]);
-  return projects
-    .filter(function (p) {
-      return p.tab === tabId && p.personId === personId && projVisible(p, tabId, d);
-    })
-    .sort(byPriority)
-    .map(function (p) { return p.id; });
+function orderOf(a, tabId) {
+  const ui = Object.assign({}, a.ui, { view: 'tab', tab: tabId, steps: {}, open: null });
+  ui.steps[tabId] = 2;
+  const html = renderApp(a.snap(), ui, { today: today(),
+    modes: { content: 'live', settings: 'live', details: 'live' }, identity: { personId: 'p1' } });
+  return (html.match(/<li class="proj[^"]*" id="proj-([^"]+)"/g) || []).map(function (m) {
+    return /id="proj-([^"]+)"/.exec(m)[1];
+  });
 }
 
 function moveProject(a, id, delta) {
   a.H.clicks.movePriority(null, id, String(delta));
 }
 
-test('Moving a project up swaps it with the one above', async () => {
+/** Who owns a project, for tests that need two owners side by side. */
+function ownerOf(a, id) {
+  return a.snap().projects.find(function (p) { return p.id === id; }).personId;
+}
+
+test('Moving a project up swaps it with the tile above', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
-  const before = orderOf(a, 't1', 'p1');
-  ok(before.length >= 2, 'p1 has a couple in t1, got ' + before.length);
+  const before = orderOf(a, 't1');
+  ok(before.length >= 3, 'Northern shows several projects, got ' + before.length);
 
   moveProject(a, before[1], -1);
   await settle();
 
-  const after = orderOf(a, 't1', 'p1');
-  eq(after[0], before[1], 'the second one is now first');
+  const after = orderOf(a, 't1');
+  eq(after[0], before[1], 'the second tile is now first');
   eq(after[1], before[0], 'and the first is second');
+});
+
+test('The reported case: moving past somebody else’s project', async () => {
+  // The arrows used to step only past the next project with the SAME owner, so
+  // with a colleague's project directly above, pressing Up did nothing.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const before = orderOf(a, 't1');
+  let i = 1;
+  while (i < before.length && ownerOf(a, before[i]) === ownerOf(a, before[i - 1])) i++;
+  ok(i < before.length, 'two neighbouring tiles with different owners');
+
+  moveProject(a, before[i], -1);
+  await settle();
+  eq(orderOf(a, 't1').indexOf(before[i]), i - 1, 'it moved up one tile, past the other owner');
 });
 
 test('Moving it back down restores the order', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
-  const before = orderOf(a, 't1', 'p1');
+  const before = orderOf(a, 't1');
 
   moveProject(a, before[1], -1);
   await settle();
   moveProject(a, before[1], 1);
   await settle();
 
-  eq(orderOf(a, 't1', 'p1'), before, 'back where it started');
+  eq(orderOf(a, 't1'), before, 'back where it started');
+});
+
+test('Every press moves it exactly one place, all the way down and back up', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const start = orderOf(a, 't1');
+  const id = start[0];
+  for (let k = 1; k < start.length; k++) {
+    moveProject(a, id, 1);
+    await settle();
+    eq(orderOf(a, 't1').indexOf(id), k, 'down to place ' + (k + 1));
+  }
+  for (let k = start.length - 2; k >= 0; k--) {
+    moveProject(a, id, -1);
+    await settle();
+    eq(orderOf(a, 't1').indexOf(id), k, 'up to place ' + (k + 1));
+  }
 });
 
 test('The first click works on a board that has never been ordered', async () => {
@@ -523,41 +551,57 @@ test('The first click works on a board that has never been ordered', async () =>
     notOk('priority' in p, p.id + ' starts with no priority');
   });
 
-  const before = orderOf(a, 't1', 'p1');
+  const before = orderOf(a, 't1');
   moveProject(a, before[1], -1);
   await settle();
 
-  notOk(orderOf(a, 't1', 'p1')[0] === before[0], 'the order really changed');
+  notOk(orderOf(a, 't1')[0] === before[0], 'the order really changed');
 });
 
 test('Moving up from the top does nothing, and neither does down from the bottom', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
-  const before = orderOf(a, 't1', 'p1');
+  const before = orderOf(a, 't1');
 
   moveProject(a, before[0], -1);
   await settle();
-  eq(orderOf(a, 't1', 'p1'), before, 'top stays put');
+  eq(orderOf(a, 't1'), before, 'top stays put');
 
   moveProject(a, before[before.length - 1], 1);
   await settle();
-  eq(orderOf(a, 't1', 'p1'), before, 'bottom stays put');
+  eq(orderOf(a, 't1'), before, 'bottom stays put');
 });
 
-test('One person reordering never moves anybody else work', async () => {
-  // Priority is per person per meeting. Two people's lists are independent.
+test('The arrows are disabled at the ends of the list as drawn', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const order = orderOf(a, 't1');
+  const html = renderApp(a.snap(), Object.assign({}, a.ui, { steps: { t1: 2 } }),
+    { today: today(), modes: { content: 'live', settings: 'live', details: 'live' },
+      identity: { personId: 'p1' } });
+  ok(new RegExp('data-act="movePriority" data-id="' + order[0] + '" data-v="-1"[^>]*disabled').test(html),
+    'Up is off on the first tile');
+  ok(new RegExp('data-act="movePriority" data-id="' + order[order.length - 1] +
+    '" data-v="1"[^>]*disabled').test(html), 'Down is off on the last');
+});
+
+test('Another meeting’s order is never touched', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   const others = a.snap().projects
-    .filter(function (p) { return p.personId !== 'p1'; })
+    .filter(function (p) { return p.tab !== 't1'; })
     .map(function (p) { return p.id + ':' + p.priority; });
 
-  const mine = orderOf(a, 't1', 'p1');
-  moveProject(a, mine[1], -1);
+  moveProject(a, orderOf(a, 't1')[1], -1);
   await settle();
 
-  const after = a.snap().projects
-    .filter(function (p) { return p.personId !== 'p1'; })
-    .map(function (p) { return p.id + ':' + p.priority; });
-  eq(after, others, 'nobody else was renumbered');
+  eq(a.snap().projects.filter(function (p) { return p.tab !== 't1'; })
+    .map(function (p) { return p.id + ':' + p.priority; }), others);
+});
+
+test('An undecided opportunity is not given a place in the list', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  moveProject(a, orderOf(a, 't1')[1], -1);
+  await settle();
+  const pr4 = a.snap().projects.find(function (p) { return p.id === 'pr4'; });
+  notOk(pr4.priority != null, 'pr4 is still an opportunity, and unnumbered');
 });
 
 test('Priority survives a project going off track and back', async () => {
@@ -565,17 +609,17 @@ test('Priority survives a project going off track and back', async () => {
   // and deletes it on the way back. Reusing it for priority would have meant a
   // status change silently scrambled somebody's order - this is that test.
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
-  const before = orderOf(a, 't1', 'p1');
+  const before = orderOf(a, 't1');
   moveProject(a, before[1], -1);
   await settle();
-  const ordered = orderOf(a, 't1', 'p1');
+  const ordered = orderOf(a, 't1');
 
   a.H.clicks.projStatus(null, ordered[0], 'off');
   await settle();
   a.H.clicks.projStatus(null, ordered[0], 'on');
   await settle();
 
-  eq(orderOf(a, 't1', 'p1'), ordered, 'the order is untouched');
+  eq(orderOf(a, 't1'), ordered, 'the order is untouched');
 });
 
 test('An unordered list still renders the same way twice', async () => {
@@ -583,10 +627,9 @@ test('An unordered list still renders the same way twice', async () => {
   // store returned, which can differ between a load and the poll - and rows appear
   // to shuffle on their own.
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
-  const once = orderOf(a, 't1', 'p1');
-  const shuffled = a.snap().projects.slice().reverse();
-  eq(orderIn(a, shuffled, 't1', 'p1'), once,
-    'same order from a differently-ordered snapshot');
+  const once = orderOf(a, 't1');
+  a.snap().projects.reverse();
+  eq(orderOf(a, 't1'), once, 'same order from a differently-ordered snapshot');
 });
 
 test('A project nobody has ordered sorts BELOW the ones somebody has', () => {
@@ -606,14 +649,14 @@ test('A project nobody has ordered sorts BELOW the ones somebody has', () => {
 
 test('A newly added project lands at the bottom of an ordered list', async () => {
   const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
-  const before = orderOf(a, 't1', 'p1');
+  const before = orderOf(a, 't1');
   moveProject(a, before[1], -1);          // give the list real priorities
   await settle();
 
   a.H.forms.project(fields([['name', 'Brand new thing'], ['due', ''], ['who', 'p1']]));
   await settle();
 
-  const after = orderOf(a, 't1', 'p1');
+  const after = orderOf(a, 't1');
   const added = a.snap().projects.find(function (p) { return p.name === 'Brand new thing'; });
   ok(added, 'it was created');
   eq(after[after.length - 1], added.id, 'and it is last, not first');

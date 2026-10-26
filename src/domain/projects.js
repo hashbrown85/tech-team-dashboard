@@ -13,7 +13,7 @@
  * F.project (1586-1591).
  */
 
-import { issueItems, personName, actsOf, isOpen, oppStage } from './queries.js';
+import { issueItems, personName, actsOf, isOpen, oppStage, isOpportunity } from './queries.js';
 import { addDays, fmtLong, fmtDay, fmtStamp } from '../lib/dates.js';
 import { byId, alphabetically } from '../lib/seq.js';
 import { actionLabel } from './actions.js';
@@ -356,9 +356,17 @@ export function byPriority(a, b) {
 }
 
 /**
- * Move one project up or down its owner's list, and renumber.
+ * Move one project up or down its meeting's Current Projects list, and renumber.
  *
- * Priority is per person per meeting: two people's lists are ordered independently.
+ * Priority is per MEETING. Current Projects is one list for the whole meeting,
+ * ordered by priority, so that is the list the arrows move a project in. It used
+ * to be per owner, left over from when each person had their own block: the
+ * arrows then stepped past the next project of the SAME owner, so pressing Up
+ * under somebody else's project did nothing at all, and a renumbered list
+ * interleaved with everybody else's numbers and often did not visibly move.
+ *
+ * Undecided opportunities are left out: they are not in the list, and should not
+ * hold a place in it. Promoted later, one starts at the bottom like any new project.
  *
  * Two things here are less obvious than they look.
  *
@@ -376,15 +384,14 @@ export function byPriority(a, b) {
  *
  * @param {Snapshot} snap
  * @param {string} tabId
- * @param {string} personId
  * @param {string} projectId
  * @param {number} delta - negative to move up, positive to move down
  * @param {(p: any) => boolean} visible
  * @returns {{col: string, id: string, patch: {priority: number}}[] | null}
  */
-export function reorderProjects(snap, tabId, personId, projectId, delta, visible) {
+export function reorderProjects(snap, tabId, projectId, delta, visible) {
   const all = snap.projects
-    .filter(function (p) { return p.tab === tabId && p.personId === personId; })
+    .filter(function (p) { return p.tab === tabId && !isOpportunity(p); })
     .sort(byPriority);
 
   const shown = all.filter(visible);
