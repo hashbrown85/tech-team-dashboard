@@ -13,7 +13,8 @@
  */
 
 import { esc } from '../lib/dom.js';
-import { attendeeIds, person } from '../domain/queries.js';
+import { attendeeIds, person, parentRef, isOpportunity } from '../domain/queries.js';
+import { projectTitle } from '../domain/projects.js';
 import { actionLabel } from '../domain/actions.js';
 import { byId } from '../lib/seq.js';
 
@@ -48,6 +49,32 @@ export function ownerOptions(snap, tab, selected, blankLabel) {
       ' (not on the roster)</option>') +
     (inMeeting.length ? '<optgroup label="In this meeting">' + inMeeting.map(opt).join('') + '</optgroup>' : '') +
     (rest.length ? '<optgroup label="Everyone else">' + rest.map(opt).join('') + '</optgroup>' : '');
+}
+
+/**
+ * Where an action came from, as a line to sit under its text: the project (or
+ * opportunity) by its full title, or the issue - a link to it either way. Empty
+ * for an action raised on its own.
+ *
+ * A sub-line rather than grouping the list under headers: the meeting rail is a
+ * 340px column ordered soonest-due first, and headers would break that order into
+ * buckets of one or two. To see one project's actions together, its tile already
+ * has "Filter actions".
+ *
+ * @param {Snapshot} snap
+ * @param {any} a
+ */
+export function originLine(snap, a) {
+  const ref = parentRef(snap, a);
+  if (!ref) return '';
+  if (ref.type === 'issue') {
+    return '<span class="aorig">Issue · <button type="button" class="linkbtn" data-act="openIssue" ' +
+      'data-id="' + esc(a.tab) + '" data-v="iss-' + esc(ref.id) + '">' + esc(ref.issue.text) +
+      '</button></span>';
+  }
+  return '<span class="aorig">' + (isOpportunity(ref.project) ? 'Opportunity' : 'Project') +
+    ' · <button type="button" class="linkbtn" data-act="openProject" data-id="' + esc(ref.id) +
+    '">' + esc(projectTitle(ref.project)) + '</button></span>';
 }
 
 /** Is this action's editor the one open? */

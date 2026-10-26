@@ -29,7 +29,7 @@ import {
 } from '../domain/opportunities.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
-  ownerOptions, actionEditor, editButton, editingAction
+  ownerOptions, actionEditor, editButton, editingAction, originLine
 } from './actionEditor.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
@@ -840,14 +840,17 @@ function renderRail(snap, ui, env, tab, step, d) {
         return '<li class="arow ' + dueClass(a, env.today) + '" id="row-' + esc(a.id) + '">' +
           '<label class="ax"><input type="checkbox" data-edit="actionDone" data-id="' + esc(a.id) + '"' +
           (isOpen(a) ? '' : ' checked') + dis(env) + '><span class="aid">' + actionLabel(a) + '</span></label>' +
-          '<span class="atext">' + esc(a.text) + editButton(a, env) + '</span>' +
+          // Where it came from, under the text - unless the rail is already showing
+          // only that project's actions, where it would say the same thing on every row.
+          '<span class="atext">' + esc(a.text) + editButton(a, env) +
+          (selected ? '' : originLine(snap, a)) + '</span>' +
           '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, env.today) + '</span>' +
           dueControls(a, tab, d, env) + '</li>';
       }).join('') + '</ul>'
     : '<p class="none">' + (selected ? 'No actions on this project yet.' : 'No open actions in this meeting.') + '</p>';
 
   const railHead = '<div class="pan-h"><h2>' +
-    (selected ? esc(selected.name) : 'Open actions') + '</h2>' +
+    (selected ? esc(projectTitle(selected)) : 'Open actions') + '</h2>' +
     (selected ? '<button class="btn ghost sm" type="button" data-act="clearProject">Show all</button>' : '') +
     '</div>';
 
