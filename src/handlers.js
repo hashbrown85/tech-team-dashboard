@@ -17,7 +17,7 @@
 import { byId, byName } from './lib/seq.js';
 import { addDays, nowIso } from './lib/dates.js';
 import { toast, flash, focusFirst } from './lib/dom.js';
-import { newNote, editNote, canEditNote } from './domain/notes.js';
+import { newNote, editNote, canEditNote, canRemoveNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import { looksLikeSnapshot } from './adapters/localAdapter.js';
 import { upnKey } from './identity.js';
@@ -350,7 +350,7 @@ export function createHandlers(app) {
       if (!note) return;
       // The view only offers Remove to the author, but the click handler is reachable
       // by anything that can dispatch an event, so the rule is checked here too.
-      if (!canEditNote(note, myPersonId(), byId(snap.projects, note.projectId))) return;
+      if (!canRemoveNote(note, myPersonId(), byId(snap.projects, note.projectId))) return;
       cascade(deleteNote(snap, id));
     },
 
@@ -1014,9 +1014,9 @@ export function createHandlers(app) {
       const id = form.dataset.id;
       const note = byId(snap.projectNotes, id);
       if (!note) return;
-      if (!canEditNote(note, myPersonId(), byId(snap.projects, note.projectId))) return;
+      if (!canEditNote(note, byId(snap.projects, note.projectId))) return;
 
-      const doc = editNote(note, String(fd.get('text') || ''), nowIso());
+      const doc = editNote(note, String(fd.get('text') || ''), nowIso(), myPersonId());
       ui.open = null;
       // editNote returns null when nothing actually changed, which is not a failure -
       // the editor still closes.

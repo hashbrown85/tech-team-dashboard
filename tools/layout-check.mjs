@@ -382,6 +382,18 @@ function matrix() {
   }
   out.push(['people, clashing emails', { view: 'people' }, clashing, LIVE, LOCAL_ID]);
 
+  // A note edited twice, with its "show earlier" fold open, so the trail renders.
+  const trailed = fullBoard();
+  const tn = (trailed.projectNotes || []).filter(function (n) { return n.projectId === 'pr2'; })[0];
+  if (tn) {
+    tn.edited = '2026-09-20T10:00:00Z';
+    tn.editedBy = 'p1';
+    tn.history = [{ text: 'An earlier wording', at: '2026-09-15T10:00:00Z', by: 'p1' },
+      { text: 'The first wording', at: '2026-09-10T10:00:00Z', by: 'p2' }];
+    out.push(['project page, note with a trail',
+      { view: 'project', project: 'pr2', openDetails: { ['hist-' + tn.id]: true } }, trailed, LIVE, LOCAL_ID]);
+  }
+
   // An opportunity on hold: its chip colour and the shorter decision line render
   // nowhere else.
   const held = fullBoard();

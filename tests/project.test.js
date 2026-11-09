@@ -360,27 +360,43 @@ test('An edited note says so', () => {
   ok(html.indexOf('edited') > 0);
 });
 
-test('Only the author is offered edit and remove', () => {
+test('Everybody is offered Edit; only the author is offered Remove', () => {
   const snap = demoBoard();
+  const count = snap.projectNotes.filter(function (n) { return n.projectId === 'pr2'; }).length;
 
   // p2 wrote n1 and n3; p1 wrote n2.
   const asP2 = page('pr2', { snap: snap, identity: { personId: 'p2' } });
-  const p2Tools = (asP2.match(/data-act="editNote"/g) || []).length;
-  eq(p2Tools, 2, 'p2 may edit their own two notes');
-
-  const asP1 = page('pr2', { snap: snap, identity: { personId: 'p1' } });
-  eq((asP1.match(/data-act="editNote"/g) || []).length, 1, 'p1 may edit their one');
+  eq((asP2.match(/data-act="editNote"/g) || []).length, count, 'p2 may edit every note');
+  eq((asP2.match(/data-act="delNote"/g) || []).length, 2, 'and remove their own two');
 
   const asStranger = page('pr2', { snap: snap, identity: { personId: 'p5' } });
-  eq((asStranger.match(/data-act="editNote"/g) || []).length, 0, 'and a colleague none');
+  eq((asStranger.match(/data-act="editNote"/g) || []).length, count, 'a colleague may edit');
+  eq((asStranger.match(/data-act="delNote"/g) || []).length, 0, 'but remove none');
 });
 
-test('Somebody not on the roster may write a note but not edit one', () => {
+test('An edited note says who changed it, and folds its earlier wording away', () => {
+  const snap = demoBoard();
+  const n = snap.projectNotes.filter(function (x) { return x.projectId === 'pr2' && x.authorId === 'p2'; })[0];
+  n.text = 'Corrected wording';
+  n.edited = '2026-09-20T10:00:00Z';
+  n.editedBy = 'p1';
+  n.history = [{ text: 'The first wording', at: '2026-09-10T10:00:00Z', by: 'p2' }];
+  const html = page('pr2', { snap: snap, identity: { personId: 'p2' } });
+  ok(html.indexOf(' by Alex Morgan') > 0, 'edited by Alex');
+  ok(html.indexOf('data-details="hist-' + n.id + '"') > 0, 'a fold with the trail');
+  ok(html.indexOf('Show earlier (1)') > 0, 'saying how many');
+  ok(html.indexOf('The first wording') > 0, 'and the earlier text in it');
+});
+
+test('Somebody not on the roster may write and edit notes, but remove none', () => {
+  // The reason notes looked uneditable on a local board with nobody under "You
+  // are": editing was author-only, and nobody was anybody's author.
   const snap = demoBoard();
   const html = page('pr2', { snap: snap, identity: { personId: null } });
 
   ok(/data-form="note"/.test(html), 'the add form is there');
-  eq((html.match(/data-act="editNote"/g) || []).length, 0, 'but nothing to edit');
+  ok((html.match(/data-act="editNote"/g) || []).length > 0, 'Edit is offered');
+  eq((html.match(/data-act="delNote"/g) || []).length, 0, 'Remove is not');
 });
 
 test('Notes lock once the project is done or cancelled', () => {

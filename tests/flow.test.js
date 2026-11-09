@@ -436,16 +436,28 @@ test('Editing a note keeps its original time and stamps the change', async () =>
   ok(after.edited, 'and says it changed');
 });
 
-test('Somebody else cannot edit it either', async () => {
+test('A colleague can edit it too, and the original wording is kept', async () => {
   const a = await app({ asPerson: 'p1' });
   const theirs = a.snap().projectNotes.find(function (n) { return n.authorId === 'p2'; });
   const was = theirs.text;
 
-  a.H.forms.noteEdit(fields([['text', 'Not mine to change']]),
+  a.H.forms.noteEdit(fields([['text', 'Corrected by a colleague']]),
     /** @type {any} */ ({ dataset: { id: theirs.id } }));
   await settle();
 
-  eq(a.snap().projectNotes.find(function (n) { return n.id === theirs.id; }).text, was);
+  const now = a.snap().projectNotes.find(function (n) { return n.id === theirs.id; });
+  eq(now.text, 'Corrected by a colleague');
+  eq(now.editedBy, 'p1');
+  eq(now.history[0].text, was, 'what p2 wrote is in the trail');
+  eq(now.history[0].by, 'p2');
+});
+
+test('But a colleague cannot remove it', async () => {
+  const a = await app({ asPerson: 'p1' });
+  const theirs = a.snap().projectNotes.find(function (n) { return n.authorId === 'p2'; });
+  a.H.clicks.delNote(null, theirs.id, '');
+  await settle();
+  ok(a.snap().projectNotes.some(function (n) { return n.id === theirs.id; }), 'still there');
 });
 
 group('Priority: the arrows move a tile in Current Projects');

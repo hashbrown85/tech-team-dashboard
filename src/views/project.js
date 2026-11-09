@@ -44,7 +44,7 @@ import {
 import { dueClass, dueLabel } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
-import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
+import { notesFor, notesOpen, canEditNote, canRemoveNote } from '../domain/notes.js';
 import {
   projectTitle, valueOptions, missionText
 } from '../domain/projects.js';
@@ -420,7 +420,8 @@ function renderNotes(snap, ui, env, p) {
     ? '<ul class="notes">' + notes.map(function (n) {
         return ui.open === 'note:' + n.id
           ? noteEditor(n)
-          : noteRow(snap, n, canEditNote(n, me, p));
+          : noteRow(snap, ui, n, !env.areaReadonly && canEditNote(n, p),
+              !env.areaReadonly && canRemoveNote(n, me, p));
       }).join('') + '</ul>'
     : '<p class="none">No notes yet.</p>';
 
@@ -430,20 +431,37 @@ function renderNotes(snap, ui, env, p) {
     '</span></div>' + addForm + list + '</section>';
 }
 
-function noteRow(snap, n, mine) {
+/**
+ * One note. Edited ones say so - when, and by whom - and carry their earlier
+ * wordings in a "show earlier" fold, newest first. The fold's open state is kept
+ * like any other `data-details` panel, so the idle redraw does not shut it.
+ */
+function noteRow(snap, ui, n, canEdit, canRemove) {
+  const who = function (id) { return personName(snap, id) || 'Someone'; };
+  const earlier = n.history && n.history.length
+    ? '<details class="nhist" data-details="hist-' + esc(n.id) + '"' +
+      (ui.openDetails && ui.openDetails['hist-' + n.id] ? ' open' : '') + '>' +
+      '<summary class="note-t">Show earlier (' + n.history.length + ')</summary>' +
+      '<ol class="nhist-l">' + n.history.map(function (h) {
+        return '<li><span class="note-t">' + esc(who(h.by)) + ' \u00b7 ' + fmtWhen(h.at) +
+          '</span><p class="note-b">' + esc(h.text) + '</p></li>';
+      }).join('') + '</ol></details>'
+    : '';
+  const tools = (canEdit
+      ? '<button class="linkbtn" type="button" data-act="editNote" data-id="' +
+        esc(n.id) + '">Edit</button>' : '') +
+    (canRemove
+      ? '<button class="linkbtn" type="button" data-act="delNote" data-id="' +
+        esc(n.id) + '">Remove</button>' : '');
   return '<li class="note">' +
     '<div class="note-h">' +
-    '<b>' + esc(personName(snap, n.authorId) || 'Someone') + '</b>' +
+    '<b>' + esc(who(n.authorId)) + '</b>' +
     '<span class="note-t" title="' + esc(n.created || '') + '">' + fmtWhen(n.created) +
-    (n.edited ? ' · edited' : '') + '</span>' +
-    (mine
-      ? '<span class="note-tools">' +
-        '<button class="linkbtn" type="button" data-act="editNote" data-id="' +
-        esc(n.id) + '">Edit</button>' +
-        '<button class="linkbtn" type="button" data-act="delNote" data-id="' +
-        esc(n.id) + '">Remove</button></span>'
-      : '') +
-    '</div><p class="note-b">' + esc(n.text) + '</p></li>';
+    (n.edited ? ' \u00b7 edited ' + fmtWhen(n.edited) +
+      (n.editedBy && n.editedBy !== n.authorId ? ' by ' + esc(who(n.editedBy)) : '') : '') +
+    '</span>' +
+    (tools ? '<span class="note-tools">' + tools + '</span>' : '') +
+    '</div><p class="note-b">' + esc(n.text) + '</p>' + earlier + '</li>';
 }
 
 function noteEditor(n) {

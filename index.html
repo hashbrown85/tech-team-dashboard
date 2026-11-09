@@ -60,6 +60,12 @@
   /* Notes keep their line breaks: people paste short lists into them. */
   .note-b { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: break-word; }
   .note.editing .note-tools { margin-left: 0; margin-top: 6px; }
+  /* A note's earlier wordings: quiet, indented under the note, newest first. */
+  .nhist { margin-top: 6px; }
+  .nhist > summary { cursor: pointer; }
+  .nhist-l { margin: 6px 0 0; padding-left: 14px; border-left: 2px solid var(--line); list-style: none; }
+  .nhist-l li + li { margin-top: 8px; }
+  .nhist-l .note-b { color: var(--ink-2); }
   .pnote-add .acts-r { margin-left: auto; }
 
   /* Opening a project from its row in a meeting. This goes INSIDE the row's first

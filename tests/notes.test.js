@@ -10,7 +10,9 @@
  */
 
 import { group, test, eq, ok, notOk } from './harness.js';
-import { notesFor, notesOpen, canEditNote, newNote, editNote } from '../src/domain/notes.js';
+import {
+  notesFor, notesOpen, canEditNote, canRemoveNote, newNote, editNote
+} from '../src/domain/notes.js';
 import { demoBoard } from '../src/demo-data.js';
 import { nowIso, fmtWhen, fmtStamp } from '../src/lib/dates.js';
 
@@ -104,14 +106,17 @@ test('Editing to nothing is refused rather than blanking the note', () => {
 
 group('Who may change a note');
 
-test('The author may; nobody else may', () => {
+test('Anybody may edit a note; only its author may remove it', () => {
+  // Editing keeps the earlier wording in history, so a colleague's correction loses
+  // nothing. Removing takes the history with it, so that stays the author's call.
   const snap = board();
   const p = project(snap, 'pr2');
   const note = notesFor(snap, 'pr2').find(function (n) { return n.authorId === 'p2'; });
 
-  ok(canEditNote(note, 'p2', p), 'its author');
-  notOk(canEditNote(note, 'p1', p), 'a colleague');
-  notOk(canEditNote(note, null, p), 'somebody not on the roster');
+  ok(canEditNote(note, p), 'editable while the project is live, by anyone');
+  ok(canRemoveNote(note, 'p2', p), 'its author may remove it');
+  notOk(canRemoveNote(note, 'p1', p), 'a colleague may not');
+  notOk(canRemoveNote(note, null, p), 'nor somebody not on the roster');
 });
 
 test('Nobody may once the project is finished', () => {
@@ -120,7 +125,8 @@ test('Nobody may once the project is finished', () => {
 
   ['done', 'cancelled'].forEach(function (status) {
     const finished = Object.assign({}, project(snap, 'pr2'), { status: status });
-    notOk(canEditNote(note, note.authorId, finished), 'not even the author, once ' + status);
+    notOk(canEditNote(note, finished), 'nobody edits, once ' + status);
+    notOk(canRemoveNote(note, note.authorId, finished), 'not even the author removes');
   });
 });
 
@@ -168,3 +174,29 @@ test('nowIso produces something the formatters accept', () => {
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
+
+
+group('Every edit keeps what it replaced');
+
+test('The earlier wording goes onto history, with who wrote it and when', () => {
+  const note = { projectId: 'pr1', text: 'Samples sent', authorId: 'p2', created: '2026-09-01T10:00:00Z' };
+  const once = editNote(note, 'Samples sent Tuesday', '2026-09-02T09:00:00Z', 'p1');
+  eq(once.text, 'Samples sent Tuesday');
+  eq(once.edited, '2026-09-02T09:00:00Z');
+  eq(once.editedBy, 'p1', 'who changed it');
+  eq(once.history, [{ text: 'Samples sent', at: '2026-09-01T10:00:00Z', by: 'p2' }]);
+  eq(once.created, note.created, 'and when it was first written is untouched');
+});
+
+test('A second edit adds to the trail, newest first, crediting the last editor', () => {
+  const note = { projectId: 'pr1', text: 'Samples sent', authorId: 'p2', created: '2026-09-01T10:00:00Z' };
+  const once = editNote(note, 'Samples sent Tuesday', '2026-09-02T09:00:00Z', 'p1');
+  const twice = editNote(once, 'Samples sent Tuesday, 3 kg', '2026-09-03T09:00:00Z', 'p3');
+  eq(twice.history.map(function (h) { return h.text; }), ['Samples sent Tuesday', 'Samples sent']);
+  eq(twice.history[0], { text: 'Samples sent Tuesday', at: '2026-09-02T09:00:00Z', by: 'p1' });
+});
+
+test('An edit that changes nothing adds nothing to the trail', () => {
+  const note = { projectId: 'pr1', text: 'Samples sent', authorId: 'p2', created: '2026-09-01T10:00:00Z' };
+  eq(editNote(note, '  Samples sent  ', '2026-09-02T09:00:00Z', 'p1'), null);
+});

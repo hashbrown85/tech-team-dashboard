@@ -265,7 +265,10 @@ export const SCHEMA = {
       text: { col: 'Body', kind: 'note' },
       authorId: { col: 'AuthorId', kind: 'text' },
       created: { col: 'CreatedAt', kind: 'dtime' },
-      edited: { col: 'EditedAt', kind: 'dtime' }
+      edited: { col: 'EditedAt', kind: 'dtime' },
+      editedBy: { col: 'EditedBy', kind: 'text' },
+      // Every earlier wording, newest first: {text, at, by}. See domain/notes.js.
+      history: { col: 'HistoryJson', kind: 'json' }
     }
   },
 
