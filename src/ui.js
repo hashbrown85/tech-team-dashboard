@@ -25,6 +25,9 @@ function defaults() {
     // the page: the box a loss needs was being unhidden in the DOM alone, so the
     // 60-second redraw hid it again under whatever had been typed into it.
     wlKind: 'win',
+    // The meeting's Projects step: Horizon and Current projects, each foldable.
+    hideHorizon: false,
+    hideCurrent: false,
     tab: null,          // which meeting, when view === 'tab'
     settings: false,    // showing that meeting's settings
     dates: {},          // per-meeting week override: {tabId: 'YYYY-MM-DD'}
@@ -120,6 +123,9 @@ export function saveUi(ui) {
  * @param {string} tabId
  */
 export function stepOf(ui, tabId) {
+  // 0-3 covers both agendas (three segments, or four for Tech Directors); the
+  // meeting view clamps again to the tab's own count. A step remembered from the
+  // old five-segment agenda lands back on Projects rather than on nothing.
   const s = ui.steps[tabId];
-  return s >= 0 && s <= 4 ? s : 0;
+  return s >= 0 && s <= 3 ? s : 0;
 }

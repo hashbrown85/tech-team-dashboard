@@ -250,30 +250,32 @@ function matrix() {
 
   const screens = [
     ['overview', { view: 'overview' }],
-    ['wins', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
-    ['opportunities', { view: 'tab', tab: 't1', steps: { t1: 1 } }],
-    ['opportunity form', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp:p1' }],
-    ['projects stage', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
-    ['projects stage, adding', { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' }],
+    ['wins', { view: 'tab', tab: 't1', steps: { t1: 1 } }],
+    ['opportunities', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
+    ['opportunity form', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'opp:p1' }],
+    ['projects stage', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
+    ['projects stage, adding', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'project' }],
     // pr4 is an undecided opportunity raised on the 21st: carried to the next
     // meeting under "From earlier meetings", and its own page shows the decision.
     // The Wins & Losses add form, as a win and as a loss - the loss-only box
     // renders in no other state.
     // The Summary panel opened from the header, mid-meeting.
-    ['summary from the header', { view: 'tab', tab: 't1', steps: { t1: 0 }, sumShow: true }],
-    ['wins & losses, adding', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl' }],
-    ['wins & losses, adding a loss', { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl', wlKind: 'loss' }],
-    ['opportunities, carried', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } }],
+    // The Projects step with each section folded away in turn.
+    ['projects step, horizon folded', { view: 'tab', tab: 't1', steps: { t1: 0 }, hideHorizon: true }],
+    ['projects step, current folded', { view: 'tab', tab: 't1', steps: { t1: 0 }, hideCurrent: true }],
+    ['tech directors, business review', { view: 'tab', tab: 'techdir', steps: { techdir: 1 } }],
+    ['summary from the header', { view: 'tab', tab: 't1', steps: { t1: 1 }, sumShow: true }],
+    ['wins & losses, adding', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl' }],
+    ['wins & losses, adding a loss', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl', wlKind: 'loss' }],
+    ['opportunities, carried', { view: 'tab', tab: 't1', steps: { t1: 0 }, dates: { t1: '2026-09-28' } }],
     ['opportunity page', { view: 'project', project: 'pr4' }],
     // The shared action editor, open in each of the three places it is offered.
     ['register, editing an action', { view: 'actions', filter: 'all', open: 'act:a1' }],
-    ['rail, editing an action', { view: 'tab', tab: 't1', steps: { t1: 3 }, open: 'act:a1' }],
+    ['rail, editing an action', { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'act:a1' }],
     ['project page, editing an action', { view: 'project', project: 'pr2', open: 'act:a1' }],
     ['projects stage, details open',
-      { view: 'tab', tab: 't1', steps: { t1: 2 }, openDetails: { pr1: true } }],
-    ['issues', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
-    ['rate', { view: 'tab', tab: 't1', steps: { t1: 4 } }],
-    ['rate, summary shown', { view: 'tab', tab: 't1', steps: { t1: 4 }, sumShow: true }],
+      { view: 'tab', tab: 't1', steps: { t1: 0 }, openDetails: { pr1: true } }],
+    ['issues', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
     ['techdir', { view: 'tab', tab: 'techdir', steps: { techdir: 1 } }],
     ['meeting settings', { view: 'tab', tab: 't1', settings: true }],
     ['register', { view: 'actions' }],
@@ -297,7 +299,7 @@ function matrix() {
   });
 
   // The modes the suite has never rendered.
-  out.push(['read-only content', { view: 'tab', tab: 't1', steps: { t1: 2 } }, full,
+  out.push(['read-only content', { view: 'tab', tab: 't1', steps: { t1: 0 } }, full,
     { content: 'readonly', settings: 'live' }, { personId: 'p1' }]);
   out.push(['read-only settings', { view: 'people' }, full,
     { content: 'live', settings: 'readonly' }, { personId: 'p1' }]);
@@ -339,8 +341,8 @@ function matrix() {
    */
   const mid = fullBoard(MIDWEEK);
   [
-    ['midweek: projects stage', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
-    ['midweek: issues', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
+    ['midweek: projects stage', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
+    ['midweek: issues', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
     ['midweek: overview', { view: 'overview' }]
   ].forEach(function (st) {
     out.push([st[0], st[1], mid, LIVE, { personId: 'p1', displayName: 'Alex Morgan' }]);
@@ -383,7 +385,7 @@ function matrix() {
   // nowhere else.
   const held = fullBoard();
   held.projects.forEach(function (p) { if (p.id === 'pr4') p.oppStage = 'hold'; });
-  out.push(['opportunity on hold', { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } },
+  out.push(['opportunity on hold', { view: 'tab', tab: 't1', steps: { t1: 0 }, dates: { t1: '2026-09-28' } },
     held, LIVE, LOCAL_ID]);
 
   /*
@@ -404,7 +406,7 @@ function matrix() {
     { view: 'overview', sideSlim: true }, full, LIVE, LOCAL_ID]);
 
   out.push(['sidebar slim',
-    { view: 'tab', tab: 't1', steps: { t1: 2 }, sideSlim: true }, full, LIVE, { kind: 'demo', displayName: 'Alex Morgan', personId: 'p1' }]);
+    { view: 'tab', tab: 't1', steps: { t1: 0 }, sideSlim: true }, full, LIVE, { kind: 'demo', displayName: 'Alex Morgan', personId: 'p1' }]);
   out.push(['sidebar slim, people',
     { view: 'people', sideSlim: true }, full, LIVE, { kind: 'demo', displayName: 'Alex Morgan', personId: 'p1' }]);
 
@@ -416,9 +418,8 @@ function matrix() {
   const big = bigBoard();
   [
     ['big: overview', { view: 'overview' }],
-    ['big: projects stage', { view: 'tab', tab: 'bt0', steps: { bt0: 2 } }],
-    ['big: issues', { view: 'tab', tab: 'bt0', steps: { bt0: 3 } }],
-    ['big: rate', { view: 'tab', tab: 'bt0', steps: { bt0: 4 } }],
+    ['big: projects stage', { view: 'tab', tab: 'bt0', steps: { bt0: 0 } }],
+    ['big: issues', { view: 'tab', tab: 'bt0', steps: { bt0: 2 } }],
     ['big: register', { view: 'actions' }],
     ['big: timeline', { view: 'timeline' }],
     ['big: projects list', { view: 'projects', projStatus: 'all' }],
@@ -429,7 +430,7 @@ function matrix() {
     ['big: project page, hazards', { view: 'project', project: 'bhz1' }],
     ['big: people', { view: 'people' }],
     ['big: board settings', { view: 'config' }],
-    ['big: empty meeting', { view: 'tab', tab: 'techdir', steps: { techdir: 2 } }]
+    ['big: empty meeting', { view: 'tab', tab: 'techdir', steps: { techdir: 0 } }]
   ].forEach(function (s) {
     out.push([s[0], s[1], big, LIVE, { personId: 'bp0', displayName: 'Kappa Feldspar' }]);
   });
@@ -456,8 +457,8 @@ function matrix() {
 const GRID_CHILDREN = [
   ['kpis', [4], 'repeat(4, minmax(0,1fr)) — a fifth wraps and leaves three empty cells'],
   ['rp', [2], '170px + minmax(0,1fr): exactly .rp-h then .rp-b'],
-  ['steps', [5], 'repeat(5,...) — one per agenda segment'],
-  ['proj', [4], 'name, tools, status, details — see meeting.js projectRow'],
+  ['steps', [3, 4], 'auto columns — three segments, four for Tech Directors'],
+  ['proj', [3], 'name, tools, status — the details dropdown is gone; see projectRow'],
 
   /*
    * These three vary with their content, which is why they were reported and not
@@ -483,8 +484,7 @@ const GRID_CHILDREN = [
    */
   ['arow', [3, 4, 5], 'four-column grid: the rail three, project page four, already-owed five'],
   ['is-h', [3], 'declares four columns; emits three children — see above'],
-  // 7: an opportunity tile now carries the same details panel as a project's.
-  ['item', [2, 3, 4, 5, 6, 7], 'auto minmax(0,1fr) auto, with conditional children']
+  ['item', [2, 3, 4, 5, 6], 'auto minmax(0,1fr) auto, with conditional children']
 ];
 
 
@@ -520,8 +520,6 @@ const PLACEMENT = [
       why:    'placed:2',
       'it-c': 'placed:2',
       'it-s': 'placed:2',
-      // The opportunity details panel - grid-column: 2 / -1, its own row.
-      dtl:    'placed:2',
       /*
        * Both of these sit beside the title on row 1, and both are SAFE there: a
        * button's width is bounded by a label we wrote, not by anything a user can

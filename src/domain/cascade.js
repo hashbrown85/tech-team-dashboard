@@ -221,6 +221,28 @@ export function deleteProject(snap, id) {
 }
 
 /**
+ * Remove an opportunity from the Horizon: its project record (with its notes,
+ * values, and detached actions, exactly as deleteProject does) and the meeting
+ * entry it was raised as. Leaving the entry would leave "raised X" in that
+ * meeting's history for something that no longer exists anywhere.
+ *
+ * @param {Snapshot} snap
+ * @param {string} id - the opportunity's project record
+ * @returns {Cascade}
+ */
+export function deleteOpportunity(snap, id) {
+  const p = byId(snap.projects, id);
+  if (!p) return nothing();
+  const proj = deleteProject(snap, id);
+  const e = p.fromOpp ? byId(snap.entries, p.fromOpp) : null;
+  return {
+    writes: proj.writes.concat(e ? [{ op: 'remove', col: 'entries', id: e.id }] : []),
+    undo: proj.undo.concat(e ? [{ op: 'set', col: 'entries', id: e.id, data: docOf(e) }] : []),
+    message: 'Opportunity removed. Its action items stay in the list.'
+  };
+}
+
+/**
  * Move a project to another meeting.
  *
  * Not a delete, but the same shape, because it is the same kind of change: one

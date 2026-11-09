@@ -97,16 +97,3 @@ test('The picker on a project page offers them alphabetically', () => {
   ok(a >= 0 && m > a && z > m, 'Aqua, Maxi, Zinc');
 });
 
-test('The opportunity form offers Focus alphabetically', () => {
-  const snap = demoBoard('2026-09-29');
-  snap.settings.focus = { items: ['Scale', 'Corrosion', 'Pipeline'] };
-  const html = renderApp(snap,
-    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp' }),
-    { today: '2026-09-29', modes: MODES, identity: { kind: 'local', personId: 'p1' } });
-  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(html);
-  ok(form, 'the form rendered');
-  if (!form) return;
-  const c = form[0].indexOf('Corrosion'), p = form[0].indexOf('Pipeline'),
-    s = form[0].indexOf('Scale');
-  ok(c >= 0 && p > c && s > p, 'Corrosion, then Pipeline, then Scale');
-});

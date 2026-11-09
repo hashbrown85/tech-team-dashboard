@@ -128,7 +128,7 @@ export function statusChange(snap, project, newStatus, tid, meetingDate) {
  * @param {string} args.meetingDate
  * @returns {any} the document to write
  */
-export function newProject({ tab, personId, support, customer, name, note, due, meetingDate }) {
+export function newProject({ tab, personId, support, customer, name, mission, note, due, meetingDate }) {
   /** @type {any} */
   const p = {
     tab: tab,
@@ -140,7 +140,9 @@ export function newProject({ tab, personId, support, customer, name, note, due, 
     due: due || '',
     added: meetingDate
   };
-  // The major challenge, when given - `note`, as an opportunity stores it.
+  // Mission & challenges, when given. `note` is the old separate challenge field,
+  // still accepted from older callers; missionText() shows the two as one.
+  if (mission) p.mission = mission;
   if (note) p.note = note;
   return p;
 }
@@ -169,7 +171,7 @@ export function newProject({ tab, personId, support, customer, name, note, due, 
  */
 export function newOpportunity({
   entryId, projectId, tab, personId, support, text, why, meetingDate,
-  customer, winPct, winReason, focus
+  customer, winPct, winReason, focus, mission, due
 }) {
   const startsOn = addDays(meetingDate, 7);
   const pct = winPct == null || winPct === '' || isNaN(Number(winPct))
@@ -189,13 +191,14 @@ export function newOpportunity({
     customer: customer || '',
     name: text,
     status: 'new',
-    due: '',
+    due: due || '',
     start: startsOn,
     fromOpp: entryId,
     // What Current Projects keys on - see raisedOn() in queries.js. `start` stays
     // for older readers and means nothing to visibility for an opportunity now.
     raisedOn: meetingDate,
     note: why || '',
+    mission: mission || '',
     winReason: winReason || '',
     focus: focus && focus.length ? focus.slice() : []
   };

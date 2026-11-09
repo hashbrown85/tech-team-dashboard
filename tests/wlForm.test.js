@@ -20,7 +20,7 @@ const DAY = '2026-09-22';
 
 function form(ui) {
   const html = renderApp(demoBoard(DAY), Object.assign(loadUi(),
-    { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'wl' }, ui),
+    { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl' }, ui),
     { today: DAY, modes: { content: 'live', settings: 'live', details: 'live' },
       identity: { kind: 'demo', personId: 'p1' } });
   const m = /<form class="add" data-form="wl">[\s\S]*?<\/form>/.exec(html);
@@ -43,7 +43,7 @@ function select(value, box) {
 async function app() {
   const store = createStore(createMemoryAdapter({ seed: demoBoard(DAY) }), {});
   await store.load();
-  const ui = Object.assign(loadUi(), { view: 'tab', tab: 't1', steps: { t1: 0 } });
+  const ui = Object.assign(loadUi(), { view: 'tab', tab: 't1', steps: { t1: 1 } });
   const H = createHandlers(/** @type {any} */ ({
     store: store, ui: ui, render: function () {}, today: function () { return DAY; }
   }));

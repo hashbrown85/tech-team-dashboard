@@ -104,23 +104,26 @@ export function decideOpportunity(snap, id, decision, d) {
 }
 
 /**
- * The opportunities a meeting's New Opportunities segment carries, beyond the ones
- * raised at it: everything raised EARLIER in this meeting and still undecided or on
- * hold, plus anything decided at this meeting, so the decision can be seen where it
- * was made. Oldest first - the longest-waiting want deciding first.
+ * The Horizon for one meeting: its opportunities still waiting for a decision -
+ * undecided or on hold - raised at this meeting or any earlier one, plus any
+ * decided AT this meeting, so the room can see what it just did. Oldest first:
+ * the longest-waiting want deciding first.
+ *
+ * Raised at a LATER meeting is left out, so looking back at an old meeting shows
+ * the horizon as it stood then.
  *
  * @param {Snapshot} snap
  * @param {string} tabId
  * @param {string} d - the meeting date being viewed
  * @returns {any[]} project records
  */
-export function carriedOpportunities(snap, tabId, d) {
+export function horizonFor(snap, tabId, d) {
   return snap.projects.filter(function (p) {
     if (p.tab !== tabId) return false;
     const s = oppStage(p);
     if (s === null) return false;
     const raised = raisedOn(p);
-    if (!raised || raised >= d) return false;
+    if (!raised || raised > d) return false;
     return s === 'open' || s === 'hold' || p.oppDecided === d;
   }).sort(function (a, b) {
     const ra = raisedOn(a);

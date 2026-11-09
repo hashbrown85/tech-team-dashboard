@@ -218,6 +218,14 @@ button.kpi:hover{background:var(--surface-2)}
 .att-list .t{font-weight:500;overflow-wrap:break-word}
 .att-list .m{grid-column:2;font-size:13px;color:var(--muted)}
 .mgroup + .mgroup{margin-top:16px}
+/* The meeting's Projects step: Horizon, then Current projects, each folding away
+   under a heading that keeps its count visible. */
+.psec + .psec{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.psec-h{margin:0 0 10px;font:600 13px var(--f-label);letter-spacing:.06em;text-transform:uppercase}
+.sec-tog{display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:2px 0;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--ink-2);cursor:pointer}
+.sec-tog:hover{color:var(--ink)}
+.sec-tog .caret{display:inline-block;width:1em;color:var(--muted)}
+.item.sel{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
 .mgroup .lbl{margin:0 0 8px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .mc{display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:12px 14px}
@@ -232,7 +240,10 @@ button.kpi:hover{background:var(--surface-2)}
 
 /* ---------- meeting: stepper ---------- */
 .stepper{display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--line);border-radius:6px;overflow:hidden}
-.steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:1 1 auto;min-width:0}
+/* One column per segment, however many the agenda has: three for an area meeting,
+   four for Tech Directors. Auto columns rather than repeat(N), so the bar cannot
+   fall out of step with the agenda again. */
+.steps{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);flex:1 1 auto;min-width:0}
 .st{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:9px;align-items:center;text-align:left;border:0;border-right:1px solid var(--line);background:transparent;padding:10px 12px;min-width:0;overflow:hidden}
 .st:hover{background:var(--surface-2)}
 .st-n{grid-row:1 / span 2;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line-strong);display:grid;place-items:center;font:600 12.5px var(--f-mono);color:var(--ink-2)}
@@ -253,7 +264,7 @@ button.kpi:hover{background:var(--surface-2)}
 .t-hint{font-size:13px;color:var(--muted);margin-top:-8px;padding-left:2px}
 .t-hint b{color:var(--ink)}
 .t-hint.over b{color:var(--crit)}
-@media (max-width:980px){.stepper{flex-direction:column}.steps{grid-template-columns:repeat(5,minmax(0,1fr))}.st{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;padding:8px 4px}.st-n{grid-row:auto}.st-b{display:none}.tmr{border-left:0;border-top:1px solid var(--line);justify-content:center}}
+@media (max-width:980px){.stepper{flex-direction:column}.st{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center;padding:8px 4px}.st-n{grid-row:auto}.st-b{display:none}.tmr{border-left:0;border-top:1px solid var(--line);justify-content:center}}
 @media (max-width:980px){.st-t{display:none}.st-y{display:block}}
 
 .mgrid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
@@ -300,10 +311,6 @@ button.kpi:hover{background:var(--surface-2)}
 .item > .it-t{grid-column:2}
 .item > .why,.item > .it-c,.item > .it-s{grid-column:2}
 .item > .x{grid-column:3;grid-row:1}
-/* An opportunity's details panel: the same one a project tile has. Under the
-   title, across the title and x columns, on a row of its own - so it can never
-   sit beside the title in an auto track. */
-.item > .dtl{grid-column:2 / -1}
 /* The Reopen button on a resolved issue. Auto-placed it landed in column 3 beside
    the title - and a .btn is 34px tall with 14px of padding either side, so it is a
    real aggressor against a track floored at zero. Pinned where the x goes; the two
@@ -413,17 +420,9 @@ button.kpi:hover{background:var(--surface-2)}
 .tgl input:checked + label{background:var(--ink);color:var(--on-ink)}
 .tgl input:focus-visible + label{outline:2px solid var(--brand);outline-offset:-2px}
 
-.rates .lbl{margin:12px 0 2px}
-.rates .lbl:first-child{margin-top:0}
 .rrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
 .rrow .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rate{display:flex;gap:4px;flex:none}
-.rb{width:31px;height:31px;border:1px solid var(--line-strong);border-radius:4px;background:var(--surface);font:500 13px var(--f-mono);padding:0}
-.rb:hover{border-color:var(--ink)}
-.rb[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
-.scale{font-size:12.5px;color:var(--muted);margin-top:8px}
-.score .big{font:500 48px/1 var(--f-mono);font-variant-numeric:tabular-nums}
-.score .big small{font-size:18px;color:var(--muted)}
 .spark{width:100%;max-width:260px;height:auto;display:block;margin-top:12px}
 .spark .sg{stroke:var(--line);stroke-width:1}
 .spark .sl{stroke:var(--brand);stroke-width:2;fill:none;stroke-linejoin:round}

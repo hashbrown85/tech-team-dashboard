@@ -62,7 +62,7 @@ async function app(uiOverrides) {
   const adapter = createMemoryAdapter({ seed: demoBoard(), startActionNum: 8 });
   const ui = Object.assign(
     loadUi(),
-    { view: 'tab', tab: 't1', steps: { t1: 3 } },
+    { view: 'tab', tab: 't1', steps: { t1: 2 } },
     uiOverrides || {}
   );
   const store = createStore(adapter, {});
@@ -174,7 +174,7 @@ test('Closing the last action resolves the issue, and unticking reopens it', asy
 });
 
 test('The project status lifecycle behaves through the handler', async () => {
-  const a = await app({ steps: { t1: 2 } });
+  const a = await app({ steps: { t1: 0 } });
 
   a.H.clicks.projStatus(null, 'pr1', 'off');
   await settle();
@@ -187,18 +187,6 @@ test('The project status lifecycle behaves through the handler', async () => {
   p = a.snap().projects.find(function (x) { return x.id === 'pr1'; });
   notOk('prevStatus' in p, 'toggling straight back erases the record');
   notOk(queueIds(a.snap(), 't1').indexOf('pr1') >= 0, 'and leaves the queue');
-});
-
-test('Rating a meeting stores a score, and clicking it again clears it', async () => {
-  const a = await app({ steps: { t1: 4 } });
-
-  a.H.clicks.setRating(null, 'p5', '5');
-  await settle();
-  ok(JSON.stringify(a.snap().meetings).indexOf('"p5":5') >= 0, 'recorded');
-
-  a.H.clicks.setRating(null, 'p5', '5');
-  await settle();
-  notOk(JSON.stringify(a.snap().meetings).indexOf('"p5":5') >= 0, 'cleared by clicking again');
 });
 
 test('Deleting a project keeps its actions, and undo puts everything back', async () => {
@@ -233,6 +221,8 @@ test('Renaming somebody carries their name across their actions', async () => {
 
 test('Walking every agenda step leaves the app renderable', async () => {
   const a = await app();
+  // Three segments now - Projects, Wins & Losses, Issues - and the remembered step
+  // is clamped, so an old "4" from the five-segment agenda still lands somewhere.
   for (let step = 0; step <= 4; step++) {
     a.H.clicks.step(null, '', String(step));
     const html = renderApp(a.snap(), a.ui, { today: today(), modes: a.store.modes() });
@@ -470,7 +460,7 @@ group('Priority: the arrows move a tile in Current Projects');
  */
 function orderOf(a, tabId) {
   const ui = Object.assign({}, a.ui, { view: 'tab', tab: tabId, steps: {}, open: null });
-  ui.steps[tabId] = 2;
+  ui.steps[tabId] = 0;
   const html = renderApp(a.snap(), ui, { today: today(),
     modes: { content: 'live', settings: 'live', details: 'live' }, identity: { personId: 'p1' } });
   return (html.match(/<li class="proj[^"]*" id="proj-([^"]+)"/g) || []).map(function (m) {
@@ -488,7 +478,7 @@ function ownerOf(a, id) {
 }
 
 test('Moving a project up swaps it with the tile above', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = orderOf(a, 't1');
   ok(before.length >= 3, 'Northern shows several projects, got ' + before.length);
 
@@ -503,7 +493,7 @@ test('Moving a project up swaps it with the tile above', async () => {
 test('The reported case: moving past somebody else’s project', async () => {
   // The arrows used to step only past the next project with the SAME owner, so
   // with a colleague's project directly above, pressing Up did nothing.
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = orderOf(a, 't1');
   let i = 1;
   while (i < before.length && ownerOf(a, before[i]) === ownerOf(a, before[i - 1])) i++;
@@ -515,7 +505,7 @@ test('The reported case: moving past somebody else’s project', async () => {
 });
 
 test('Moving it back down restores the order', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = orderOf(a, 't1');
 
   moveProject(a, before[1], -1);
@@ -527,7 +517,7 @@ test('Moving it back down restores the order', async () => {
 });
 
 test('Every press moves it exactly one place, all the way down and back up', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const start = orderOf(a, 't1');
   const id = start[0];
   for (let k = 1; k < start.length; k++) {
@@ -546,7 +536,7 @@ test('The first click works on a board that has never been ordered', async () =>
   // Nothing starts with a priority. A pairwise SWAP would exchange two absent
   // values and do nothing at all, so the very first arrow click would look broken.
   // reorderProjects renumbers instead, which is the whole reason it does.
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   a.snap().projects.forEach(function (p) {
     notOk('priority' in p, p.id + ' starts with no priority');
   });
@@ -559,7 +549,7 @@ test('The first click works on a board that has never been ordered', async () =>
 });
 
 test('Moving up from the top does nothing, and neither does down from the bottom', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = orderOf(a, 't1');
 
   moveProject(a, before[0], -1);
@@ -572,9 +562,9 @@ test('Moving up from the top does nothing, and neither does down from the bottom
 });
 
 test('The arrows are disabled at the ends of the list as drawn', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const order = orderOf(a, 't1');
-  const html = renderApp(a.snap(), Object.assign({}, a.ui, { steps: { t1: 2 } }),
+  const html = renderApp(a.snap(), Object.assign({}, a.ui, { steps: { t1: 0 } }),
     { today: today(), modes: { content: 'live', settings: 'live', details: 'live' },
       identity: { personId: 'p1' } });
   ok(new RegExp('data-act="movePriority" data-id="' + order[0] + '" data-v="-1"[^>]*disabled').test(html),
@@ -584,7 +574,7 @@ test('The arrows are disabled at the ends of the list as drawn', async () => {
 });
 
 test('Another meeting’s order is never touched', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const others = a.snap().projects
     .filter(function (p) { return p.tab !== 't1'; })
     .map(function (p) { return p.id + ':' + p.priority; });
@@ -597,7 +587,7 @@ test('Another meeting’s order is never touched', async () => {
 });
 
 test('An undecided opportunity is not given a place in the list', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   moveProject(a, orderOf(a, 't1')[1], -1);
   await settle();
   const pr4 = a.snap().projects.find(function (p) { return p.id === 'pr4'; });
@@ -608,7 +598,7 @@ test('Priority survives a project going off track and back', async () => {
   // `rank` is the off-track queue position, and statusChange sets it on the way out
   // and deletes it on the way back. Reusing it for priority would have meant a
   // status change silently scrambled somebody's order - this is that test.
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = orderOf(a, 't1');
   moveProject(a, before[1], -1);
   await settle();
@@ -626,7 +616,7 @@ test('An unordered list still renders the same way twice', async () => {
   // Without a tiebreak, a list nobody has ordered comes back in whatever order the
   // store returned, which can differ between a load and the poll - and rows appear
   // to shuffle on their own.
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const once = orderOf(a, 't1');
   a.snap().projects.reverse();
   eq(orderOf(a, 't1'), once, 'same order from a differently-ordered snapshot');
@@ -648,7 +638,7 @@ test('A project nobody has ordered sorts BELOW the ones somebody has', () => {
 });
 
 test('A newly added project lands at the bottom of an ordered list', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = orderOf(a, 't1');
   moveProject(a, before[1], -1);          // give the list real priorities
   await settle();
@@ -772,7 +762,7 @@ group('An item always has an owner');
  * and reachable only from the Projects list.
  */
 test('A project with no owner is not created', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = a.snap().projects.length;
   a.H.forms.project(fields([['name', 'Ownerless'], ['due', ''], ['who', '']]));
   await settle();
@@ -780,7 +770,7 @@ test('A project with no owner is not created', async () => {
 });
 
 test('A win with no owner is not created', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
   const before = a.snap().entries.length;
   a.H.forms.wl(fields([['kind', 'win'], ['text', 'Ownerless'], ['why', 'x'], ['who', '']]));
   await settle();
@@ -788,7 +778,7 @@ test('A win with no owner is not created', async () => {
 });
 
 test('An opportunity with no owner is not created', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = a.snap().projects.length;
   a.H.forms.opp(multiFields([['text', 'Ownerless'], ['who', '']]));
   await settle();
@@ -796,7 +786,7 @@ test('An opportunity with no owner is not created', async () => {
 });
 
 test('A supporting person is optional, and stored when given', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   a.H.forms.project(fields([['name', 'With a second'], ['due', ''],
     ['who', 'p1'], ['support', 'p2']]));
   await settle();
@@ -812,7 +802,7 @@ test('A supporting person is optional, and stored when given', async () => {
 });
 
 test('A new project takes a customer, which leads its title', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   a.H.forms.project(fields([['customer', '  Demo Quartz Works '], ['name', 'Resin swap'],
     ['due', ''], ['who', 'p1']]));
   await settle();
@@ -831,7 +821,7 @@ test('A new project takes a customer, which leads its title', async () => {
 
 test('The add-project form asks for the customer, before the name', () => {
   const html = renderApp(demoBoard(), Object.assign(loadUi(),
-    { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' }),
+    { view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'project' }),
     { today: today(), modes: { content: 'live', settings: 'live', details: 'live' },
       identity: { personId: 'p1' } });
   const form = /<form class="add" data-form="project">[\s\S]*?<\/form>/.exec(html);
@@ -852,48 +842,52 @@ function newestProject(a) {
   return a.snap().projects.filter(function (p) { return known.indexOf(p.id) < 0; })[0];
 }
 
-test('An opportunity carries its project fields through to the project', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+test('An opportunity takes the same fields as a new project', async () => {
+  // The form is the same five things a tile shows, plus Mission & challenges.
+  // Confidence, why we win, systems and products are filled in on its page.
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   raise(a, [
     ['customer', 'Halden Industrial'],
     ['text', 'Downhole scale trial'],
-    ['why', 'Their lab is slow'],
-    ['winPct', '40'],
-    ['winReason', 'Only ones with the data'],
-    ['focus', 'Scale'],
-    ['focus', 'Pipeline']
+    ['mission', 'Prove the inhibitor at 40 ppm. Their lab is slow.'],
+    ['due', '2026-12-01'],
+    ['support', 'p2']
   ]);
   await settle();
 
   const p = newestProject(a);
-  ok(p, 'a project was created');
+  ok(p, 'a project record was created');
   eq(p.customer, 'Halden Industrial');
   eq(p.name, 'Downhole scale trial');
-  eq(p.note, 'Their lab is slow');
-  eq(p.winPct, 40);
-  eq(p.winReason, 'Only ones with the data');
-  eq(p.focus, ['Scale', 'Pipeline'], 'both boxes ticked');
-  eq(p.status, 'new', 'and it joins as a new project');
+  eq(p.mission, 'Prove the inhibitor at 40 ppm. Their lab is slow.');
+  eq(p.due, '2026-12-01');
+  eq(p.support, 'p2');
+  eq(p.status, 'new', 'it waits on the Horizon, undecided');
 });
 
-/** The New Opportunities segment as it would be drawn now. */
+/** The Horizon tiles as they would be drawn now. */
 function oppTiles(a) {
   const html = renderApp(a.snap(), a.ui, { today: today(),
     modes: { content: 'live', settings: 'live', details: 'live' }, identity: { personId: 'p1' } });
-  return (html.match(/<li class="item opp">[\s\S]*?<\/li>/g) || []).join('');
+  return (html.match(/<li class="item opp[^"]*" id="opp-[\s\S]*?<\/li>/g) || []).join('');
 }
 
-test('The opportunity tile leads with its customer', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+/** The title link on a Horizon tile reads exactly this. */
+function titled(text) {
+  return 'title="Open the details">' + text + '</button>';
+}
+
+test('The Horizon tile leads with its customer', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   raise(a, [['customer', 'Demo Quartz Works'], ['text', 'Downhole scale trial']]);
   await settle();
-  ok(oppTiles(a).indexOf('<span class="it-t">Demo Quartz Works - Downhole scale trial</span>') >= 0,
-    'customer, then what was said');
+  ok(oppTiles(a).indexOf(titled('Demo Quartz Works - Downhole scale trial')) >= 0,
+    'customer, then the title, as a link to its page');
 });
 
 test('A corrected customer shows on the tile too', async () => {
   // It is read from the project, so fixing it on the project page fixes it here.
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   raise(a, [['customer', 'Demo Qaurtz'], ['text', 'Downhole scale trial']]);
   await settle();
   await a.store.update('projects', newestProject(a).id, { customer: 'Demo Quartz Works' });
@@ -903,24 +897,14 @@ test('A corrected customer shows on the tile too', async () => {
 });
 
 test('No customer, no dangling dash', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   raise(a, [['text', 'Just a thought']]);
   await settle();
-  ok(oppTiles(a).indexOf('<span class="it-t">Just a thought</span>') >= 0);
-});
-
-test('Its confidence is seeded, so one revision later makes a trend', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
-  raise(a, [['text', 'Downhole scale trial'], ['winPct', '40']]);
-  await settle();
-
-  const p = newestProject(a);
-  eq(confidencePoints(p).length, 1, 'one point to start from');
-  eq(confidencePoints(p)[0].v, 40);
+  ok(oppTiles(a).indexOf(titled('Just a thought')) >= 0);
 });
 
 test('Only the title is needed - everything else may be blank', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   raise(a, [['text', 'Just a thought']]);
   await settle();
 
@@ -928,52 +912,21 @@ test('Only the title is needed - everything else may be blank', async () => {
   ok(p, 'it was still created');
   eq(p.name, 'Just a thought');
   eq(p.customer, '');
-  eq(p.focus, []);
-  notOk('winPct' in p, 'an empty box is not a confidence of zero');
+  eq(p.due, '');
+  notOk('winPct' in p, 'no confidence until somebody gives one');
 });
 
 test('No title means nothing is created at all', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = a.snap().projects.length;
-  raise(a, [['customer', 'Halden Industrial'], ['winPct', '40']]);
+  raise(a, [['customer', 'Halden Industrial']]);
   await settle();
   eq(a.snap().projects.length, before);
 });
 
-test('The optional first action is created and points at the new project', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
-  raise(a, [
-    ['text', 'Downhole scale trial'],
-    ['actionText', 'Call their lab manager'],
-    ['actionOwner', 'Alex Morgan'],
-    ['actionDue', '2026-09-30']
-  ]);
-  await settle();
-
-  const p = newestProject(a);
-  const acts = actsOf(a.snap(), p.id);
-  eq(acts.length, 1, 'one action');
-  eq(acts[0].text, 'Call their lab manager');
-  eq(acts[0].owner, 'Alex Morgan', 'stored by name, as actions are');
-  eq(acts[0].due, '2026-09-30');
-  eq(acts[0].parent.type, 'project');
-  eq(acts[0].parent.id, p.id, 'attached to the project it will become');
-});
-
-test('Leaving the action blank is the normal case, not an error', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
-  const before = a.snap().actions.length;
-  raise(a, [['text', 'Downhole scale trial'], ['actionText', '   ']]);
-  await settle();
-
-  const p = newestProject(a);
-  ok(p, 'the opportunity was still raised');
-  eq(a.snap().actions.length, before, 'and no action was invented');
-});
-
-test('The entry keeps the record of what was said in the meeting', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 1 } });
-  raise(a, [['text', 'Downhole scale trial'], ['why', 'Their lab is slow']]);
+test('The entry keeps the record of what was raised in the meeting', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  raise(a, [['text', 'Downhole scale trial']]);
   await settle();
 
   const p = newestProject(a);
@@ -981,13 +934,28 @@ test('The entry keeps the record of what was said in the meeting', async () => {
   ok(entry, 'an entry was written too');
   eq(entry.kind, 'opp');
   eq(entry.text, 'Downhole scale trial');
-  eq(entry.why, 'Their lab is slow');
+});
+
+test('Removing it from the Horizon takes the entry too, and Undo brings both back', async () => {
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  raise(a, [['text', 'Downhole scale trial']]);
+  await settle();
+  const p = newestProject(a);
+
+  a.H.clicks.delOpportunity(null, p.id, '');
+  await settle();
+  notOk(a.snap().projects.some(function (x) { return x.id === p.id; }), 'the opportunity is gone');
+  notOk(a.snap().entries.some(function (e) { return e.projectId === p.id; }), 'and its entry');
+
+  await a.store.undo();
+  ok(a.snap().projects.some(function (x) { return x.id === p.id; }), 'undo: back');
+  ok(a.snap().entries.some(function (e) { return e.projectId === p.id; }), 'entry and all');
 });
 
 group('Confidence recorded through the handler');
 
 test('Editing confidence stamps the meeting, not today', async () => {
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   a.H.edits.pdWin(/** @type {any} */ ({ dataset: { id: 'pr2' }, value: '55' }));
   await settle();
 
@@ -1001,7 +969,7 @@ test('Editing confidence stamps the meeting, not today', async () => {
 test('Typing a number a digit at a time leaves one point, not three', async () => {
   // The field writes on every change. Without one-point-per-meeting, "8" then "80"
   // would leave a jagged line nobody drew.
-  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const a = await app({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const before = confidencePoints(
     a.snap().projects.find(function (x) { return x.id === 'pr1'; })).length;
 
@@ -1287,20 +1255,20 @@ function tile(html, id) {
 }
 
 test('Customer, then project name, at the top of the tile', () => {
-  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 2 } }), 'pr1');
+  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 0 } }), 'pr1');
   ok(t, 'pr1 is on the stage');
   ok(t.indexOf('title="Open this project">Meridian Coatings - Coating additive trial</button>') > 0);
 });
 
 test('The customer is not said again in the line underneath', () => {
-  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 2 } }), 'pr1');
+  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 0 } }), 'pr1');
   const meta = /<span class="meta">[\s\S]*?<\/span>\s*<\/div>/.exec(t);
   ok(meta, 'the meta line is there');
   if (meta) notOk(meta[0].indexOf('Meridian Coatings') >= 0, 'only once, in the title');
 });
 
 test('A project with no customer is titled by its name alone', () => {
-  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 2 } }), 'pr3');
+  const t = tile(stageHtml({ view: 'tab', tab: 't1', steps: { t1: 0 } }), 'pr3');
   ok(t.indexOf('title="Open this project">Pigment supplier qualification</button>') > 0);
 });
 

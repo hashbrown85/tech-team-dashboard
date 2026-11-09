@@ -105,15 +105,11 @@ test('The meeting view carries no project value at all any more', () => {
   const withData = demoBoard();
 
   const shown = renderApp(withData,
-    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 2 } }),
+    Object.assign({}, loadUi(), { view: 'tab', tab: 't1', steps: { t1: 0 } }),
     { today: today(), modes: MODES, identity: identify(withData, null) });
 
   notOk(shown.indexOf('data-edit="pdValue"') >= 0, 'no value field');
   notOk(shown.indexOf('180000') >= 0, 'and the figure is nowhere in the markup');
-
-  ok(shown.indexOf('Project details') >= 0, 'the panel is still there');
-  ok(shown.indexOf('data-edit="pdWin"') >= 0, 'with confidence');
-  ok(shown.indexOf('data-f="focus"') >= 0, 'and the focus picker');
 });
 
 test('A refused collection leaves the rest of the board working', () => {

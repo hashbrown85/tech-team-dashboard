@@ -43,11 +43,11 @@ test('In the header of every meeting, at every segment', () => {
 });
 
 test('Closed until pressed', () => {
-  notOk(screen({ view: 'tab', tab: 't1', steps: { t1: 0 } }).indexOf('id="f-summary"') >= 0);
+  notOk(screen({ view: 'tab', tab: 't1', steps: { t1: 1 } }).indexOf('id="f-summary"') >= 0);
 });
 
 test('Opened: the summary, Email and Copy, and who it goes to', () => {
-  const html = screen({ view: 'tab', tab: 't1', steps: { t1: 0 }, sumShow: true });
+  const html = screen({ view: 'tab', tab: 't1', steps: { t1: 1 }, sumShow: true });
   ok(html.indexOf('<h2>Meeting summary</h2>') >= 0);
   ok(html.indexOf('data-act="emailSummary"') >= 0, 'Email');
   ok(html.indexOf('data-act="copySummary"') >= 0, 'Copy');
@@ -56,7 +56,7 @@ test('Opened: the summary, Email and Copy, and who it goes to', () => {
 });
 
 test('Anybody left off is named, with where to fix it', () => {
-  const html = screen({ view: 'tab', tab: 't1', steps: { t1: 0 }, sumShow: true });
+  const html = screen({ view: 'tab', tab: 't1', steps: { t1: 1 }, sumShow: true });
   ok(/No work email for <b>[^<]*Ravi Chandra[^<]*<\/b>/.test(html));
   ok(/No work email for <b>[^<]*Dana Whitfield[^<]*<\/b>/.test(html));
 });

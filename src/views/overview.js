@@ -14,10 +14,11 @@ import { esc } from '../lib/dom.js';
 import { fmt, fmtDay, addDays, rel } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import {
-  issueItems, openActsFor, personName, person, boardIsComplete, withheldLabels, withheld
+  issueItems, openActsFor, personName, person, boardIsComplete, withheldLabels, withheld, oppStage
 } from '../domain/queries.js';
 import { stats, isOverdue, dueLabel, personOk } from '../domain/dueness.js';
-import { lastScore, meetingDate } from '../domain/meetings.js';
+import { meetingDate } from '../domain/meetings.js';
+import { horizonFor } from '../domain/opportunities.js';
 import { SEVERITY_LABELS } from '../domain/constants.js';
 import { pageHeader, kpi } from './shell.js';
 
@@ -117,7 +118,6 @@ export function renderOverview(snap, ui, env) {
 
   function card(t) {
     const st = stats(snap, t.id, today);
-    const ls = lastScore(snap, t.id);
     const d = meetingDate(t, today, ui.dates[t.id]);
     const reporting = (t.members || [])
       .filter(function (id) { return person(snap, id); })
@@ -135,7 +135,12 @@ export function renderOverview(snap, ui, env) {
       // a broken class expression leaves behind.
       '<span>Overdue<b' + (st.over ? ' class="crit"' : '') + '>' + st.over + '</b></span>' +
       '<span>Stoppers<b' + (st.stop ? ' class="crit"' : '') + '>' + st.stop + '</b></span>' +
-      '<span>Score<b>' + (ls ? ls.avg.toFixed(1) : '—') + '</b></span>' +
+      // Where the meeting score used to be: ratings are gone, and what is waiting
+      // on the horizon is the number worth seeing before walking in.
+      '<span>Horizon<b>' + horizonFor(snap, t.id, d).filter(function (p) {
+        const s = oppStage(p);
+        return s === 'open' || s === 'hold';
+      }).length + '</b></span>' +
       '</span></button>';
   }
 

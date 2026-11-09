@@ -56,11 +56,10 @@ function unbalanced(html) {
 
 const SCREENS = [
   ['the overview', { view: 'overview' }],
-  ['wins and losses', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
-  ['new opportunities', { view: 'tab', tab: 't1', steps: { t1: 1 } }],
-  ['current projects', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
-  ['the issues queue', { view: 'tab', tab: 't1', steps: { t1: 3 } }],
-  ['rate the meeting', { view: 'tab', tab: 't1', steps: { t1: 4 } }],
+  ['wins and losses', { view: 'tab', tab: 't1', steps: { t1: 1 } }],
+  ['new opportunities', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
+  ['current projects', { view: 'tab', tab: 't1', steps: { t1: 0 } }],
+  ['the issues queue', { view: 'tab', tab: 't1', steps: { t1: 2 } }],
   ['the tech directors business review', { view: 'tab', tab: 'techdir', steps: { techdir: 1 } }],
   ['meeting settings', { view: 'tab', tab: 't1', settings: true } ],
   ['the action register', { view: 'actions' }],
@@ -70,8 +69,8 @@ const SCREENS = [
   ['the timeline by person', { view: 'timeline', tlGroup: 'person' }],
   ['the roster', { view: 'people' }],
   ['board settings', { view: 'config' }],
-  ['project details, when visible', { view: 'tab', tab: 't1', steps: { t1: 2 }, iam: 'p1' }],
-  ['the summary preview', { view: 'tab', tab: 't1', steps: { t1: 4 }, sumShow: true }]
+  ['project details, when visible', { view: 'tab', tab: 't1', steps: { t1: 0 }, iam: 'p1' }],
+  ['the summary panel', { view: 'tab', tab: 't1', steps: { t1: 0 }, sumShow: true }]
 ];
 
 group('Every screen renders');
@@ -123,8 +122,8 @@ group('Where the due-since-last-meeting block lives');
 test('It sits at the top of Issues, not in Wins & Losses', () => {
   // It is a list of outstanding commitments, so it belongs immediately before the
   // group agrees new ones - not at the start of the meeting.
-  const wins = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
-  const issues = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const wins = render({ view: 'tab', tab: 't1', steps: { t1: 1 } });
+  const issues = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
 
   notOk(wins.indexOf('duechk') >= 0, 'gone from Wins & Losses');
   ok(issues.indexOf('duechk') >= 0, 'present in Issues');
@@ -143,7 +142,7 @@ test('Work that is not due yet is not "already owed"', () => {
   });
 
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 3 }
+    view: 'tab', tab: 't1', steps: { t1: 2 }
   }), { today: today(), modes: MODES });
 
   const box = html.slice(html.indexOf('duechk'), html.indexOf('dc-tip'));
@@ -159,7 +158,7 @@ test('Work due today IS already owed', () => {
   });
 
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 3 }
+    view: 'tab', tab: 't1', steps: { t1: 2 }
   }), { today: today(), modes: MODES });
 
   const box = html.slice(html.indexOf('duechk'), html.indexOf('dc-tip'));
@@ -178,7 +177,7 @@ test('Looking back at a past meeting shows what was owed THEN', () => {
   });
 
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 3 }, dates: { t1: lastWeek }
+    view: 'tab', tab: 't1', steps: { t1: 2 }, dates: { t1: lastWeek }
   }), { today: today(), modes: MODES });
 
   const box = html.indexOf('duechk') >= 0
@@ -192,7 +191,7 @@ test('It is absent entirely when nothing is outstanding', () => {
   const clean = demoBoard();
   clean.actions = clean.actions.filter(function (a) { return a.status === 'done'; });
   const html = renderApp(clean, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 3 }
+    view: 'tab', tab: 't1', steps: { t1: 2 }
   }), { today: today(), modes: MODES });
 
   notOk(html.indexOf('duechk') >= 0, 'no empty panel taking up space');
@@ -208,7 +207,7 @@ function withClock() {
 }
 
 function meetingHtml(snap) {
-  return renderApp(snap, Object.assign({}, base, { view: 'tab', tab: 't1', steps: { t1: 3 } }),
+  return renderApp(snap, Object.assign({}, base, { view: 'tab', tab: 't1', steps: { t1: 2 } }),
     { today: today(), modes: MODES });
 }
 
@@ -268,7 +267,7 @@ group('Markup the stylesheet dictates');
 
 /** The "moved" section for a board that has one. */
 function movedSection() {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   const start = html.indexOf('class="moved"');
   ok(start > 0, 'the demo board has an item with a path, so the section is present');
   return html.slice(start, html.indexOf('</ul>', start));
@@ -298,7 +297,7 @@ test('Each moved row names its action, owner and due date', () => {
 });
 
 test('The issue toolbar uses the small button style throughout', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   const bar = html.slice(html.indexOf('is-tools'), html.indexOf('</div>', html.indexOf('is-tools')));
 
   ok(/class="mv" type="button" data-act="moveIssue"/.test(bar), 'move buttons are .mv (26px)');
@@ -307,16 +306,16 @@ test('The issue toolbar uses the small button style throughout', () => {
 });
 
 test('Move buttons are disabled at the ends rather than doing nothing', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   ok(/data-v="-1"[^>]*disabled/.test(html), 'the top row cannot move up');
   ok(/data-v="1"[^>]*disabled/.test(html), 'the bottom row cannot move down');
 });
 
 test('Dueness is measured against today, not the meeting being viewed', () => {
   // Navigating to another week must not change whether something is overdue.
-  const thisWeek = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const thisWeek = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   const nextWeek = render({
-    view: 'tab', tab: 't1', steps: { t1: 3 }, dates: { t1: '2027-01-04' }
+    view: 'tab', tab: 't1', steps: { t1: 2 }, dates: { t1: '2027-01-04' }
   });
 
   const overdueIn = (html) => (html.match(/\d+d overdue/g) || []).length;
@@ -324,35 +323,13 @@ test('Dueness is measured against today, not the meeting being viewed', () => {
     'the same work is overdue whichever week you are looking at');
 });
 
-group('The Project Details panel stays where you left it');
+group('The meeting list has no details dropdown');
 
-/*
- * Reported as "the project details close after entering information into each box".
- * Two causes, and the second is worse than the reported symptom: every field edit
- * triggered a full redraw, AND the background poll redraws every sixty seconds, so
- * the panel would shut by itself while somebody was still typing in it.
- */
-
-function projectsStep(uiOverrides) {
-  return render(Object.assign({ view: 'tab', tab: 't1', steps: { t1: 2 } }, uiOverrides || {}));
-}
-
-test('It is closed until opened', () => {
-  notOk(/data-details="pr1" open/.test(projectsStep()), 'not open by default');
-});
-
-test('Once opened, a redraw leaves it open', () => {
-  // A render is not a reset. The user has not asked for anything to close.
-  ok(/data-details="pr1" open/.test(projectsStep({ openDetails: { pr1: true } })));
-});
-
-test('Only the panel that was opened is open', () => {
-  const html = projectsStep({ openDetails: { pr1: true } });
-  eq((html.match(/ open>/g) || []).length, 1, 'opening one does not open them all');
-});
-
-test('Each panel is identifiable, so its state can be recorded', () => {
-  ok(/data-details="pr1"/.test(projectsStep()), 'carries the project id');
+test('Neither kind of tile carries one; details live on the project page', () => {
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
+  notOk(/data-details=/.test(html), 'no remembered-open panel');
+  notOk(html.indexOf('class="dtl"') >= 0, 'no dropdown at all');
+  ok(/data-act="openProject" data-id="pr1"/.test(html), 'the title still opens the page');
 });
 
 group('Edits that only echo typing do not redraw');
@@ -489,7 +466,7 @@ test('The sidebar is reachable from the timeline', () => {
 group('Issue severity');
 
 test('The dropdown offers all three severities', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 }, open: 'issue' });
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'issue' });
   const select = html.slice(html.indexOf('name="sev"'), html.indexOf('</select>', html.indexOf('name="sev"')));
 
   ok(select.indexOf('>Urgent<') >= 0, 'Urgent');
@@ -501,7 +478,7 @@ test('The dropdown offers all three severities', () => {
 test('An off-track project is labelled the same way in the queue', () => {
   // The chip on the card and the dropdown option must say the same thing, or the
   // two disagree about what the board calls it.
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
   ok(html.indexOf('Off Track Project') >= 0);
   notOk(html.indexOf('Off-track project') >= 0, 'the old hardcoded wording is gone');
 });
@@ -519,7 +496,7 @@ group('The project status control shows what is selected');
  */
 
 function projectsStage(uiOverrides) {
-  return render(Object.assign({ view: 'tab', tab: 't1', steps: { t1: 2 } }, uiOverrides || {}));
+  return render(Object.assign({ view: 'tab', tab: 't1', steps: { t1: 0 } }, uiOverrides || {}));
 }
 
 test('The status control is .stat, not a generic toggle group', () => {
@@ -572,7 +549,7 @@ test('The row carries its status class, so the stylesheet can treat it', () => {
   // .proj.ps-new gets a gold outline, .ps-cancelled is struck through, and so on.
   const snap = demoBoard();
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
+    view: 'tab', tab: 't1', steps: { t1: 0 }
   }), { today: today(), modes: MODES });
 
   ok(/class="proj ps-/.test(html), 'every row says what state it is in');
@@ -607,7 +584,7 @@ group('The reporting segments are flat lists');
 });
 
 test('Every win and loss says whose it is', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 },
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 1 },
     dates: { t1: demoBoard().entries[0].meeting } });
   const rows = html.match(/<li class="item (?:win|loss)">[\s\S]*?<\/li>/g) || [];
   ok(rows.length > 0, 'there are wins and losses to show');
@@ -617,7 +594,7 @@ test('Every win and loss says whose it is', () => {
 });
 
 test('A project row leads with the owner', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 0 } });
   const row = /<span class="meta"><b>([^<]*)<\/b>/.exec(html);
   ok(row, 'the meta line starts with a bold name');
   if (row) ok(row[1].trim().length > 0 && row[1] !== 'Unassigned', 'a real one');
@@ -664,13 +641,11 @@ test('The meeting view hides the VALUE when that list was refused, and nothing e
   const refused = demoBoard();
   refused.denied = ['projectDetails'];
   const html = renderApp(refused, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
+    view: 'tab', tab: 't1', steps: { t1: 0 }
   }), { today: today(), modes: MODES });
 
   notOk(/data-edit="pdValue"/.test(html), 'no value field');
   notOk(html.indexOf('Annual value') > 0, 'nor its label');
-  ok(/data-edit="pdWin"/.test(html), 'but confidence is still there');
-  ok(/data-edit="pdReason"/.test(html), 'and why we win');
 });
 
 test('The value never reaches a refused meeting view at all', () => {
@@ -679,24 +654,10 @@ test('The value never reaches a refused meeting view at all', () => {
   refused.denied = ['projectDetails'];
   refused.projectDetails = [];   // as the adapter really hands it back
   const html = renderApp(refused, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
+    view: 'tab', tab: 't1', steps: { t1: 0 }
   }), { today: today(), modes: MODES });
 
   notOk(html.indexOf(String(value)) > 0, 'the number is not in the HTML');
-});
-
-test('The caret needs no permission now that the value has gone', () => {
-  // Removing the value from this panel removed the only reason it had a gate.
-  const refused = demoBoard();
-  refused.denied = ['projectDetails'];
-  refused.projectDetails = [];
-  const html = renderApp(refused, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
-  }), { today: today(), modes: MODES });
-
-  ok(html.indexOf('Project details') > 0, 'the panel is there even when refused');
-  ok(/data-edit="pdWin"/.test(html), 'with confidence');
-  ok(/data-f="focus"/.test(html), 'and the focus picker');
 });
 
 test('Every project row has priority arrows, blunted at the ends', () => {
@@ -717,14 +678,17 @@ test('Every project row has priority arrows, blunted at the ends', () => {
   ok(/data-v="1"[^>]*disabled/.test(html), 'and somebody at the bottom');
 });
 
-test('Focus reads on the collapsed row, not only under the caret', () => {
+test('A tile is title, owner, due date and Filter actions - no focus chips', () => {
+  // Streamlined on request: what a tile shows is what the room needs to scan.
   const html = projectsStage();
-  const row = /<li class="proj[\s\S]*?<details/.exec(html);
-  ok(row, 'found the part of a row above the caret');
-
-  const withFocus = (html.match(/<li class="proj[\s\S]*?<details/g) || [])
-    .filter(function (r) { return r.indexOf('Corrosion') > 0; });
-  ok(withFocus.length > 0, 'a project with focus shows it before the caret');
+  const row = /<li class="proj[^>]*id="proj-pr1">[\s\S]*?<\/li>/.exec(html);
+  ok(row, 'pr1 is on the stage');
+  if (!row) return;
+  ok(row[0].indexOf('Meridian Coatings - Coating additive trial') >= 0, 'full title');
+  ok(row[0].indexOf('Alex Morgan') >= 0, 'owner');
+  ok(row[0].indexOf('Due ') >= 0, 'due date');
+  ok(row[0].indexOf('Filter actions') >= 0, 'filter link');
+  notOk(row[0].indexOf('class="pchip"') >= 0, 'no focus chips');
 });
 
 test('The rendered rows really come out in priority order', () => {
@@ -746,7 +710,7 @@ test('The rendered rows really come out in priority order', () => {
   const wanted = mine.slice().reverse().map(function (p) { return p.id; });
 
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
+    view: 'tab', tab: 't1', steps: { t1: 0 }
   }), { today: today(), modes: MODES });
 
   const rendered = (html.match(/id="proj-([a-z0-9]+)"/g) || [])
@@ -782,7 +746,7 @@ test('Every weekday renders the projects stage without leaking a value', () => {
   WEEK.forEach(function (day) {
     const snap = demoBoard(day[0]);
     const html = renderApp(snap, Object.assign({}, base, {
-      view: 'tab', tab: 't1', steps: { t1: 2 }
+      view: 'tab', tab: 't1', steps: { t1: 0 }
     }), { today: day[0], modes: MODES });
     eq(leaks(html), [], day[1] + ' renders no undefined/NaN');
     eq(unbalanced(html), [], day[1] + ' closes its tags');
@@ -802,7 +766,7 @@ test('What renders is exactly what projVisible says, on every day', () => {
       .map(function (p) { return p.id; }).sort();
 
     const html = renderApp(snap, Object.assign({}, base, {
-      view: 'tab', tab: 't1', steps: { t1: 2 }
+      view: 'tab', tab: 't1', steps: { t1: 0 }
     }), { today: day[0], modes: MODES });
 
     const rendered = (html.match(/id="proj-([a-z0-9]+)"/g) || [])
@@ -831,7 +795,7 @@ group('Re-dating an action from the meeting');
  * here is a new date" - without leaving the meeting for the Action items page.
  */
 function issuesTab() {
-  return render({ view: 'tab', tab: 't1', steps: { t1: 3 } });
+  return render({ view: 'tab', tab: 't1', steps: { t1: 2 } });
 }
 
 test('Already Owed offers both answers, not just the tick', () => {
@@ -871,7 +835,7 @@ test('The push button names the date it will set', () => {
 });
 
 test('A read-only reader gets neither control', () => {
-  const html = render({ view: 'tab', tab: 't1', steps: { t1: 3 } },
+  const html = render({ view: 'tab', tab: 't1', steps: { t1: 2 } },
     { content: 'readonly', settings: 'live' });
   notOk(html.indexOf('data-act="pushDue"') >= 0, 'no push');
   notOk(html.indexOf('data-edit="actionDue"') >= 0, 'no date box');
@@ -886,7 +850,7 @@ group('Collapsing the sidebar');
  * marker - so a collapse that changed the markup could strand any of them silently.
  */
 function side(slim) {
-  return render({ view: 'tab', tab: 't1', steps: { t1: 2 }, sideSlim: !!slim });
+  return render({ view: 'tab', tab: 't1', steps: { t1: 0 }, sideSlim: !!slim });
 }
 
 test('Collapsed is a class on .app, not different markup', () => {
@@ -967,7 +931,7 @@ function pastMeeting(uiOverrides) {
 }
 
 test('A win carrying a why and a change renders both, as sub-lines of its own', () => {
-  const html = pastMeeting({ steps: { t1: 0 } });
+  const html = pastMeeting({ steps: { t1: 1 } });
   ok(html.indexOf('class="it-t"') >= 0, 'the entry title is rendered at all');
   ok(html.indexOf('class="why"') >= 0, 'the why is rendered');
   ok(html.indexOf('class="it-c"') >= 0, 'the conclusion is rendered');
@@ -985,16 +949,17 @@ test('The conclusion is not `.concl` - that class is a two-column page grid', ()
   });
 });
 
-test('An opportunity row keeps title, challenge and start date in that order', () => {
+test('A Horizon row keeps title, owner line and decision in that order', () => {
   // The order is what makes the placement rules in theme.css land as intended:
   // the title in column 2 of row 1, each sub-line on a row beneath it.
-  const html = pastMeeting({ steps: { t1: 1 } });
-  const row = /<li class="item opp">[\s\S]*?<\/li>/.exec(html);
-  ok(row, 'an opportunity row is rendered');
+  const html = pastMeeting({ steps: { t1: 0 } });
+  const row = /<li class="item opp[^"]*" id="opp-[\s\S]*?<\/li>/.exec(html);
+  ok(row, 'a Horizon row is rendered');
   if (!row) return;
   const t = row[0].indexOf('class="it-t"');
-  const w = row[0].indexOf('class="why"');
-  ok(t >= 0 && w > t, 'the challenge follows the title');
+  const s = row[0].indexOf('class="it-s"');
+  const c = row[0].indexOf('class="it-c"');
+  ok(t >= 0 && s > t && c > s, 'title, then owner line, then the decision');
 });
 
 test('Neither stage leaks a value or unbalances a tag', () => {
@@ -1008,20 +973,23 @@ test('Neither stage leaks a value or unbalances a tag', () => {
 group('Raising an opportunity');
 
 function oppForm() {
-  return render({ view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'opp' });
+  return render({ view: 'tab', tab: 't1', steps: { t1: 0 }, open: 'opp' });
 }
 
-test('It asks for the project fields, in the order a project is tracked in', () => {
+test('It asks what a tile shows, in the same order as + Project', () => {
   const html = oppForm();
   const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(html);
   ok(form, 'the form is open');
 
-  const order = ['customer', 'text', 'why', 'winPct', 'winReason', 'focus'];
+  const order = ['customer', 'text', 'due', 'mission', 'who', 'support'];
   let at = -1;
   order.forEach(function (name) {
     const i = form[0].indexOf('name="' + name + '"');
     ok(i > at, name + ' comes after the one before it');
     at = i;
+  });
+  ['why', 'winPct', 'winReason', 'focus', 'actionText'].forEach(function (gone) {
+    notOk(form[0].indexOf('name="' + gone + '"') >= 0, gone + ' is filled in on the page instead');
   });
 });
 
@@ -1032,58 +1000,6 @@ test('Only the title is required', () => {
   const required = form.match(/<input[^>]*required[^>]*>/g) || [];
   eq(required.length, 1, 'exactly one required field');
   ok(required[0].indexOf('name="text"') > 0, 'and it is the title');
-});
-
-test('Focus is offered as every option on the list', () => {
-  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
-  (snap.settings.focus.items).forEach(function (v) {
-    ok(form.indexOf('value="' + v + '"') > 0, v + ' is offered');
-  });
-});
-
-test('The first action is offered but never demanded', () => {
-  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
-
-  ok(form.indexOf('name="actionText"') > 0, 'there is somewhere to put one');
-  ok(form.indexOf('Optional') > 0, 'and it says so');
-
-  const action = /<div class="oppf-more">[\s\S]*?<\/div>/.exec(form);
-  ok(action, 'it is set apart');
-  notOk(/required/.test(action[0]), 'nothing in it is required');
-});
-
-test('The action owner list is by NAME, because that is what an action stores', () => {
-  // peopleOptions emits ids and renders identically, so getting this wrong shows
-  // up as an action owned by "p3" rather than by anybody.
-  const form = /<form[^>]*data-form="opp"[\s\S]*?<\/form>/.exec(oppForm())[0];
-  const select = /<select[^>]*name="actionOwner"[\s\S]*?<\/select>/.exec(form);
-  ok(select, 'there is an owner select');
-
-  ok(select[0].indexOf('value="Alex Morgan"') > 0, 'options carry names');
-  notOk(/<option value="p\d"/.test(select[0]), 'and not person ids');
-});
-
-group('The confidence trend');
-
-test('It is drawn once a project has been judged more than once', () => {
-  const html = projectsStage();
-  ok(html.indexOf('Confidence over time') > 0, 'the tile shows it');
-  ok(/<svg class="spark bare"/.test(html), 'as a bare line, without date labels');
-});
-
-test('A project judged once or never shows no line at all', () => {
-  // One reading is a number, not a trend, and a flat line would imply a steadiness
-  // nobody claimed.
-  const one = demoBoard();
-  one.projects.forEach(function (p) {
-    if (p.confidence) p.confidence = p.confidence.slice(0, 1);
-  });
-  const html = renderApp(one, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
-  }), { today: today(), modes: MODES });
-
-  notOk(html.indexOf('Confidence over time') > 0, 'nothing drawn');
-  notOk(/<svg class="spark bare"/.test(html), 'and no empty chart');
 });
 
 group('The trend line itself');

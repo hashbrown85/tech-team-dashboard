@@ -292,9 +292,6 @@ const OPP_SUMMARY = {
  */
 export function meetingSummary(snap, tab, d, today) {
   const now = today || d;
-  const r = ratingInfo(snap, tab.id, d);
-  const total = attendeeIds(tab).filter(function (id) { return person(snap, id); }).length;
-  const mt = snap.meetings[memoryKey(tab.id, d)] || {};
   const here = function (x) { return x && x.tab === tab.id; };
   const who = function (id) { return personName(snap, id); };
 
@@ -307,7 +304,6 @@ export function meetingSummary(snap, tab, d, today) {
   }
 
   L.push(tab.name + ' · ' + fmtLong(d));
-  if (r.n) L.push('Meeting score: ' + r.avg.toFixed(1) + ' / 5 (' + r.n + ' of ' + total + ' rated)');
 
   /* What changed: decisions, then status changes. */
   const decided = snap.projects.filter(function (p) {
@@ -334,10 +330,8 @@ export function meetingSummary(snap, tab, d, today) {
   });
   ents.filter(function (e) { return e.kind === 'opp'; }).forEach(function (e) {
     const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
-    // The project record holds the customer and the challenge as they stand now.
-    const challenge = pj && pj.note != null ? pj.note : e.why;
-    fresh.push('Opportunity · ' + who(e.personId) + ': ' + (pj ? projectTitle(pj) : e.text) +
-      (challenge ? '. Challenge: ' + challenge : ''));
+    // Named from the project record, which holds the customer as it stands now.
+    fresh.push('Opportunity · ' + who(e.personId) + ': ' + (pj ? projectTitle(pj) : e.text));
   });
   snap.projects.filter(function (p) {
     return here(p) && !p.fromOpp && p.added === d;
@@ -399,7 +393,6 @@ export function meetingSummary(snap, tab, d, today) {
     L.push('', 'Nothing new recorded at this meeting.');
   }
   sec('Needs attention', attention);
-  if (mt.note) sec('One change for next time', [mt.note]);
 
   return L.join('\n') + '\n';
 }

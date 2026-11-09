@@ -34,9 +34,10 @@ function formOf(html, name) {
 }
 
 const SEGMENTS = [
-  ['wl', 0, 'Win or loss', false],
-  ['opp', 1, 'Opportunity', true],
-  ['project', 2, 'Project', true]
+  // Opportunities and projects share the Projects step (Horizon and Current).
+  ['wl', 1, 'Win or loss', false],
+  ['opp', 0, 'Opportunity', true],
+  ['project', 0, 'Project', true]
 ];
 
 group('Every reporting segment asks whose item it is');
@@ -86,10 +87,11 @@ test('An opportunity row says who is helping', () => {
   const opp = snap.entries.filter(function (e) { return e.kind === 'opp'; })[0];
   ok(opp, 'the demo board has an opportunity');
   if (!opp) return;
-  opp.support = 'p2';
+  // The Horizon tile reads its project record, as every project tile does.
+  snap.projects.filter(function (p) { return p.id === opp.projectId; })[0].support = 'p2';
 
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: opp.meeting }
+    view: 'tab', tab: 't1', steps: { t1: 0 }, dates: { t1: opp.meeting }
   }), { today: '2026-09-22', modes: MODES, identity: { kind: 'local', personId: 'p1' } });
 
   ok(html.indexOf('class="it-s"') >= 0, 'on its own line under the title');
@@ -106,7 +108,7 @@ test('A project row says who is helping, without gaining a grid child', () => {
   p.support = 'p2';
 
   const html = renderApp(snap, Object.assign({}, base, {
-    view: 'tab', tab: 't1', steps: { t1: 2 }
+    view: 'tab', tab: 't1', steps: { t1: 0 }
   }), { today: '2026-09-22', modes: MODES, identity: { kind: 'local', personId: 'p1' } });
 
   ok(/with [A-Z][a-z]+ [A-Z]/.test(html), 'the name is on the row');

@@ -237,12 +237,12 @@ function fullBoard() {
   return snap;
 }
 
-test('It opens with the meeting name, the full date and the score', () => {
+test('It opens with the meeting name and the full date, and no score', () => {
+  // Ratings were dropped from the board; stored scores are not printed.
   const snap = fullBoard();
-  const lines = meetingSummary(snap, snap.tabs[0], MEETING).split('\n');
-
-  eq(lines[0], 'North Area · Mon, Sep 14, 2026');
-  eq(lines[1], 'Meeting score: 4.5 / 5 (2 of 2 rated)');
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  eq(out.split('\n')[0], 'North Area · Mon, Sep 14, 2026');
+  notOk(out.indexOf('Meeting score') >= 0);
 });
 
 test('An unrated meeting leaves the score out rather than showing a zero', () => {
@@ -266,7 +266,7 @@ test('An undecided opportunity reads as raised, with no promise attached', () =>
   // now: somebody promotes it.
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ok(out.indexOf('• Opportunity · First Person: a new line. Challenge: needs lab time\n') >= 0);
+  ok(out.indexOf('• Opportunity · First Person: a new line\n') >= 0);
   notOk(out.indexOf('Joins Current Projects') >= 0);
 });
 
@@ -380,11 +380,8 @@ test('Who it goes to: everybody in the meeting with a work email', () => {
   ok(r.missing.length >= 1, 'and the ones without one are named, not dropped silently');
 });
 
-test('The closing note appears only when there is one', () => {
+test('The old closing note is not printed - it went with the ratings', () => {
   const snap = fullBoard();
-  ok(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('ONE CHANGE FOR NEXT TIME') >= 0);
-
-  delete snap.meetings[memoryKey('t1', MEETING)].note;
   notOk(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('ONE CHANGE FOR NEXT TIME') >= 0);
 });
 
@@ -410,8 +407,7 @@ test('It is plain text and ends with a newline', () => {
 test('Sections always come in the same order', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  const order = ['WHAT CHANGED', 'NEW THIS MEETING', 'DONE', 'NEEDS ATTENTION',
-                 'ONE CHANGE FOR NEXT TIME'];
+  const order = ['WHAT CHANGED', 'NEW THIS MEETING', 'DONE', 'NEEDS ATTENTION'];
   const found = order.map((h) => out.indexOf('\n' + h));
 
   found.forEach(function (at, i) {

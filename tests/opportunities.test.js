@@ -16,7 +16,7 @@ import { renderApp } from '../src/views/render.js';
 import { loadUi } from '../src/ui.js';
 import { oppStage, isOpportunity, projVisible } from '../src/domain/queries.js';
 import {
-  decideOpportunity, decisionsFor, carriedOpportunities
+  decideOpportunity, decisionsFor, horizonFor
 } from '../src/domain/opportunities.js';
 import { linkedProjectGoesToo } from '../src/domain/projects.js';
 import { createStore } from '../src/store.js';
@@ -34,12 +34,22 @@ function screen(snap, ui) {
     { today: DAY, modes: LIVE, identity: { kind: 'demo', personId: 'p1' } });
 }
 
-function opps(snap, week) {
-  return screen(snap, { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: week } });
+/** The meeting's Projects step: Horizon and Current projects, one above the other. */
+function projectsStep(snap, week) {
+  return screen(snap, { view: 'tab', tab: 't1', steps: { t1: 0 }, dates: { t1: week } });
 }
 
+/** Just the Horizon section. */
+function opps(snap, week) {
+  const html = projectsStep(snap, week);
+  return html.slice(html.indexOf('id="sec-horizon"'), html.indexOf('id="sec-current"'));
+}
+
+/** Just the Current projects section. */
 function currentProjects(snap, week) {
-  return screen(snap, { view: 'tab', tab: 't1', steps: { t1: 2 }, dates: { t1: week } });
+  const html = projectsStep(snap, week);
+  const from = html.indexOf('id="sec-current"');
+  return html.slice(from, html.indexOf('<aside class="rail">', from));
 }
 
 function decided(stage, on) {
@@ -105,7 +115,7 @@ test('Undecided: in New Opportunities, nowhere a project would be', () => {
   const snap = demoBoard(DAY);
   notOk(currentProjects(snap, NEXT).indexOf('id="proj-pr4"') >= 0, 'not in Current Projects');
   notOk(screen(snap, { view: 'projects' }).indexOf('data-id="pr4"') >= 0, 'not in the Projects list');
-  ok(opps(snap, NEXT).indexOf('From earlier meetings') >= 0, 'carried to the next meeting');
+  ok(opps(snap, NEXT).indexOf('id="opp-pr4"') >= 0, 'on the Horizon at the next meeting');
   ok(opps(snap, NEXT).indexOf('data-act="oppDecide" data-id="pr4" data-v="promoted"') >= 0,
     'with the decision on offer');
 });
@@ -113,7 +123,7 @@ test('Undecided: in New Opportunities, nowhere a project would be', () => {
 test('Raised today: decided on the spot, from its own tile', () => {
   const html = opps(demoBoard(DAY), RAISED);
   ok(html.indexOf('data-act="oppDecide" data-id="pr4" data-v="hold"') >= 0);
-  notOk(html.indexOf('From earlier meetings') >= 0, 'not listed twice');
+  eq(html.split('id="opp-pr4"').length, 2, 'listed once');
 });
 
 test('Promoted: a project from that meeting, and in the Projects list', () => {
@@ -121,7 +131,7 @@ test('Promoted: a project from that meeting, and in the Projects list', () => {
   ok(currentProjects(snap, NEXT).indexOf('id="proj-pr4"') >= 0, 'in Current Projects');
   notOk(currentProjects(snap, RAISED).indexOf('id="proj-pr4"') >= 0, 'not before');
   ok(screen(snap, { view: 'projects' }).indexOf('data-id="pr4"') >= 0, 'and the list');
-  ok(opps(snap, NEXT).indexOf('Promoted to Current Projects') >= 0, 'seen where it was decided');
+  ok(opps(snap, NEXT).indexOf('Promoted to Current projects') >= 0, 'seen where it was decided');
   notOk(opps(snap, '2026-10-05').indexOf('data-id="pr4"') >= 0, 'and gone from it after');
 });
 
@@ -145,13 +155,13 @@ test('Carried oldest first, and only from this meeting', () => {
   const snap = demoBoard(DAY);
   snap.projects.push({ id: 'o2', tab: 't1', fromOpp: 'x', status: 'new', raisedOn: '2026-09-14' });
   snap.projects.push({ id: 'o3', tab: 't2', fromOpp: 'y', status: 'new', raisedOn: '2026-09-14' });
-  eq(carriedOpportunities(snap, 't1', NEXT).map(function (p) { return p.id; }), ['o2', 'pr4']);
+  eq(horizonFor(snap, 't1', NEXT).map(function (p) { return p.id; }), ['o2', 'pr4']);
 });
 
 group('An opportunity carries work before it is a project');
 
 test('Actions can be attached to it, under its own heading', () => {
-  const html = screen(demoBoard(DAY), { view: 'tab', tab: 't1', steps: { t1: 3 }, open: 'rail' });
+  const html = screen(demoBoard(DAY), { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'rail' });
   const group = /<optgroup label="Opportunities">[\s\S]*?<\/optgroup>/.exec(html);
   ok(group, 'an Opportunities group in Related to');
   if (group) ok(group[0].indexOf('value="p:pr4"') >= 0, 'offering pr4');
@@ -161,7 +171,7 @@ test('Actions can be attached to it, under its own heading', () => {
 
 test('A cancelled one is not offered', () => {
   const html = screen(decided('cancelled', RAISED),
-    { view: 'tab', tab: 't1', steps: { t1: 3 }, open: 'rail' });
+    { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'rail' });
   notOk(html.indexOf('value="p:pr4"') >= 0);
 });
 

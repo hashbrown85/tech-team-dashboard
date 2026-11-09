@@ -17,7 +17,7 @@ const DAY = '2026-09-22';
 
 function rail(snap, ui) {
   const html = renderApp(snap, Object.assign(loadUi(),
-    { view: 'tab', tab: 't1', steps: { t1: 0 } }, ui || {}),
+    { view: 'tab', tab: 't1', steps: { t1: 1 } }, ui || {}),
     { today: DAY, modes: { content: 'live', settings: 'live', details: 'live' },
       identity: { kind: 'demo', personId: 'p1' } });
   return html;

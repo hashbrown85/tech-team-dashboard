@@ -61,11 +61,6 @@ test('On a project that never was an opportunity too', () => {
   ok(html.indexOf('data-edit="projChallenge" data-id="pr1"') >= 0);
 });
 
-test('In the details panel of a project tile', () => {
-  const html = screen(board(), { view: 'tab', tab: 't1', steps: { t1: 2 } });
-  ok(panel(html, 'pr1').indexOf('data-edit="projChallenge"') >= 0);
-});
-
 test('Editing it writes the challenge, without redrawing mid-sentence', async () => {
   const store = createStore(createMemoryAdapter({ seed: board() }), {});
   await store.load();
@@ -80,54 +75,24 @@ test('Editing it writes the challenge, without redrawing mid-sentence', async ()
   eq(redraws, 0, 'silent, like every other free-text box');
 });
 
-group('An opportunity carries the same details as a project');
+group('Tiles carry no details panel any more');
 
-test('Its tile has the details panel a project tile has', () => {
-  const html = screen(board(), { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: RAISED } });
-  const p = panel(html, 'pr4');
-  ok(p, 'raised here: the panel is on its tile');
-  ok(p.indexOf('<summary class="lbl">Opportunity details</summary>') >= 0, 'named for what it is');
-  ['projChallenge', 'pdWin', 'pdReason'].forEach(function (f) {
-    ok(p.indexOf('data-edit="' + f + '"') >= 0, f + ' is in it');
+test('Neither a Horizon tile nor a Current project tile has one', () => {
+  // Details are entered on the project's page; the meeting list stays a list.
+  const html = screen(board(), { view: 'tab', tab: 't1', steps: { t1: 0 }, dates: { t1: RAISED } });
+  ok(html.indexOf('id="proj-pr1"') >= 0 && html.indexOf('id="opp-pr4"') >= 0, 'both kinds are on screen');
+  notOk(html.indexOf('class="dtl"') >= 0, 'no details dropdown on either');
+});
+
+group('A project or an opportunity can be started with Mission & challenges');
+
+test('Both add forms ask, optionally', () => {
+  ['project', 'opp'].forEach(function (f) {
+    const html = screen(board(), { view: 'tab', tab: 't1', steps: { t1: 0 }, open: f });
+    const form = html.slice(html.indexOf('<form class="add" data-form="' + f + '">'));
+    ok(form.length && /name="mission"[^>]*placeholder="Mission &amp; challenges \(optional\)"/
+      .test(form.slice(0, form.indexOf('</form>'))), f);
   });
-});
-
-test('Carried to a later meeting, it still has it', () => {
-  const html = screen(board(), { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: '2026-09-28' } });
-  ok(panel(html, 'pr4'), 'under From earlier meetings');
-});
-
-test('Promoted, the panel is the same apart from its name', () => {
-  // The heart of the request: nothing it records changes when it is promoted.
-  const before = panel(screen(board(),
-    { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: RAISED } }), 'pr4');
-
-  const promoted = board();
-  Object.assign(byId(promoted.projects, 'pr4'),
-    { oppStage: 'promoted', oppDecided: RAISED, promotedOn: RAISED });
-  const after = panel(screen(promoted,
-    { view: 'tab', tab: 't1', steps: { t1: 2 }, dates: { t1: RAISED } }), 'pr4');
-
-  ok(after, 'it is a project tile now');
-  ok(after.indexOf('<summary class="lbl">Project details</summary>') >= 0);
-  eq(contents(after), contents(before), 'every field, with every value, unchanged');
-});
-
-test('The challenge line on the tile follows an edit', () => {
-  // It used to read the words first said, from the meeting entry, so changing it
-  // anywhere else never showed on the tile.
-  const snap = board();
-  byId(snap.entries, 'e3').why = 'What was said at the time';
-  const html = screen(snap, { view: 'tab', tab: 't1', steps: { t1: 1 }, dates: { t1: RAISED } });
-  ok(html.indexOf('Challenge: Their lab is slow') >= 0);
-  notOk(html.indexOf('What was said at the time') >= 0);
-});
-
-group('A project can be started with a challenge');
-
-test('The add-project form asks, optionally', () => {
-  const html = screen(board(), { view: 'tab', tab: 't1', steps: { t1: 2 }, open: 'project' });
-  ok(/<form class="add" data-form="project">[\s\S]*?name="challenge"[^>]*placeholder="Major challenge \(optional\)"/.test(html));
 });
 
 test('Given, it is stored where an opportunity stores it; left blank, nothing is', () => {
@@ -143,9 +108,9 @@ test('Through the form', async () => {
     store: store, ui: Object.assign(loadUi(), { view: 'tab', tab: 't1' }),
     render: function () {}, today: function () { return DAY; }
   }));
-  H.forms.project(new Map([['name', 'Resin swap'], ['who', 'p1'], ['challenge', '  Supply  ']]));
+  H.forms.project(new Map([['name', 'Resin swap'], ['who', 'p1'], ['mission', '  Supply  ']]));
   await new Promise(function (r) { setTimeout(r, 25); });
   const made = store.snapshot().projects.filter(function (p) { return p.name === 'Resin swap'; })[0];
   ok(made);
-  if (made) eq(made.note, 'Supply', 'trimmed');
+  if (made) eq(made.mission, 'Supply', 'trimmed, into Mission & challenges');
 });

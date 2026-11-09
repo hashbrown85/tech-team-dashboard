@@ -87,24 +87,16 @@ export const WEEKDAYS = [
  */
 export const SEGMENTS = [
   {
-    name: 'Wins & Losses', short: 'Wins & Losses', tiny: 'Wins', f: 0.15,
-    rule: 'Go around the room. Outcomes since the last meeting and <b>why</b>. Own the losses: what was in our control, and what will we do differently?'
+    key: 'projects', name: 'Projects & Horizon', short: 'Projects', tiny: 'Projects', f: 0.50,
+    rule: 'The review. <b>Horizon</b> is what is coming: promote it, park it or cancel it. <b>Current projects</b>: one selection each - on track, off track, on hold, cancelled or done. Select a project to see only its actions.'
   },
   {
-    name: 'New Opportunities', short: 'Opportunities', tiny: 'Opps', f: 0.10,
-    rule: 'Go around again. Name it, plus any major challenge — deep dives get scheduled separately.'
+    key: 'wl', name: 'Wins & Losses', short: 'Wins & Losses', tiny: 'Wins', f: 0.15,
+    rule: 'When one comes up: the outcome and <b>why</b>. Own the losses: what was in our control, and what will we do differently?'
   },
   {
-    name: 'Current Projects', short: 'Projects', tiny: 'Projects', f: 0.15,
-    rule: 'One selection each: on track, off track, on hold, cancelled or done. New opportunities presented last week appear here as current projects. Select a project to see only its actions.'
-  },
-  {
-    name: 'Issues', short: 'Issues', tiny: 'Issues', f: 0.50,
+    key: 'issues', name: 'Issues', short: 'Issues', tiny: 'Issues', f: 0.35,
     rule: 'Only what has no path yet, ranked. Work from the top: agree the action, <b>one</b> owner, who supports, and the date. Once it has an owner it stops being an issue and moves to Action items.'
-  },
-  {
-    name: 'Rate the Meeting', short: 'Rate', tiny: 'Rate', f: 0.10,
-    rule: 'Everyone scores the meeting 1–5. The test: did we leave with clear actions, one owner each, and dates?'
   }
 ];
 
@@ -112,23 +104,21 @@ export const SEGMENTS = [
 export const TECHDIR_TAB_ID = 'techdir';
 
 /**
- * The Tech Directors variant: segments 2 and 3 are replaced. board.html:474-477.
+ * The Tech Directors agenda: their own Tech-Projects in place of Projects, and the
+ * Business Review - the only view across every area - kept beside it.
  */
-export const TECHDIR_SEGMENTS = SEGMENTS.map(function (s, i) {
-  if (i === 1) {
-    return Object.assign({}, s, {
-      name: 'Business Project Review', short: 'Business Review', tiny: 'Review',
-      rule: 'A company-wide look at every active project, from every meeting. Not a status update — just making sure nothing important is missing.'
-    });
-  }
-  if (i === 2) {
-    return Object.assign({}, s, {
-      name: 'Tech-Projects', short: 'Tech-Projects', tiny: 'Tech',
-      rule: 'One selection each: on track, off track, on hold, cancelled or done. These are this group\u2019s own technical initiatives — separate from the business-facing projects reviewed in the area meetings.'
-    });
-  }
-  return Object.assign({}, s);
-});
+export const TECHDIR_SEGMENTS = [
+  Object.assign({}, SEGMENTS[0], {
+    name: 'Tech-Projects', short: 'Tech-Projects', tiny: 'Tech',
+    rule: 'One selection each: on track, off track, on hold, cancelled or done. These are this group’s own technical initiatives - separate from the business-facing projects reviewed in the area meetings.'
+  }),
+  {
+    key: 'review', name: 'Business Project Review', short: 'Business Review', tiny: 'Review', f: 0.15,
+    rule: 'A company-wide look at every active project, from every meeting. Not a status update - just making sure nothing important is missing.'
+  },
+  Object.assign({}, SEGMENTS[1], { f: 0.10 }),
+  Object.assign({}, SEGMENTS[2], { f: 0.25 })
+];
 
 /**
  * Which agenda a tab uses.
@@ -136,4 +126,18 @@ export const TECHDIR_SEGMENTS = SEGMENTS.map(function (s, i) {
  */
 export function segmentsFor(tab) {
   return tab && tab.id === TECHDIR_TAB_ID ? TECHDIR_SEGMENTS : SEGMENTS;
+}
+
+/**
+ * Where a segment sits in a tab's agenda, by key ('projects', 'wl', 'issues',
+ * 'review'), or -1. Every link into a segment asks this rather than writing a
+ * number, because the two agendas order their segments differently.
+ *
+ * @param {{id?: string} | null} tab
+ * @param {string} key
+ */
+export function stepIndex(tab, key) {
+  const segs = segmentsFor(tab);
+  for (let i = 0; i < segs.length; i++) if (segs[i].key === key) return i;
+  return -1;
 }

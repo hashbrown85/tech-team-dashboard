@@ -27,7 +27,7 @@ function screen(ui, opts) {
 
 const PLACES = {
   'the Action items table': { view: 'actions', filter: 'all' },
-  'the meeting side rail': { view: 'tab', tab: 't1', steps: { t1: 3 } },
+  'the meeting side rail': { view: 'tab', tab: 't1', steps: { t1: 2 } },
   'a project page': { view: 'project', project: 'pr2' }
 };
 

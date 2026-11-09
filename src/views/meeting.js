@@ -17,15 +17,13 @@
 import { esc, clock, minutes } from '../lib/dom.js';
 import { fmt, fmtDay, fmtLong, rel, nextOn, addDays } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
-import { pickerControl } from './pickers.js';
-import { spark } from './spark.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen, pickList, raisedOn, isOpportunity, oppStage
+  personName, person, attendeeIds, isOpen, isOpportunity, oppStage
 } from '../domain/queries.js';
-import { byPriority, confidencePoints, projectTitle } from '../domain/projects.js';
+import { byPriority, projectTitle } from '../domain/projects.js';
 import {
-  OPP_STAGE_LABELS, OPP_STAGE_CHIPS, decisionsFor, carriedOpportunities
+  OPP_STAGE_LABELS, OPP_STAGE_CHIPS, decisionsFor, horizonFor
 } from '../domain/opportunities.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
@@ -33,10 +31,10 @@ import {
 } from './actionEditor.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
-  ACTIVE_STATUSES, segmentsFor, TECHDIR_TAB_ID
+  ACTIVE_STATUSES, segmentsFor, stepIndex, TECHDIR_TAB_ID
 } from '../domain/constants.js';
 import {
-  meetingDate, nextMeetingAfter, ratingInfo, getMeeting, trendPoints, meetingSummary,
+  meetingDate, nextMeetingAfter, meetingSummary,
   summaryRecipients
 } from '../domain/meetings.js';
 import { actionLabel } from '../domain/actions.js';
@@ -62,8 +60,8 @@ export function renderMeeting(snap, ui, env, tab) {
   const d = meetingDate(tab, today, ui.dates[tab.id]);
   const upcoming = nextOn(today, Number(tab.weekday));
   const length = Number(tab.lengthMin) || 30;
-  const step = stepOf(ui, tab.id);
   const segs = segmentsFor(tab);
+  const step = Math.min(stepOf(ui, tab.id), segs.length - 1);
   // Off unless a meeting deliberately turns it on. A clock is a commitment to
   // pace, and that is a decision for the group rather than a default.
   const showTimer = !!tab.showTimer;
@@ -110,18 +108,19 @@ export function renderMeeting(snap, ui, env, tab) {
   /* --- stepper --- */
 
   const ents = snap.entries.filter(function (e) { return e.tab === tab.id && e.meeting === d; });
-  const counts = [
-    ents.filter(function (e) { return e.kind === 'win' || e.kind === 'loss'; }).length,
-    ents.filter(function (e) { return e.kind === 'opp'; }).length,
-    snap.projects.filter(function (x) {
+  const counts = {
+    projects: snap.projects.filter(function (x) {
       return projVisible(x, tab.id, d) && ACTIVE_STATUSES.indexOf(x.status) >= 0;
+    }).length + horizonFor(snap, tab.id, d).filter(function (p) {
+      return oppStage(p) === 'open';
     }).length,
-    issueItems(snap, tab.id).length,
-    ratingInfo(snap, tab.id, d).n
-  ];
+    wl: ents.filter(function (e) { return e.kind === 'win' || e.kind === 'loss'; }).length,
+    issues: issueItems(snap, tab.id).length,
+    review: 0
+  };
 
   const steps = segs.map(function (s, i) {
-    return '<button type="button" class="st' + (i === step ? ' cur' : '') + (i === 3 ? ' main' : '') +
+    return '<button type="button" class="st' + (i === step ? ' cur' : '') + (s.key === 'issues' ? ' main' : '') +
       '" id="st-' + i + '" data-act="step" data-v="' + i + '"' +
       (i === step ? ' aria-current="step"' : '') + '>' +
       '<span class="st-n">' + (i + 1) + '</span>' +
@@ -129,7 +128,7 @@ export function renderMeeting(snap, ui, env, tab) {
       '<span class="st-y">' + esc(s.tiny) + '</span>' +
       (showTimer
         ? '<span class="st-b">' + minutes(length * s.f) +
-          (counts[i] ? ' · <b>' + counts[i] + '</b>' : '') + '</span>' +
+          (counts[s.key] ? ' · <b>' + counts[s.key] + '</b>' : '') + '</span>' +
           '<i class="st-p" id="stp-' + i + '"></i>'
         : '') +
       '</button>';
@@ -168,14 +167,15 @@ function stageFoot(i, last) {
     '</div>';
 }
 
-/* ---------- the five stages ---------- */
+/* ---------- the stages ---------- */
 
 function renderStage(snap, ui, env, tab, step, d, ents, segs) {
-  const body = step === 0 ? stageWins(snap, ui, env, tab, d, ents)
-    : step === 1 ? stageOpportunities(snap, ui, env, tab, d, ents)
-    : step === 2 ? stageProjects(snap, ui, env, tab, d)
-    : step === 3 ? stageIssues(snap, ui, env, tab, d)
-    : stageRate(snap, ui, env, tab, d);
+  // By key, not position: the two agendas order their segments differently.
+  const key = segs[step].key;
+  const body = key === 'projects' ? stageProjects(snap, ui, env, tab, d)
+    : key === 'wl' ? stageWins(snap, ui, env, tab, d, ents)
+    : key === 'review' ? businessReview(snap, tab)
+    : stageIssues(snap, ui, env, tab, d);
 
   return stageHead(segs, step) + '<div class="stg-body">' + body + '</div>' + stageFoot(step, segs.length - 1);
 }
@@ -208,7 +208,7 @@ function ownerLine(snap, record) {
   return helper ? owner + ' \u00b7 with ' + helper.name : owner;
 }
 
-/* --- 0: Wins & Losses --- */
+/* --- Wins & Losses --- */
 
 function stageWins(snap, ui, env, tab, d, ents) {
   const mine = ents.filter(function (e) {
@@ -249,72 +249,6 @@ function stageWins(snap, ui, env, tab, d, ents) {
       dis(env) + '>+ Win or loss</button>';
 
   return list + addForm;
-}
-
-/* --- 1: New Opportunities, or the Tech Directors business review --- */
-
-function stageOpportunities(snap, ui, env, tab, d, ents) {
-  if (tab.id === TECHDIR_TAB_ID) return businessReview(snap, tab);
-
-  const mine = ents.filter(function (e) { return e.kind === 'opp'; });
-  const raisedHere = mine.map(function (e) { return e.projectId; });
-
-  const list = mine.length
-      ? '<ul class="items">' + mine.map(function (e) {
-          const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
-          // The customer lives on the project the opportunity created, so a correction
-          // made on the project page shows here too. Same "Customer - name" order as
-          // a Current Projects tile; the name stays what was SAID, from the entry.
-          const customer = pj ? String(pj.customer || '').trim() : '';
-          return '<li class="item opp">' +
-            stageChip(pj) +
-            '<span class="it-t">' + (customer ? esc(customer) + ' - ' : '') + esc(e.text) + '</span>' +
-            '<span class="it-s">' + esc(ownerLine(snap, e)) + '</span>' +
-            challengeLine(pj ? pj.note : e.why) +
-            (pj ? decisionLine(pj, env) : '') +
-            '<button class="x edit-only" type="button" data-act="delEntry" data-id="' + esc(e.id) + '" aria-label="Remove"' + dis(env) + '>×</button>' +
-            (pj ? projectDetailsPanel(snap, ui, env, pj) : '') +
-            '</li>';
-        }).join('') + '</ul>'
-      : '<p class="none">Nothing raised yet.</p>';
-
-  /*
-   * Opportunities do not become projects on their own any more: somebody decides.
-   * So the ones raised at earlier meetings and still undecided - or parked - come
-   * back here every week until they are, with the ones decided TODAY kept in view
-   * so the room can see what it just did.
-   */
-  const carried = carriedOpportunities(snap, tab.id, d).filter(function (p) {
-    return raisedHere.indexOf(p.id) < 0;
-  });
-  const earlier = carried.length
-    ? '<div class="lbl">From earlier meetings</div><ul class="items">' +
-      carried.map(function (p) {
-        return '<li class="item opp">' + stageChip(p) +
-          '<span class="it-t">' + esc(projectTitle(p)) + '</span>' +
-          '<span class="it-s">' + esc(ownerLine(snap, p)) + ' · raised ' +
-          fmtDay(raisedOn(p)) + '</span>' +
-          challengeLine(p.note) +
-          decisionLine(p, env) +
-          projectDetailsPanel(snap, ui, env, p) + '</li>';
-      }).join('') + '</ul>'
-    : '';
-
-  const addForm = ui.open === 'opp'
-    ? opportunityForm(snap, env, tab)
-    : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="opp"' +
-      dis(env) + '>+ Opportunity</button>';
-
-  return list + addForm + earlier;
-}
-
-/**
- * The challenge, as a line under an opportunity's title. Read from the project
- * record where there is one - that is what the details panel edits - so a change
- * made there shows here, rather than the words first said in the meeting.
- */
-function challengeLine(text) {
-  return text ? '<span class="why">Challenge: ' + esc(text) + '</span>' : '';
 }
 
 /**
@@ -371,16 +305,15 @@ function stageChip(p) {
  */
 function decisionLine(p, env) {
   const s = oppStage(p);
-  const done = s === 'promoted' ? 'Promoted to Current Projects'
+  const done = s === 'promoted' ? 'Promoted to Current projects'
     : s === 'cancelled' ? 'Cancelled' : '';
   const buttons = decisionsFor(p).map(function (d) {
     return '<button type="button" class="linkbtn edit-only" data-act="oppDecide" data-id="' +
       esc(p.id) + '" data-v="' + d[0] + '"' + dis(env) + '>' + d[1] + '</button>';
   });
-  const open = '<button type="button" class="linkbtn" data-act="openProject" data-id="' +
-    esc(p.id) + '">Details</button>';
-  return '<span class="it-c">' + (done ? done + ' · ' : '') +
-    buttons.concat([open]).join(' · ') + '</span>';
+  if (!done && !buttons.length) return '';
+  return '<span class="it-c">' + (done ? done + (buttons.length ? ' \u00b7 ' : '') : '') +
+    buttons.join(' \u00b7 ') + '</span>';
 }
 
 /** Every active project across every meeting — what the Tech Directors group reviews. */
@@ -402,15 +335,23 @@ function businessReview(snap, tab) {
   return groups || '<p class="none">No active projects in any other meeting yet.</p>';
 }
 
-/* --- 2: Current Projects, or Tech-Projects --- */
+/* --- Projects & Horizon, or Tech-Projects --- */
 
 function stageProjects(snap, ui, env, tab, d) {
   /*
-   * One list for the meeting, not one per person. Priority is therefore meeting-wide
-   * too: the arrows move a project among ALL of them, where they used to move it
-   * only within its owner's block. That follows from the list being flat - there is
-   * no way to read a per-person order out of a single list - and it suits a segment
-   * that is worked down from the top.
+   * Two sections of one list. Horizon - the opportunities, which are projects not
+   * yet decided on - and below it Current projects, so promoting one visibly moves
+   * it down from the first section into the second. Each section folds away under
+   * its heading, remembered across redraws (ui.hideHorizon / ui.hideCurrent), and
+   * says how many it holds while folded.
+   *
+   * Tech Directors has no opportunities, so its list is just its projects.
+   */
+  const horizon = tab.id === TECHDIR_TAB_ID ? '' : horizonSection(snap, ui, env, tab, d);
+
+  /*
+   * One list for the meeting, not one per person. Priority is meeting-wide: the
+   * arrows move a tile among ALL of them.
    */
   const mine = snap.projects
     .filter(function (p) { return projVisible(p, tab.id, d); })
@@ -423,22 +364,101 @@ function stageProjects(snap, ui, env, tab, d) {
       : '<p class="none">No current projects.</p>';
 
   const addForm = ui.open === 'project'
-    ? '<form class="add" data-form="project">' +
-      // Customer first: the title reads "Customer - Project name". Optional, because
-      // internal work has none.
-      '<input class="fld" name="customer" type="text" placeholder="Customer (optional)">' +
-      '<input class="fld" name="name" type="text" placeholder="Project name" required>' +
-      '<input class="fld" name="due" type="date" aria-label="Due date">' +
-      // The same question the opportunity form asks, so a project and an
-      // opportunity are started with the same things recorded.
-      '<input class="fld full" name="challenge" type="text" placeholder="Major challenge (optional)">' +
-      whoFields(snap, tab, true) +
-      '<button class="btn" type="submit">Add</button>' +
-      '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>'
+    ? addProjectForm(snap, tab, 'project', 'name', 'Project title')
     : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="project"' +
       dis(env) + '>+ Project</button>';
 
-  return list + addForm;
+  return horizon +
+    section('current', 'Current projects', mine.length, !!ui.hideCurrent, list + addForm);
+}
+
+/**
+ * A heading that folds its section away. A real button (aria-expanded), so it
+ * works from the keyboard; the count stays visible when folded, so a folded
+ * section still says whether there is anything in it.
+ *
+ * @param {string} key - 'horizon' | 'current'
+ * @param {string} title
+ * @param {number} n
+ * @param {boolean} hidden
+ * @param {string} body
+ */
+function section(key, title, n, hidden, body) {
+  return '<div class="psec">' +
+    '<h3 class="psec-h"><button type="button" class="sec-tog" data-act="toggleSection" data-v="' +
+    key + '" id="sec-' + key + '" aria-expanded="' + (hidden ? 'false' : 'true') + '">' +
+    '<span class="caret" aria-hidden="true">' + (hidden ? '\u25b8' : '\u25be') + '</span>' +
+    esc(title) + ' <span class="cnt n">' + n + '</span></button></h3>' +
+    (hidden ? '' : body) + '</div>';
+}
+
+/** The Horizon: opportunities in this meeting that nobody has decided on yet. */
+function horizonSection(snap, ui, env, tab, d) {
+  const opps = horizonFor(snap, tab.id, d);
+  const list = opps.length
+    ? '<ul class="items">' + opps.map(function (p) {
+        return horizonRow(snap, ui, env, p);
+      }).join('') + '</ul>'
+    : '<p class="none">Nothing on the horizon.</p>';
+
+  const addForm = ui.open === 'opp'
+    ? addProjectForm(snap, tab, 'opp', 'text', 'Opportunity title')
+    : '<button class="btn ghost add-btn edit-only" type="button" data-act="openForm" data-v="opp"' +
+      dis(env) + '>+ Opportunity</button>';
+
+  const waiting = opps.filter(function (p) { return oppStage(p) === 'open' || oppStage(p) === 'hold'; });
+  return section('horizon', 'Horizon', waiting.length, !!ui.hideHorizon, list + addForm);
+}
+
+/**
+ * One opportunity on the Horizon. The same things a project tile shows - full
+ * title (a link to its page), owner, due date, Filter actions - with the decision
+ * in place of the status buttons.
+ *
+ * `.item` is a three-column grid the layout checker asserts: chip, title, x, and
+ * the sub-lines pinned to column 2 under the title.
+ */
+function horizonRow(snap, ui, env, p) {
+  const selected = ui.railProj === p.id;
+  // `opp-`, not `proj-`: one promoted today is on screen twice - here, marked as
+  // decided, and as a tile in Current projects - and an id may appear only once.
+  return '<li class="item opp' + (selected ? ' sel' : '') + '" id="opp-' + esc(p.id) + '">' +
+    stageChip(p) +
+    '<span class="it-t"><button type="button" class="linkbtn pname-open" data-act="openProject" ' +
+    'data-id="' + esc(p.id) + '" title="Open the details">' + esc(projectTitle(p)) +
+    '</button></span>' +
+    '<span class="it-s">' + esc(ownerLine(snap, p)) + ' \u00b7 ' +
+    (p.due ? 'Due <span class="mono">' + fmt(p.due) + '</span>' : 'No due date') + ' \u00b7 ' +
+    '<button type="button" class="linkbtn pfilter" data-act="selectProject" data-id="' +
+    esc(p.id) + '" aria-pressed="' + selected + '">' +
+    (selected ? 'Show all actions' : 'Filter actions') + '</button></span>' +
+    decisionLine(p, env) +
+    '<button class="x edit-only" type="button" data-act="delOpportunity" data-id="' + esc(p.id) +
+    '" aria-label="Remove this opportunity"' + dis(env) + '>\u00d7</button>' +
+    '</li>';
+}
+
+/**
+ * The add form for an opportunity or a project: the same five things a tile shows,
+ * plus Mission & challenges. Everything else is filled in on the project's page.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} form - 'opp' | 'project', the data-form the handler keys on
+ * @param {string} titleName - the title field's name, as each handler reads it
+ * @param {string} titleLabel
+ */
+function addProjectForm(snap, tab, form, titleName, titleLabel) {
+  return '<form class="add" data-form="' + form + '">' +
+    // Customer first: the title reads "Customer - Project title". Optional, because
+    // internal work has none.
+    '<input class="fld" name="customer" type="text" placeholder="Customer (optional)">' +
+    '<input class="fld" name="' + titleName + '" type="text" placeholder="' + titleLabel + '" required>' +
+    '<input class="fld" name="due" type="date" aria-label="Due date">' +
+    '<input class="fld full" name="mission" type="text" placeholder="Mission &amp; challenges (optional)">' +
+    whoFields(snap, tab, true) +
+    '<button class="btn" type="submit">Add</button>' +
+    '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>';
 }
 
 /**
@@ -467,15 +487,6 @@ function projectRow(snap, ui, env, p, idx, count) {
   const open = openActsFor(snap, p.id);
   const selected = ui.railProj === p.id;
 
-  // Focus reads on the collapsed row rather than only under the caret: the point of
-  // it is to see at a glance whether we are pointed at what the customer actually
-  // cares about. `.pchip` is inline, so these flow in the meta line as they are.
-  const focus = (p.focus || []).length
-    ? (p.focus || []).map(function (v) {
-        return '<span class="pchip">' + esc(v) + '</span>';
-      }).join(' ') + ' \u00b7 '
-    : '';
-
   /*
    * The owner leads and is the bold thing on the row. The block heading that used to
    * carry the name is gone, so this is the only place it appears - and it is what
@@ -484,20 +495,15 @@ function projectRow(snap, ui, env, p, idx, count) {
    */
   const meta =
     // No customer here: it leads the title above, so it would only say it twice.
-    '<b>' + esc(ownerLine(snap, p)) + '</b> \u00b7 ' + focus +
+    '<b>' + esc(ownerLine(snap, p)) + '</b> \u00b7 ' +
     (p.status === 'new'
-      ? '<span class="chip new">New</span> ' +
-        (p.fromOpp
-          ? 'From ' + (raisedOn(p) ? fmt(raisedOn(p)) : 'last week') +
-            '’s opportunities · set a status'
-          : 'Set a status') + ' · '
+      ? '<span class="chip new">New</span> ' + (p.fromOpp ? 'Promoted · set a status' : 'Set a status') + ' · '
       : '') +
     (p.due ? 'Due <span class="mono">' + fmt(p.due) + '</span>' : 'No due date') +
     ' · ' + (open ? open + ' open action' + (open > 1 ? 's' : '') : 'no open actions') +
     (p.status === 'off'
       ? (open ? ' · recovery underway' : ' · <b class="warnt">no path yet, in Issues</b>')
-      : '') +
-    (p.note ? '<br>Challenge: ' + esc(p.note) : '');
+      : '');
 
   const status = STATUSES.map(function (v) {
     return '<button type="button" data-act="projStatus" data-id="' + esc(p.id) +
@@ -531,53 +537,10 @@ function projectRow(snap, ui, env, p, idx, count) {
     '" aria-label="Remove project"' + dis(env) + '>×</button>' +
     '</div>' +
     '<div class="stat" role="group" aria-label="Status of ' + esc(p.name) + '">' + status + '</div>' +
-    projectDetailsPanel(snap, ui, env, p) +
     '</li>';
 }
 
-/**
- * What sits under the caret on a project's row in a meeting.
- *
- * **Nothing here is restricted, so there is no permission check.** The annual value
- * used to live here and was the only reason this panel had a gate at all; it now
- * appears on the project's own page and nowhere else. Confidence, why-we-win and
- * focus belong to the team, so the caret and everything under it works for anyone
- * who can see the project.
- *
- * Focus is editable here as well as readable on the collapsed row above, because
- * "actually, they care more about scale than corrosion" is a thing said during the
- * meeting, and walking to the project page to record it loses the moment.
- */
-function projectDetailsPanel(snap, ui, env, p) {
-  // Whether this was open is remembered, because a render can happen at any moment -
-  // the background poll alone would otherwise shut the panel every minute while
-  // somebody was still typing in it.
-  const isOpen = !!(ui.openDetails && ui.openDetails[p.id]);
-  // The same panel on an opportunity's tile and a project's: promoting one changes
-  // which segment it is listed in, nothing about what it records.
-  return '<details class="dtl" data-details="' + esc(p.id) + '"' + (isOpen ? ' open' : '') +
-    '><summary class="lbl">' + (isOpportunity(p) ? 'Opportunity' : 'Project') +
-    ' details</summary>' +
-    '<label class="lbl">Major challenge' +
-    '<textarea class="fld" rows="2" data-edit="projChallenge" data-id="' + esc(p.id) + '"' +
-    ' placeholder="What could stop it"' + dis(env) + '>' + esc(p.note || '') +
-    '</textarea></label>' +
-    '<div class="sgrid">' +
-    '<label class="lbl">Win confidence %' +
-    '<input class="fld n" type="number" min="0" max="100" data-edit="pdWin" data-id="' +
-    esc(p.id) + '" value="' + esc(p.winPct == null ? '' : p.winPct) + '"' + dis(env) +
-    '></label>' +
-    '</div>' +
-    '<label class="lbl">Why we win' +
-    '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) + '"' + dis(env) + '>' +
-    esc(p.winReason || '') + '</textarea></label>' +
-    confidenceTrend(p, true) +
-    '<div class="lbl pfoc">Focus</div>' +
-    pickerControl(snap, env, p, 'focus', 'focus area') +
-    '</details>';
-}
-
-/* --- 3: Issues --- */
+/* --- Issues --- *//* --- 3: Issues --- */
 
 /**
  * Outstanding commitments, shown at the top of the Issues segment.
@@ -749,73 +712,6 @@ function stageIssues(snap, ui, env, tab, d) {
     movedBlock + resolvedBlock + addForm;
 }
 
-/* --- 4: Rate the Meeting --- */
-
-function stageRate(snap, ui, env, tab, d) {
-  const m = getMeeting(snap, tab.id, d);
-  const info = ratingInfo(snap, tab.id, d);
-
-  function groupRows(ids, label) {
-    if (!ids.length) return '';
-    return '<div class="rates"><div class="lbl">' + label + '</div>' +
-      ids.map(function (id) {
-        const mine = m.ratings[id];
-        const scale = [1, 2, 3, 4, 5].map(function (v) {
-          return '<button type="button" class="rb' + (Number(mine) === v ? ' sel' : '') +
-            '" data-act="setRating" data-id="' + esc(id) + '" data-v="' + v + '"' +
-            (Number(mine) === v ? ' aria-pressed="true"' : '') + dis(env) + '>' + v + '</button>';
-        }).join('');
-        return '<div class="ri"><span class="nm">' + esc(personName(snap, id)) + '</span>' +
-          '<span class="scale" role="group" aria-label="Score for ' + esc(personName(snap, id)) + '">' +
-          scale + '</span></div>';
-      }).join('') + '</div>';
-  }
-
-  const reporting = (tab.members || []).filter(function (id) { return person(snap, id); });
-  const supporting = (tab.support || []).filter(function (id) { return person(snap, id); });
-  const optional = (tab.optional || []).filter(function (id) { return person(snap, id); });
-
-  const score = '<div class="score"><span class="big">' +
-    (info.n ? info.avg.toFixed(1) : '—') + '</span><span class="sub">' +
-    (info.n ? 'average of ' + info.n : 'not rated yet') + '</span></div>';
-
-  const points = trendPoints(snap, tab.id);
-  const trend = points.length < 2
-    ? '<p class="muted sm">A trend line appears after two rated meetings.</p>'
-    : sparkline(points);
-
-  const note = '<label class="lbl" for="f-note">One change for next time' +
-    '<textarea class="fld" id="f-note" rows="2" data-edit="meetingNote"' + dis(env) + '>' +
-    esc(m.note || '') + '</textarea></label>';
-
-  // Ending the meeting is when the summary gets sent, so it is offered here too -
-  // the same panel the header's Summary button opens, at the top of the page.
-  const summary = '<div class="sumbox">' +
-    '<button class="btn sm" type="button" data-act="toggleSummary">' +
-    (ui.sumShow ? 'Hide' : 'Show') + ' the meeting summary</button></div>';
-
-  return score + trend +
-    groupRows(reporting, 'Reporting') +
-    groupRows(supporting, 'Supporting') +
-    groupRows(optional, 'Optional') +
-    note + summary;
-}
-
-/**
- * The rating trend, drawn inline. Data comes from the domain; only the shape is here.
- *
- * Ratings run 1-5 where confidence runs 0-100, which is the whole reason spark()
- * takes a scale rather than assuming one.
- */
-function sparkline(points) {
-  return spark(points.map(function (p) { return { d: p.d, v: p.avg }; }), {
-    min: 1,
-    max: 5,
-    grid: [1, 3, 5],
-    label: 'Meeting score trend over the last ' + points.length + ' meetings'
-  });
-}
-
 /* ---------- the rail ---------- */
 
 function renderRail(snap, ui, env, tab, step, d) {
@@ -854,7 +750,7 @@ function renderRail(snap, ui, env, tab, step, d) {
     (selected ? '<button class="btn ghost sm" type="button" data-act="clearProject">Show all</button>' : '') +
     '</div>';
 
-  const issueShortlist = step !== 3
+  const issueShortlist = segmentsFor(tab)[step] && segmentsFor(tab)[step].key !== 'issues'
     ? (function () {
         const q = issueItems(snap, tab.id).slice(0, 4);
         if (!q.length) return '';
@@ -864,7 +760,8 @@ function renderRail(snap, ui, env, tab, step, d) {
               (it.type === 'p' ? 'Off-track' : SEVERITY_LABELS[it.sev]) + '</span>' +
               '<span class="it-t">' + esc(it.o.text || it.o.name) + '</span></li>';
           }).join('') + '</ul>' +
-          '<button class="btn ghost sm" type="button" data-act="step" data-v="3">Work through them</button></div>';
+          '<button class="btn ghost sm" type="button" data-act="step" data-v="' +
+          stepIndex(tab, 'issues') + '">Work through them</button></div>';
       })()
     : '';
 
@@ -983,89 +880,4 @@ function actionForm(snap, ui, env, tab, opts) {
     '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button></form>';
 }
 
-/**
- * How win confidence has moved, if it has moved at all.
- *
- * Nothing is drawn from a single reading - one point is a number, not a trend, and
- * the line only starts saying something once the figure has been revisited. So a
- * project whose confidence has never been touched shows nothing here rather than a
- * flat line implying steadiness nobody claimed.
- *
- * @param {any} p
- * @param {boolean} bare - drop the date labels, for the tile
- */
-function confidenceTrend(p, bare) {
-  const points = confidencePoints(p);
-  if (points.length < 2) return '';
 
-  return '<div class="ctrend">' +
-    '<div class="lbl">Confidence over time</div>' +
-    spark(points, {
-      min: 0,
-      max: 100,
-      grid: [0, 50, 100],
-      bare: bare,
-      w: bare ? 200 : 240,
-      h: bare ? 40 : 64,
-      label: 'Win confidence across ' + points.length + ' meetings, now ' +
-        points[points.length - 1].v + ' per cent'
-    }) + '</div>';
-}
-
-/**
- * Raising an opportunity, in the shape a project is tracked in.
- *
- * It asks for customer, title, challenge, confidence, why we win and focus - the
- * same fields, in the same order, as the panel under a project's caret, because an
- * opportunity becomes a project a week later and anything not captured while it is
- * being discussed tends never to be captured at all.
- *
- * None of it is required except the title. A half-filled opportunity is better than
- * one nobody raised because the form looked like work.
- *
- * ## The optional first action
- *
- * Offered, and deliberately quiet about it: no highlight, no asterisk, and the form
- * submits perfectly well with it empty. Often the useful thing at the moment
- * somebody raises an opportunity is "and I'll call them on Thursday", and there is
- * currently nowhere to put that until the project exists a week later.
- */
-function opportunityForm(snap, env, tab) {
-  const focusOptions = pickList(snap, 'focus');
-
-  const focusBoxes = focusOptions.length
-    ? '<fieldset class="oppf"><legend class="lbl">Focus</legend>' +
-      focusOptions.map(function (v) {
-        return '<label class="fchk"><input type="checkbox" name="focus" value="' +
-          esc(v) + '">' + esc(v) + '</label>';
-      }).join('') + '</fieldset>'
-    : '';
-
-  return '<form class="add oppform" data-form="opp">' +
-    whoFields(snap, tab, true) +
-    '<input class="fld full" name="customer" type="text" placeholder="Customer">' +
-    '<input class="fld full" name="text" type="text" ' +
-    'placeholder="Project title - what the opportunity is" required>' +
-    '<input class="fld full" name="why" type="text" ' +
-    'placeholder="Major challenge, if there is one">' +
-    '<input class="fld n" name="winPct" type="number" min="0" max="100" ' +
-    'placeholder="Win %" aria-label="Win confidence per cent">' +
-    '<input class="fld full" name="winReason" type="text" ' +
-    'placeholder="Why we win">' +
-    focusBoxes +
-    '<div class="oppf-more">' +
-    '<span class="why">Give it a first action now, if there is one. Optional.</span>' +
-    '<input class="fld full" name="actionText" type="text" ' +
-    'placeholder="First action" aria-label="First action">' +
-    // ownerOptions, not peopleOptions: an action stores its owner as a NAME, and
-    // peopleOptions emits ids. Both render identically, so getting this wrong shows
-    // up as an action owned by "p3" rather than by anybody.
-    '<select class="fld" name="actionOwner" aria-label="Action owner">' +
-    ownerOptions(snap, tab, '', 'Owner') + '</select>' +
-    '<input class="fld" name="actionDue" type="date" aria-label="Action due date">' +
-    '</div>' +
-    '<div class="acts-r">' +
-    '<button class="btn" type="submit">Add</button>' +
-    '<button class="btn ghost" type="button" data-act="closeForm">Cancel</button>' +
-    '</div></form>';
-}

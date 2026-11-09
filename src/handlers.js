@@ -36,11 +36,13 @@ import {
 } from './domain/actions.js';
 import {
   deleteAction, deleteEntry, deleteProject, deleteIssue, deletePerson, deleteTab, moveProject,
+  deleteOpportunity,
   deleteNote, renameListValue
 } from './domain/cascade.js';
 import { decideOpportunity } from './domain/opportunities.js';
+import { stepIndex } from './domain/constants.js';
 import {
-  meetingDate, toggleRating, setNote, documentId, meetingSummary, withRole, ROLE_LISTS,
+  meetingDate, documentId, meetingSummary, withRole, ROLE_LISTS,
   summaryEmail
 } from './domain/meetings.js';
 
@@ -165,6 +167,15 @@ export function createHandlers(app) {
       focusFirst();
     },
     closeForm: function () { ui.open = null; render(); },
+
+    /* Fold or unfold Horizon / Current projects on the meeting's Projects step. */
+    toggleSection: function (el, id, v) {
+      if (v === 'horizon') ui.hideHorizon = !ui.hideHorizon;
+      else if (v === 'current') ui.hideCurrent = !ui.hideCurrent;
+      render();
+    },
+
+    delOpportunity: function (el, id) { cascade(deleteOpportunity(store.snapshot(), id)); },
 
     /* Open one action's editor, wherever it is listed. See views/actionEditor.js. */
     editAction: function (el, id) { ui.open = 'act:' + id; render(); focusFirst(); },
@@ -376,7 +387,7 @@ export function createHandlers(app) {
       ui.view = 'tab';
       ui.tab = id;
       ui.settings = false;
-      ui.steps[id] = 3;
+      ui.steps[id] = Math.max(0, stepIndex(byId(store.snapshot().tabs, id), 'issues'));
       ui.open = null;
       render();
       if (typeof document !== 'undefined') flash(document.getElementById(v));
@@ -514,16 +525,7 @@ export function createHandlers(app) {
      */
     projDrop: function (el, id, v) { pickValue(id, el.dataset.f, v, false); },
 
-    /* --- ratings and the summary --- */
-
-    setRating: function (el, id, v) {
-      const t = currentTab();
-      if (!t) return;
-      const d = currentDate(t);
-      const doc = toggleRating(store.snapshot(), t.id, d, id, Number(v));
-      store.set('meetings', documentId(t.id, d), doc).then(render);
-      render();
-    },
+    /* --- the summary --- */
 
     copySummary: function () {
       const t = currentTab();
@@ -699,14 +701,6 @@ export function createHandlers(app) {
     actionDue: function (el) {
       const doc = changeDue(byId(store.snapshot().actions, el.dataset.id), el.value);
       if (doc) store.set('actions', el.dataset.id, doc);
-    },
-
-    meetingNote: function (el) {
-      const t = currentTab();
-      if (!t) return;
-      const d = currentDate(t);
-      store.set('meetings', documentId(t.id, d), setNote(store.snapshot(), t.id, d, el.value),
-        { silent: true });
     },
 
     /* --- project fields, from the project page --- */
@@ -928,58 +922,7 @@ export function createHandlers(app) {
     render();
   }
 
-  /**
-   * Every value of a repeated field, whichever kind of form data this is.
-   *
-   * A browser sends several checkboxes of the same name as several values, which
-   * `FormData.getAll` returns. The tests hand handlers a Map, which has no getAll -
-   * so both are accepted rather than making the tests carry a fake browser.
-   *
-   * @param {any} fd
-   * @param {string} name
-   * @returns {string[]}
-   */
-  function manyOf(fd, name) {
-    if (typeof fd.getAll === 'function') {
-      return fd.getAll(name).map(String).filter(Boolean);
-    }
-    const one = fd.get(name);
-    if (one == null || one === '') return [];
-    return Array.isArray(one) ? one.map(String) : [String(one)];
-  }
-
-  /**
-   * The optional action offered while raising an opportunity.
-   *
-   * Empty is the normal case and must not be an error, so this resolves quietly
-   * when there is nothing to add. The action points at the PROJECT the opportunity
-   * created, which is what it will still be attached to next week when the project
-   * appears in Current Projects.
-   *
-   * @returns {Promise<any>}
-   */
-  function addFirstAction(fd, tab, projectId, meetingDate) {
-    const text = String(fd.get('actionText') || '').trim();
-    if (!text) return Promise.resolve();
-
-    return store.nextActionNum().then(function (num) {
-      const doc = newAction({
-        num: num,
-        tab: tab.id,
-        text: text,
-        owner: String(fd.get('actionOwner') || ''),
-        support: '',
-        due: String(fd.get('actionDue') || ''),
-        parent: { type: 'project', id: projectId },
-        meetingDate: meetingDate
-      });
-      return store.set('actions', store.newId(), doc).then(function () {
-        toast(actionLabel({ num: num }) + ' added to the new opportunity.');
-      });
-    });
-  }
-
-  /**
+      /**
    * A combo box over a self-growing list: pick what is there, or type a new one.
    *
    * Three things happen here, and the order matters.
@@ -1126,20 +1069,16 @@ export function createHandlers(app) {
         personId: who,
         support: String(fd.get('support') || '').trim(),
         text: text,
-        why: String(fd.get('why') || '').trim(),
         customer: String(fd.get('customer') || '').trim(),
-        winPct: fd.get('winPct'),
-        winReason: String(fd.get('winReason') || '').trim(),
-        focus: manyOf(fd, 'focus'),
+        mission: String(fd.get('mission') || '').trim(),
+        due: String(fd.get('due') || ''),
         meetingDate: d
       });
 
       store.batch([
         { op: 'set', col: 'entries', id: entryId, data: built.entry },
         { op: 'set', col: 'projects', id: projectId, data: built.project }
-      ]).then(function () {
-        return addFirstAction(fd, t, projectId, d);
-      }).then(render);
+      ]).then(render);
       render();
     },
 
@@ -1155,7 +1094,7 @@ export function createHandlers(app) {
         support: String(fd.get('support') || '').trim(),
         customer: String(fd.get('customer') || '').trim(),
         name: name,
-        note: String(fd.get('challenge') || '').trim(),
+        mission: String(fd.get('mission') || '').trim(),
         due: String(fd.get('due') || ''),
         meetingDate: currentDate(t)
       })).then(render);

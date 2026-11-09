@@ -52,6 +52,7 @@ import './challenge.test.js';
 import './wlForm.test.js';
 import './summaryEmail.test.js';
 import './railOrigin.test.js';
+import './reviewScreen.test.js';
 import './views.test.js';
 import './flow.test.js';
 import './reporting.test.js';
