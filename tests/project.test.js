@@ -106,8 +106,8 @@ test('Both halves of the title are editable, at the top of the page', () => {
 
   ok(html.indexOf('data-edit="projCustomer"') < html.indexOf('data-edit="projName"'),
     'customer first, then the project');
-  ok(html.indexOf('data-edit="projCustomer"') < html.indexOf('class="kpis"'),
-    'and both above the numbers, at the top of the page');
+  ok(html.indexOf('data-edit="projCustomer"') < html.indexOf('<h2>Status</h2>'),
+    'and both in the first section, above Status');
 });
 
 test('The customer appears once as a field, not twice as a row as well', () => {
@@ -115,18 +115,17 @@ test('The customer appears once as a field, not twice as a row as well', () => {
   eq((html.match(/data-edit="projCustomer"/g) || []).length, 1);
 });
 
-test('The rows are labelled and ordered like the project sheet', () => {
+test('The Project section holds its rows in the order asked for', () => {
   // The inputs being in the right order is not the same as them being labelled
-  // right - and the label is what somebody reads before typing in the box. The
-  // order is the one the shared project sheet uses, which is the point of it.
+  // right - and the label is what somebody reads before typing in the box.
   const html = page('pr1');
   const panel = /<h2>Project<\/h2>[\s\S]*?<\/section>/.exec(html);
   ok(panel, 'found the panel');
 
   const labels = (panel[0].match(/<div class="rp-h"><b>([^<]+)<\/b>/g) || [])
     .map(function (m) { return /<b>([^<]+)<\/b>/.exec(m)[1]; });
-  // Meeting is not on the sheet, so it follows the sheet's four rather than joining them.
-  eq(labels, ['Customer', 'Project', 'Field', 'Project Type', 'Meeting']);
+  eq(labels, ['Meeting', 'Customer', 'Project', 'Project Type', 'Mission &amp; challenges',
+    'Field', 'System', 'Product selection']);
 });
 
 test('Internal work with no customer gets no dangling hyphen', () => {
@@ -213,24 +212,33 @@ test('The numbers themselves never reach a refused page', () => {
   notOk(html.indexOf(String(value)) > 0, 'the estimated value is not in the HTML');
 });
 
-test('Value and confidence are shown separately, never multiplied', () => {
-  // The product of dollars and a percentage is not dollars. Printing "$175,000" for
-  // 250k at 70% invites somebody to add a column of them up and quote the total as
-  // money. Anyone wanting a risk-adjusted pipeline number can weight it in the
-  // roll-up, where the convention gets stated once.
-  const snap = demoBoard();
-  snap.projectDetails.find(function (x) { return x.id === 'pr1'; }).estValue = 250000;
-  project(snap, 'pr1').winPct = 70;
-  const html = page('pr1', { snap: snap });
+test('Commercial holds exactly Annual value, Win confidence and Why we win', () => {
+  const html = page('pr1');
+  const panel = /<h2>Commercial<\/h2>[\s\S]*?<\/section>/.exec(html);
+  ok(panel, 'the panel is there');
+  if (!panel) return;
+  const labels = (panel[0].match(/<div class="rp-h"><b>([^<]+)<\/b>/g) || [])
+    .map(function (m) { return /<b>([^<]+)<\/b>/.exec(m)[1]; });
+  eq(labels, ['Annual value', 'Win confidence', 'Why we win']);
+  notOk(html.indexOf('Weighted') > 0, 'and no weighted dollar figure');
+});
 
-  ok(/<span class="l">Annual value<\/span>/.test(html), 'the dollars, on their own');
-  ok(html.indexOf('$250k') > 0, 'abbreviated to fit the KPI cell');
-  ok(/<span class="l">Win confidence<\/span>/.test(html), 'the percentage, on its own');
-  ok(html.indexOf('>70%<') > 0, 'shown as a percentage');
+test('Sections come in the order asked for: Project, Status, Actions, Notes, Commercial', () => {
+  const html = page('pr1');
+  const at = ['<h2>Project</h2>', '<h2>Status</h2>', '<h2>Actions</h2>', '<h2>Notes</h2>',
+    '<h2>Commercial</h2>'].map(function (h) { return html.indexOf(h); });
+  at.forEach(function (n, i) {
+    ok(n > 0, 'section ' + (i + 1) + ' is there');
+    if (i) ok(n > at[i - 1], 'and after the one before');
+  });
+});
 
-  notOk(html.indexOf('175,000') > 0, 'and no weighted dollar figure');
-  notOk(html.indexOf('$175k') > 0, 'not abbreviated either');
-  notOk(html.indexOf('Weighted') > 0, 'nor the label');
+test('Gone: the at-a-glance strip, Focus and Resources', () => {
+  const html = page('pr1');
+  notOk(html.indexOf('class="kpis"') >= 0, 'no numbers strip');
+  notOk(/data-f="focus"/.test(html), 'no Focus picker');
+  notOk(/data-f="resources"/.test(html), 'no Resources picker');
+  notOk(html.indexOf('Confidence over time') >= 0, 'no confidence chart');
 });
 
 test('The copy summary carries no weighted figure either', () => {
@@ -245,32 +253,7 @@ test('The copy summary carries no weighted figure either', () => {
   notOk(text.indexOf('Weighted') >= 0, 'nor the label');
 });
 
-test('The strip shows the four stats its grid has room for, and no more', () => {
-  // `.kpis` is repeat(4, minmax(0,1fr)). A fifth does not error - it wraps onto a
-  // second row and leaves three empty cells.
-  eq((page('pr1').match(/<div class="kpi /g) || []).length, 4, 'with commercial access');
-  const snap = demoBoard();
-  snap.denied = ['projectDetails'];
-  eq((page('pr1', { snap: snap }).match(/<div class="kpi /g) || []).length, 4, 'without');
-});
-
-test('Without commercial access only the value slot changes', () => {
-  // Confidence is the team's, so it keeps its place. Days in status takes the slot
-  // the value gave up, rather than the strip showing a blank.
-  const snap = demoBoard();
-  project(snap, 'pr1').winPct = 65;
-  snap.denied = ['projectDetails'];
-  const html = page('pr1', { snap: snap });
-
-  // The Commercial panel has a row labelled "Annual value" either way - it is the
-  // KPI that goes. So this looks for the stat label specifically.
-  notOk(/<span class="l">Annual value<\/span>/.test(html), 'no value stat');
-  ok(/<span class="l">Win confidence<\/span>/.test(html), 'confidence is still a stat');
-  ok(html.indexOf('>65%<') > 0, 'with its number');
-  ok(html.indexOf('Days in status') > 0, 'and days in status takes the free slot');
-});
-
-group('Product selection, focus and resources');
+group('Product selection and System');
 
 test('Chosen values are chips, and the dropdown offers the rest', () => {
   // pr1 picks Testex 12 clear and Demo-Bond 7 out of four products.
@@ -304,8 +287,7 @@ test('The dropdown leads with an add prompt, not a real value', () => {
   // which reads as though it were.
   const html = page('pr1');
   ok(/<option value="">\+ Add a product<\/option>/.test(html), 'products');
-  ok(/<option value="">\+ Add a focus area<\/option>/.test(html), 'focus');
-  ok(/<option value="">\+ Add a resource<\/option>/.test(html), 'resources');
+  ok(/<option value="">\+ Add a system<\/option>/.test(html), 'systems');
 });
 
 test('Every control names the field it writes to, and the project', () => {
@@ -314,16 +296,16 @@ test('Every control names the field it writes to, and the project', () => {
   const html = page('pr1');
 
   const adders = html.match(/<select[^>]*data-edit="projAdd"[^>]*>/g) || [];
-  eq(adders.length, 3, 'one dropdown per list');
+  eq(adders.length, 2, 'one dropdown per list: System and Product selection');
   adders.forEach(function (el) {
-    ok(/data-f="(products|focus|resources)"/.test(el), 'names its field: ' + el);
+    ok(/data-f="(products|systems)"/.test(el), 'names its field: ' + el);
     ok(el.indexOf('data-id="pr1"') > 0, 'and its project: ' + el);
   });
 
   const droppers = html.match(/<button[^>]*data-act="projDrop"[^>]*>/g) || [];
   ok(droppers.length > 0, 'found chips to remove');
   droppers.forEach(function (el) {
-    ok(/data-f="(products|focus|resources)"/.test(el), 'names its field: ' + el);
+    ok(/data-f="(products|systems)"/.test(el), 'names its field: ' + el);
     ok(el.indexOf('data-v="') > 0, 'and its value: ' + el);
   });
 });
@@ -480,16 +462,6 @@ test('Days in status is counted, and never negative', () => {
   ok(/\d+ days as /.test(html), 'the count is on the page');
   notOk(/-\d+ days as /.test(html), 'a meeting in the future does not make it negative');
   ok(html.indexOf('0 days as ') > 0, 'it reads zero instead');
-});
-
-test('Days in status is still counted when it is a KPI', () => {
-  const snap = demoBoard();
-  snap.denied = ['projectDetails'];
-  project(snap, 'pr1').statusMeeting = addDays(TODAY, 14);
-  const html = page('pr1', { snap: snap });
-
-  ok(html.indexOf('Days in status') > 0, 'the stat is there');
-  notOk(/<span class="n">-\d+<\/span>/.test(html), 'and not negative there either');
 });
 
 test('A project raised as an opportunity says where it came from', () => {

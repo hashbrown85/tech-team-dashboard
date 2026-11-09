@@ -37,11 +37,10 @@ export function renderConfig(snap, ui, env) {
       'Grows on its own when somebody types a new one on a project.') +
     managedList(snap, ui, env, 'projectType', 'Project types', 'typeVal',
       'delTypeVal', 'Grows on its own when somebody types a new one on a project.') +
+    managedList(snap, ui, env, 'systems', 'Systems', 'systemVal', 'delSystemVal',
+      'The kinds of asset a project touches. Also grows from a project page.') +
     managedList(snap, ui, env, 'products', 'Products', 'product', 'delProduct',
       'Stands in for the product list in Dataverse, until that is reachable.') +
-    managedList(snap, ui, env, 'focus', 'Focus', 'focus', 'delFocus') +
-    managedList(snap, ui, env, 'resources', 'Potential resources', 'resource',
-      'delResource') +
     boardFile(snap, env);
 }
 

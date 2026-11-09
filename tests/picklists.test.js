@@ -79,7 +79,7 @@ group('Every place the lists appear');
 
 test('The settings screen lists each one alphabetically', () => {
   const snap = demoBoard('2026-09-29');
-  snap.settings.focus = { items: ['Scale', 'Corrosion', 'Pipeline'] };
+  snap.settings.systems = { items: ['Scale', 'Corrosion', 'Pipeline'] };
   const html = renderApp(snap, Object.assign({}, loadUi(), { view: 'config' }),
     { today: '2026-09-29', modes: MODES, identity: { kind: 'local', personId: 'p1' } });
   const c = html.indexOf('Corrosion'), p = html.indexOf('Pipeline'), s = html.indexOf('Scale');

@@ -205,7 +205,9 @@ export const SCHEMA = {
 
       // What it needs and what it is made of. Team-visible for the same reason.
       resources: { col: 'ResourcesJson', kind: 'json' },
-      focus: { col: 'FocusJson', kind: 'json' }
+      focus: { col: 'FocusJson', kind: 'json' },
+      // The kinds of asset the work touches: several per project. See demo data.
+      systems: { col: 'SystemsJson', kind: 'json' }
       // The dollar value is NOT here. It lives in projectDetails, on its own list
       // with its own permissions, so somebody without access never receives it.
     }

@@ -1,21 +1,19 @@
 // @ts-check
 /**
- * The major challenge, and an opportunity's details matching a project's.
+ * Mission & challenges: one box where there used to be two.
  *
- * Requested: a major challenge on projects and opportunities, and an opportunity's
- * details exactly like a project's - promotion changes the section it is listed
- * in, nothing about what it records.
- *
- * The challenge is stored as `note`, which is where the opportunity form has
- * always put it. Before this it could be typed once, on the opportunity form, and
- * never changed or even seen on the project's own page.
+ * Requested: combine Mission and Major challenge and move them into the Project
+ * section. The challenge was stored as `note` (where the opportunity form always
+ * put it), the mission as `mission`. They are shown as one text; the first save
+ * writes the combined text to `mission` and clears `note`, so an old challenge
+ * is folded in once and never appears twice.
  */
 
 import { group, test, eq, ok, notOk } from './harness.js';
 import { demoBoard } from '../src/demo-data.js';
 import { renderApp } from '../src/views/render.js';
 import { loadUi } from '../src/ui.js';
-import { newProject } from '../src/domain/projects.js';
+import { newProject, missionText, projectSummary } from '../src/domain/projects.js';
 import { createStore } from '../src/store.js';
 import { createMemoryAdapter } from '../src/adapters/memoryAdapter.js';
 import { createHandlers } from '../src/handlers.js';
@@ -37,31 +35,38 @@ function screen(snap, ui) {
     { today: DAY, modes: LIVE, identity: { kind: 'demo', personId: 'p1' } });
 }
 
-/** The details panel for one record, wherever it is drawn. */
-function panel(html, id) {
-  const m = new RegExp('<details class="dtl" data-details="' + id + '"[\\s\\S]*?</details>').exec(html);
-  return m ? m[0] : '';
+/** The Mission & challenges box's contents, on a project's page. */
+function box(html, id) {
+  const m = new RegExp('<textarea[^>]*data-edit="projMission" data-id="' + id + '"[^>]*>([^<]*)</textarea>')
+    .exec(html);
+  return m ? m[1] : null;
 }
 
-/** The panel with what differs by design taken out: its heading. */
-function contents(html) {
-  return html.replace(/<summary class="lbl">[^<]*<\/summary>/, '');
-}
+group('Mission & challenges is one box');
 
-group('The major challenge can be seen and changed');
+test('Folding the two together: mission first, the old challenge under it', () => {
+  eq(missionText({ mission: 'Prove it at 40 ppm', note: 'Their lab is slow' }),
+    'Prove it at 40 ppm\n\nTheir lab is slow');
+  eq(missionText({ mission: 'Prove it at 40 ppm', note: '' }), 'Prove it at 40 ppm');
+  eq(missionText({ note: 'Their lab is slow' }), 'Their lab is slow', 'only a challenge');
+  eq(missionText({}), '', 'neither');
+});
 
-test('On the project page', () => {
+test('It is in the Project section, and the separate panels are gone', () => {
   const html = screen(board(), { view: 'project', project: 'pr4' });
-  ok(html.indexOf('<h2>Major challenge</h2>') >= 0);
-  ok(/<textarea[^>]*data-edit="projChallenge" data-id="pr4"[^>]*>Their lab is slow<\/textarea>/.test(html));
+  eq(box(html, 'pr4'), 'Their lab is slow', 'an old challenge is shown in it');
+  notOk(html.indexOf('<h2>Major challenge</h2>') >= 0, 'no Major challenge panel');
+  notOk(html.indexOf('<h2>Mission</h2>') >= 0, 'no separate Mission panel');
+  notOk(html.indexOf('data-edit="projChallenge"') >= 0, 'and no second box');
 });
 
 test('On a project that never was an opportunity too', () => {
-  const html = screen(board(), { view: 'project', project: 'pr1' });
-  ok(html.indexOf('data-edit="projChallenge" data-id="pr1"') >= 0);
+  const snap = board();
+  byId(snap.projects, 'pr1').mission = 'Qualify the additive';
+  ok(box(screen(snap, { view: 'project', project: 'pr1' }), 'pr1') === 'Qualify the additive');
 });
 
-test('Editing it writes the challenge, without redrawing mid-sentence', async () => {
+test('Saving it folds the old challenge in for good, without redrawing mid-sentence', async () => {
   const store = createStore(createMemoryAdapter({ seed: board() }), {});
   await store.load();
   let redraws = 0;
@@ -69,10 +74,21 @@ test('Editing it writes the challenge, without redrawing mid-sentence', async ()
     store: store, ui: loadUi(), render: function () { redraws++; },
     today: function () { return DAY; }
   }));
-  H.edits.projChallenge(/** @type {any} */ ({ dataset: { id: 'pr4' }, value: 'Lab booked to March' }));
+  H.edits.projMission(/** @type {any} */ ({
+    dataset: { id: 'pr4' }, value: 'Prove it at 40 ppm\n\nTheir lab is slow'
+  }));
   await new Promise(function (r) { setTimeout(r, 25); });
-  eq(byId(store.snapshot().projects, 'pr4').note, 'Lab booked to March');
+  const p = byId(store.snapshot().projects, 'pr4');
+  eq(p.mission, 'Prove it at 40 ppm\n\nTheir lab is slow');
+  eq(p.note, '', 'the separate challenge is cleared');
+  eq(missionText(p), 'Prove it at 40 ppm\n\nTheir lab is slow', 'so it is shown once, not twice');
   eq(redraws, 0, 'silent, like every other free-text box');
+});
+
+test('The copied summary carries it as one section', () => {
+  const snap = board();
+  const text = projectSummary(snap, byId(snap.projects, 'pr4'), DAY, true);
+  ok(text.indexOf('MISSION & CHALLENGES\nTheir lab is slow') >= 0);
 });
 
 group('Tiles carry no details panel any more');
@@ -95,10 +111,10 @@ test('Both add forms ask, optionally', () => {
   });
 });
 
-test('Given, it is stored where an opportunity stores it; left blank, nothing is', () => {
+test('Given, it is stored as the mission; left blank, nothing is', () => {
   const base = { tab: 't1', personId: 'p1', name: 'x', meetingDate: DAY };
-  eq(newProject(Object.assign({ note: 'Supply' }, base)).note, 'Supply');
-  notOk('note' in newProject(base), 'no empty field written');
+  eq(newProject(Object.assign({ mission: 'Supply' }, base)).mission, 'Supply');
+  notOk('mission' in newProject(base), 'no empty field written');
 });
 
 test('Through the form', async () => {
@@ -113,4 +129,5 @@ test('Through the form', async () => {
   const made = store.snapshot().projects.filter(function (p) { return p.name === 'Resin swap'; })[0];
   ok(made);
   if (made) eq(made.mission, 'Supply', 'trimmed, into Mission & challenges');
+  if (made) notOk('note' in made, 'and nothing in the old challenge field');
 });

@@ -8,9 +8,16 @@
  *
  * ## Built on what the stylesheet already provides
  *
- * `.kpis` for the numbers strip, `.rp` rows for labelled fields, `.stat` for the
- * status control, `.alist`/`.arow` for actions. Only the notes needed anything new,
- * and that lives with the other page-specific rules in index.html.
+ * `.rp` rows for labelled fields, `.stat` for the status control, `.alist`/`.arow`
+ * for actions. Only the notes needed anything new, and that lives with the other
+ * page-specific rules in index.html.
+ *
+ * ## The order, as asked for
+ *
+ * Project (Meeting, Customer, Project, Project Type, Mission & challenges, Field,
+ * System, Product selection), then Status, Actions, Notes, and Commercial last
+ * (Annual value, Win confidence, Why we win). An opportunity's page is the same
+ * page: promotion changes where it is listed, never what it records.
  *
  * Two shapes here are dictated by the stylesheet rather than chosen, and breaking
  * either silently wrecks the layout:
@@ -34,20 +41,19 @@ import { byId } from '../lib/seq.js';
 import {
   isOpen, actsOf, personName, detailsArrived, raisedOn, oppStage, isOpportunity
 } from '../domain/queries.js';
-import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
+import { dueClass, dueLabel } from '../domain/dueness.js';
 import { STATUS_LABELS, STATUSES } from '../domain/constants.js';
 import { actionLabel } from '../domain/actions.js';
 import { notesFor, notesOpen, canEditNote } from '../domain/notes.js';
 import {
-  projectTitle, confidencePoints, valueOptions
+  projectTitle, valueOptions, missionText
 } from '../domain/projects.js';
-import { pageHeader, kpi } from './shell.js';
+import { pageHeader } from './shell.js';
 import {
   OPP_STAGE_LABELS, OPP_STAGE_CHIPS, decisionsFor
 } from '../domain/opportunities.js';
 import { pickerControl } from './pickers.js';
 import { actionEditor, editButton, editingAction } from './actionEditor.js';
-import { spark } from './spark.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -128,13 +134,8 @@ export function renderProject(snap, ui, env, p) {
   // never sent, not because the browser chose not to draw them. See detailsArrived().
   const canSeeCommercial = detailsArrived(snap);
 
-  // One reading is a number, not a trend. The line appears once the figure has
-  // actually been revisited in a later meeting.
-  const points = confidencePoints(p);
-
   const acts = actsOf(snap, p.id);
   const open = acts.filter(isOpen);
-  const overdue = open.filter(function (a) { return isOverdue(a, today); });
 
   /* ------------------------------------------------------------------ header */
 
@@ -163,6 +164,7 @@ export function renderProject(snap, ui, env, p) {
   // customer or with a placeholder name. Somewhere to correct that has to be the
   // first thing you find, not a row buried under the status control.
   const identity = '<section class="panel"><div class="pan-h"><h2>Project</h2></div>' +
+    row('Meeting', meetingPicker(snap, env, p)) +
     row('Customer',
       '<input class="fld wide" type="text" value="' + esc(p.customer || '') +
       '" data-edit="projCustomer" data-id="' + esc(p.id) +
@@ -171,17 +173,29 @@ export function renderProject(snap, ui, env, p) {
       '<input class="fld wide" type="text" value="' + esc(p.name || '') +
       '" data-edit="projName" data-id="' + esc(p.id) +
       '" placeholder="What it is" aria-label="Project name"' + dis(env) + '>') +
-    row('Field',
-      '<input class="fld wide" type="text" list="dl-field" value="' + esc(p.field || '') +
-      '" data-edit="projField" data-id="' + esc(p.id) +
-      '" placeholder="e.g. Coatings" aria-label="Field"' + dis(env) + '>') +
     row('Project Type',
       '<input class="fld wide" type="text" list="dl-ptype" value="' +
       esc(p.projectType || '') +
       '" data-edit="projType" data-id="' + esc(p.id) +
       '" placeholder="e.g. Trial" aria-label="Project type"' + dis(env) + '>') +
-    // Not on the shared project sheet, so after its four rows rather than among them.
-    row('Meeting', meetingPicker(snap, env, p)) +
+    // One box for what used to be Mission and Major challenge. A challenge typed
+    // before they were merged is shown under the mission until the box is next
+    // saved, which folds it in for good - see missionText().
+    row('Mission &amp; challenges',
+      '<textarea class="fld" rows="4" data-edit="projMission" data-id="' + esc(p.id) +
+      '" placeholder="What it is for, and what could stop it."' +
+      ' aria-label="Mission and challenges"' + dis(env) + '>' +
+      esc(missionText(p)) + '</textarea>') +
+    row('Field',
+      '<input class="fld wide" type="text" list="dl-field" value="' + esc(p.field || '') +
+      '" data-edit="projField" data-id="' + esc(p.id) +
+      '" placeholder="e.g. Coatings" aria-label="Field"' + dis(env) + '>') +
+    // The kinds of asset the work touches - scrubber tower, heat exchanger. Several
+    // per project, and a new one can be added from here as well as from Board
+    // settings.
+    row('System', pickerControl(snap, env, p, 'systems', 'system', { allowNew: true, ui: ui })) +
+    // Products stays settings-only: that list will come from Dataverse.
+    row('Product selection', pickerControl(snap, env, p, 'products', 'product')) +
     /*
      * The suggestions behind those two boxes: the curated list from Board
      * settings, UNIONED with whatever is already in use on a project.
@@ -200,48 +214,10 @@ export function renderProject(snap, ui, env, p) {
       valueOptions(snap.projects, itemsOf(snap, 'projectType'), 'projectType')) +
     '</section>';
 
-  /* ---------------------------------------------------- the numbers up front */
-
   // How long it has sat where it is. A project marked on track and untouched for
   // three months is telling you something, and nothing else in the board says it.
   const since = p.statusMeeting || p.added || p.start;
   const daysInStatus = since ? Math.max(diffDays(since, today), 0) : null;
-
-  const nextDue = open
-    .filter(function (a) { return a.due; })
-    .map(function (a) { return a.due; })
-    .sort()[0];
-
-  /*
-   * `.kpis` is `repeat(4, minmax(0,1fr))` - four slots, no more. A fifth stat does
-   * not error, it wraps onto a second row and leaves three empty cells.
-   *
-   * Value and confidence are shown SEPARATELY and never multiplied together here.
-   * The product of dollars and a percentage is not dollars, and printing it with a
-   * $ in front invites somebody to add a column of them up and quote the total as
-   * money. Whoever wants a risk-adjusted pipeline figure can weight it themselves,
-   * in the roll-up where the convention can be stated once - see Power BI report 8
-   * in the port plan.
-   *
-   * Days in status loses its slot to them: the Status panel header a few lines below
-   * already says "34 days as off track", so nothing is actually lost.
-   */
-  const numbers = '<section class="kpis" aria-label="At a glance">' +
-    kpi('', open.length, 'Open actions',
-      acts.length ? (acts.length - open.length) + ' closed' : 'none yet') +
-    kpi(overdue.length ? 'crit' : 'good', overdue.length, 'Overdue',
-      overdue.length ? 'past their date' : 'nothing late') +
-    // Only the value slot is conditional. Confidence sits on the project and is
-    // shown to everyone, so it keeps its place either way.
-    (canSeeCommercial
-      ? kpi('', details && details.estValue != null ? moneyShort(details.estValue) : '—',
-          'Annual value', 'dollars per year')
-      : kpi(daysInStatus != null && daysInStatus > 60 ? 'warn' : '',
-          daysInStatus == null ? '—' : daysInStatus, 'Days in status',
-          STATUS_LABELS[p.status] || p.status)) +
-    kpi('', p.winPct != null ? p.winPct + '%' : '—',
-      'Win confidence', 'how likely we are to land it') +
-    '</section>';
 
   /* --------------------------------------------------- status, dates, origin */
 
@@ -306,31 +282,13 @@ export function renderProject(snap, ui, env, p) {
     (origin ? row('Origin', '<span class="why">' + origin + '</span>') : '') +
     '</section>';
 
-  /* ----------------------------------------------------------------- mission */
-
-  const mission = '<section class="panel"><div class="pan-h"><h2>Mission</h2>' +
-    '<span class="sub">What this project is for</span></div>' +
-    '<textarea class="fld" rows="3" data-edit="projMission" data-id="' + esc(p.id) +
-    '" placeholder="Why this project exists, in a sentence or two."' + dis(env) + '>' +
-    esc(p.mission || '') + '</textarea></section>';
-
-  // Stored as `note`, which is what the opportunity form has always written it to.
-  // Shown for an opportunity and a project alike: promotion changes where it is
-  // listed, not what it records.
-  const challenge = '<section class="panel"><div class="pan-h"><h2>Major challenge</h2>' +
-    '<span class="sub">What could stop it</span></div>' +
-    '<textarea class="fld" rows="2" data-edit="projChallenge" data-id="' + esc(p.id) +
-    '" placeholder="The biggest thing in the way, if there is one."' + dis(env) + '>' +
-    esc(p.note || '') + '</textarea></section>';
-
   /* -------------------------------------------------------------- commercial */
 
   /*
    * One panel, two permission levels.
    *
    * The dollar value comes from the restricted list and may simply not be here.
-   * Everything else - confidence, why we win, products, focus, resources -
-   * lives on the project and is the team's. Those were all restricted until it was
+   * Confidence and why we win live on the project and are the team's. Those were all restricted until it was
    * pointed out that the value is the only part anyone needs to protect, and hiding
    * the rest merely stopped people discussing their own projects.
    *
@@ -352,23 +310,10 @@ export function renderProject(snap, ui, env, p) {
       esc(p.winPct == null ? '' : p.winPct) +
       '" data-edit="pdWin" data-id="' + esc(p.id) + '" aria-label="Win confidence percent"' +
       dis(env) + '><span class="why">Per cent</span>') +
-    (points.length >= 2
-      ? row('Confidence over time',
-          spark(points, {
-            min: 0, max: 100, grid: [0, 50, 100],
-            label: 'Win confidence across ' + points.length + ' meetings, now ' +
-              points[points.length - 1].v + ' per cent'
-          }) +
-          '<span class="why">' + points[0].v + '% when it was first judged, ' +
-          points[points.length - 1].v + '% now.</span>')
-      : '') +
     row('Why we win',
       '<textarea class="fld" rows="2" data-edit="pdReason" data-id="' + esc(p.id) +
       '" placeholder="What makes this ours to lose."' + dis(env) + '>' +
       esc(p.winReason || '') + '</textarea>') +
-    picker(snap, env, p, 'products', 'Product selection', 'product') +
-    picker(snap, env, p, 'focus', 'Focus', 'focus area') +
-    picker(snap, env, p, 'resources', 'Resources', 'resource') +
     '</section>';
 
   /* ----------------------------------------------------------------- actions */
@@ -392,8 +337,8 @@ export function renderProject(snap, ui, env, p) {
       : '') +
     '</section>';
 
-  return head + identity + numbers + statusPanel + mission + challenge + commercial +
-    actionsPanel + renderNotes(snap, ui, env, p);
+  return head + identity + statusPanel + actionsPanel + renderNotes(snap, ui, env, p) +
+    commercial;
 }
 
 /** The curated list for one settings key, however empty. */
@@ -421,10 +366,6 @@ function row(label, body) {
 }
 
 /** One of the project's multi-value fields, framed as a labelled row. */
-function picker(snap, env, p, field, label, noun) {
-  return row(label, pickerControl(snap, env, p, field, noun));
-}
-
 /**
  * Action rows. Exactly four children each, because `.arow` is a four-column grid.
  *

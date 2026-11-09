@@ -444,14 +444,15 @@ test('A field or type with no members says which', () => {
 
 group('Field and Project Type as project fields');
 
-test('They are editable on the project page, in the sheet order', () => {
+test('They are editable on the project page, Project Type before Field', () => {
   const html = renderApp(demoBoard(),
     Object.assign({}, base, { view: 'project', project: 'pr1' }),
     { today: TODAY, modes: MODES, identity: { personId: 'p1' } });
 
   ok(/data-edit="projField"/.test(html));
   ok(/data-edit="projType"/.test(html));
-  ok(html.indexOf('data-edit="projField"') < html.indexOf('data-edit="projType"'));
+  ok(html.indexOf('data-edit="projType"') < html.indexOf('data-edit="projField"'),
+    'the order asked for: Project Type, Mission & challenges, then Field');
 });
 
 test('Each offers a datalist of what colleagues already typed', () => {

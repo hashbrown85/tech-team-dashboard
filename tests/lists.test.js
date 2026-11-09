@@ -279,12 +279,14 @@ test('The route id is unchanged, so a remembered session still lands here', () =
   ok(/data-act="go" data-v="people"/.test(page()));
 });
 
-test('All five lists are there, with Fields and Project types leading', () => {
+test('The four lists are there, with Fields and Project types leading', () => {
   const html = page();
-  ['Fields', 'Project types', 'Products', 'Focus', 'Potential resources']
+  ['Fields', 'Project types', 'Systems', 'Products']
     .forEach(function (t) {
       ok(html.indexOf('<h2>' + t + '</h2>') > 0, t + ' has a panel');
     });
+  notOk(html.indexOf('<h2>Focus</h2>') > 0, 'Focus is gone');
+  notOk(html.indexOf('<h2>Potential resources</h2>') > 0, 'and so are Potential resources');
   ok(html.indexOf('<h2>Fields</h2>') < html.indexOf('<h2>Products</h2>'),
     'the self-growing ones come first');
 });
@@ -296,9 +298,9 @@ test('Each value shows how many projects use it', () => {
     'Coatings is used by two projects');
 });
 
-test('The four renameable lists offer it; Products does not', () => {
+test('Fields, Project types and Systems can be renamed; Products cannot', () => {
   const html = page();
-  ['field', 'projectType', 'focus', 'resources'].forEach(function (k) {
+  ['field', 'projectType', 'systems'].forEach(function (k) {
     ok(html.indexOf('data-act="editListVal" data-key="' + k + '"') > 0, k + ' renameable');
   });
   notOk(html.indexOf('data-act="editListVal" data-key="products"') > 0,

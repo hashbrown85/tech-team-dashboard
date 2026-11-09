@@ -90,6 +90,7 @@ export function demoBoard(from) {
         ],
         winReason: 'Only supplier with the low-VOC data package',
         products: ['Testex 12 clear', 'Demo-Bond 7'],
+        systems: ['Scrubber tower', 'Heat exchanger'],
         resources: ['Rheometer'], focus: ['Corrosion', 'Scale'],
         due: addDays(thisMonday, 24), added: lastMonday },
       { id: 'pr2', tab: 't1', personId: 'p2', name: 'Sealant reformulation', status: 'off',
@@ -198,6 +199,8 @@ export function demoBoard(from) {
       // What the customer cares about most, not what the project is made of.
       focus: { items: ['Corrosion', 'Scale', 'Pipeline', 'Rod Pumps', 'Paraffin'] },
       resources: { items: ['Pilot reactor', 'Rheometer', 'Weathering cabinet', 'External lab'] },
+      // The kinds of asset a project works on. Invented, like everything here.
+      systems: { items: ['Downhole', 'Gas lift', 'Heat exchanger', 'Rod pump', 'Scrubber tower'] },
       // Invented product names. The real list lives in Dataverse; this row stands
       // in for it until that is reachable. See projects.products in the schema.
       products: {

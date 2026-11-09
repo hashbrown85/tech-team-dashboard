@@ -22,6 +22,7 @@ import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
 import { looksLikeSnapshot } from './adapters/localAdapter.js';
 import { upnKey } from './identity.js';
 import { setTheme } from './lib/theme.js';
+import { NEW_VALUE } from './views/pickers.js';
 import { adminsOf, viewerIsAdmin } from './domain/scope.js';
 import {
   statusChange, newProject, newOpportunity, projectSummary, reorderProjects,
@@ -512,6 +513,7 @@ export function createHandlers(app) {
     },
 
     delFieldVal: function (el, id, v) { removeFromList('field', v); },
+    delSystemVal: function (el, id, v) { removeFromList('systems', v); },
     delTypeVal: function (el, id, v) { removeFromList('projectType', v); },
     delFocus: function (el, id, v) { removeFromList('focus', v); },
     delResource: function (el, id, v) { removeFromList('resources', v); },
@@ -715,19 +717,21 @@ export function createHandlers(app) {
       const value = el.value;
       if (!value) return;          // the "+ Add a product" placeholder
       el.value = '';
+      // "+ New system..." opens a box to type one that is not on the list yet.
+      if (value === NEW_VALUE) {
+        ui.open = 'newval:' + el.dataset.f + ':' + el.dataset.id;
+        render();
+        focusFirst();
+        return;
+      }
       pickValue(el.dataset.id, el.dataset.f, value, true);
-    },
-
-    // The major challenge: raised with an opportunity, kept through promotion, and
-    // editable on the tile's details panel and the project page alike.
-    projChallenge: function (el) {
-      store.update('projects', el.dataset.id, { note: el.value }, { silent: true });
     },
 
     projMission: function (el) {
       // Silent, like every other free-text field: a redraw mid-sentence would take
-      // the caret with it. See the note on actionDue.
-      store.update('projects', el.dataset.id, { mission: el.value }, { silent: true });
+      // the caret with it. See the note on actionDue. Clearing `note` is what folds
+      // an old separate challenge into the one box for good - see missionText().
+      store.update('projects', el.dataset.id, { mission: el.value, note: '' }, { silent: true });
     },
 
     /*
@@ -905,7 +909,7 @@ export function createHandlers(app) {
    * @param {boolean} add - true to add, false to remove
    */
   function pickValue(id, field, value, add) {
-    if (['products', 'focus', 'resources'].indexOf(field) < 0) return;
+    if (['products', 'focus', 'resources', 'systems'].indexOf(field) < 0) return;
 
     const p = byId(store.snapshot().projects, id);
     if (!p) return;
@@ -1232,6 +1236,34 @@ export function createHandlers(app) {
     },
 
     fieldVal: function (fd) { addToList('field', fd); },
+    systemVal: function (fd) { addToList('systems', fd); },
+
+    /*
+     * A value typed into a picker's "+ New ..." box (System). Settled against the
+     * list first, so "scrubber tower" lands as the listed "Scrubber tower" rather
+     * than a second entry. Then two writes, never a batch, for the reason given at
+     * the combo-box handler: the project, and - only if this reader may change
+     * settings - the list.
+     */
+    newPickValue: function (fd, form) {
+      const field = form && form.dataset ? form.dataset.key : '';
+      const id = form && form.dataset ? form.dataset.id : '';
+      if (field !== 'systems') return;
+      const p = byId(store.snapshot().projects, id);
+      if (!p) return;
+      const settled = canonicalValue(itemsOf(field), String(fd.get('value') || ''));
+      if (!settled.value) return;
+      ui.open = null;
+      const chosen = (p[field] || []).slice();
+      if (chosen.indexOf(settled.value) < 0) {
+        chosen.push(settled.value);
+        const patch = {};
+        patch[field] = chosen;
+        store.update('projects', id, patch).then(render);
+      }
+      if (settled.add && store.canWrite('settings')) growList(field, settled.add);
+      render();
+    },
     typeVal: function (fd) { addToList('projectType', fd); },
     focus: function (fd) { addToList('focus', fd); },
     resource: function (fd) { addToList('resources', fd); },

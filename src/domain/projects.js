@@ -293,9 +293,13 @@ export function projectSummary(snap, p, today, withValue) {
   L.push('Status: ' + (STATUS_LABELS[p.status] || p.status) +
     (p.due ? '  |  Due ' + fmtLong(p.due) : '  |  No due date'));
 
-  if (p.mission) {
-    L.push('', 'MISSION');
-    L.push(p.mission);
+  if (missionText(p)) {
+    L.push('', 'MISSION & CHALLENGES');
+    L.push(missionText(p));
+  }
+  if (p.systems && p.systems.length) {
+    L.push('', 'SYSTEM');
+    L.push(p.systems.join(', '));
   }
 
   // Only the dollar figure is withheld. Confidence, why-we-win and the product
@@ -312,12 +316,6 @@ export function projectSummary(snap, p, today, withValue) {
     if (p.winReason) L.push('• Why we win: ' + p.winReason);
     if (p.products && p.products.length) {
       L.push('• Product selection: ' + p.products.join(', '));
-    }
-    if (p.focus && p.focus.length) {
-      L.push('• Focus: ' + p.focus.join(', '));
-    }
-    if (p.resources && p.resources.length) {
-      L.push('• Resources: ' + p.resources.join(', '));
     }
   }
 
@@ -424,6 +422,25 @@ export function reorderProjects(snap, tabId, projectId, delta, visible) {
     }
   });
   return writes.length ? writes : null;
+}
+
+/**
+ * Mission & challenges, as one text.
+ *
+ * They used to be two fields: `mission`, and the major challenge in `note`. They
+ * are one box now. A project still holding a separate challenge shows it under the
+ * mission, after a blank line; saving the box writes the combined text to
+ * `mission` and clears `note`, so it is folded in once and never shown twice.
+ *
+ * @param {any} p
+ * @returns {string}
+ */
+export function missionText(p) {
+  const m = String((p && p.mission) || '').trim();
+  const n = String((p && p.note) || '').trim();
+  if (!n) return (p && p.mission) || '';
+  if (!m) return n;
+  return m + '\n\n' + n;
 }
 
 /**
@@ -749,8 +766,11 @@ export function distinctValues(projects, key) {
 export const RENAMEABLE_LISTS = {
   field: { label: 'Field', multi: false },
   projectType: { label: 'Project type', multi: false },
+  // Focus and resources are no longer shown or collected; kept here so values
+  // already stored could still be renamed if the lists come back.
   focus: { label: 'Focus', multi: true },
-  resources: { label: 'Potential resource', multi: true }
+  resources: { label: 'Potential resource', multi: true },
+  systems: { label: 'System', multi: true }
 };
 
 /**

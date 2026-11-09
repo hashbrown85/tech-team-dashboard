@@ -287,6 +287,7 @@ function matrix() {
     ['board settings', { view: 'config' }],
     ['board settings, renaming', { view: 'config', open: 'listval:field:Coatings' }],
     ['project page', { view: 'project', project: 'pr1' }],
+    ['project page, adding a system', { view: 'project', project: 'pr1', open: 'newval:systems:pr1' }],
     ['project page, note editor', { view: 'project', project: 'pr2', open: 'note:n1' }],
     ['projects list', { view: 'projects' }],
     ['projects list, searched', { view: 'projects', projQuery: 'coat' }],
