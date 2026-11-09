@@ -344,13 +344,9 @@ function projectRow(snap, env, p, showValue) {
   const overdue = p.due && p.due < env.today;
   const details = byId(snap.projectDetails, p.id);
 
-  const focus = (p.focus || []).length
-    ? '<div class="k">' + (p.focus || []).map(esc).join(' · ') + '</div>'
-    : '';
-
   return '<tr>' +
     '<td><button type="button" class="linkbtn" data-act="openProject" data-id="' +
-    esc(p.id) + '">' + esc(projectTitle(p)) + '</button>' + focus + '</td>' +
+    esc(p.id) + '">' + esc(projectTitle(p)) + '</button></td>' +
     '<td class="k">' + esc(p.field || '—') + '</td>' +
     '<td class="k">' + esc(p.projectType || '—') + '</td>' +
     '<td class="k">' + esc(tab ? tab.name : '—') + '</td>' +

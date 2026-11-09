@@ -82,14 +82,12 @@ Go to **Current Projects** (segment 3). Under each person, **+ Project**.
 > meeting**. If a name is missing, they are not on the attendance list.
 
 For each: the customer, the name, a due date, a status. Then open one and fill in the
-details — Field, Project Type, Focus, the commercial numbers — to see how long a full
-one takes. That timing is worth knowing before you ask fifteen people to do it.
+details — Project Type, Mission & challenges, Field, System, Product selection, the
+commercial numbers — to see how long a full one takes. That timing is worth knowing before you ask fifteen people to do it.
 
-> ⚠️ **Do not enter today's existing projects as Opportunities.** An opportunity
-> raised today deliberately does not become a visible project until next week's
-> meeting — that is the board saying "you pitched it, now it is real work". If you
-> use the opportunity form for something that already exists, it will vanish until
-> next Monday and look like a bug.
+> ⚠️ **Enter today's existing projects with + Project, not + Opportunity.** An
+> opportunity waits on the Horizon until somebody promotes it, so something already
+> under way entered as one will not be in Current projects until you do.
 
 ### 5. What is already owed
 
@@ -105,16 +103,17 @@ just spent half an hour; do not leave it in one browser.
 
 ## Part 2 — Run the meeting (about 20 minutes)
 
-Work the five segments in order, as though the room were there. Say the words out
+Work the three segments, as though the room were there. Projects is the main one;
+Wins & Losses and Issues are a click away when one comes up. Say the words out
 loud if you can — it catches things reading never does.
 
 | # | Segment | Do this | Watch for |
 |---|---|---|---|
-| 1 | **Wins & Losses** | **+ Win or loss** for two people. Make one a loss, which asks what you will do differently | Does the extra question appear only for a loss? |
-| 2 | **New Opportunities** | Raise one properly, with a challenge | It should **not** appear in Current Projects today. That is correct |
-| 3 | **Current Projects** | Set a status on each. Mark one **off track**. Use the ▲▼ arrows. Click a project name to filter the rail | Off-track should appear in Issues. Does the rail show that project's actions, open first, last finished at the top? |
-| 4 | **Issues** | The longest segment. Work the queue: agree an action, **one** owner, a date. Then in **Already Owed**, push one date and re-date another | Does the owned issue leave the queue? Does the overdue label update without a reload? |
-| 5 | **Rate the Meeting** | Score it, add the note | Does the trend line appear? |
+| 1 | **Projects** — Horizon | **+ Opportunity**, then Promote one, Put one on hold, Cancel one. Fold the section and unfold it | Promoted drops into Current projects. Held stays on the Horizon |
+| 2 | **Projects** — Current | Set a status on each. Mark one **off track**. Use the ▲▼ arrows. Click **Filter actions** | Off-track should appear in Issues. Does the rail show that project's actions? |
+| 3 | **Wins & Losses** | **+ Win or loss** for two people. Make one a loss, which asks what you will do differently | Does the extra question appear only for a loss? |
+| 4 | **Issues** | Work the queue: agree an action, **one** owner, a date. Then in **Already Owed**, push one date and re-date another | Does the owned issue leave the queue? Does the overdue label update without a reload? |
+| 5 | **Summary** (top right) | Open it, press **Email** | Outlook opens addressed to the meeting, with the summary in it or ready to paste |
 
 Then the between-meetings screens: **Action items** (sort each column, search, check
 the Origin column, Reset), **Projects**, **Timeline**, and a **project page**.

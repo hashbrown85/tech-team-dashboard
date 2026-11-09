@@ -142,11 +142,13 @@ made (`src/domain/opportunities.js`):
 
 - **Promote to project** — in Current Projects from the meeting that decided it
   (`promotedOn`), and in the Projects list.
-- **Put on hold** — parked; it stays under New Opportunities.
+- **Put on hold** — parked; it stays on the Horizon.
 - **Cancel** — not going ahead; it shows as cancelled at that meeting, then leaves.
 
-Until then it is listed under New Opportunities at every meeting of its tab (raised
-earlier and still open or on hold), and left out of everything that lists projects:
+Until then it is listed on the **Horizon** - the top section of a meeting's Projects
+step - at every meeting of its tab from the one it was raised in (`horizonFor`), with
+those decided at that meeting kept in view; and it is left out of everything that
+lists projects:
 Current Projects, the Projects list and its count, the Timeline, the Business
 Review and the meeting summary's project section. `isOpportunity()` in
 `src/domain/queries.js` is the one question all of those ask. Actions can attach to
@@ -316,21 +318,27 @@ Implemented in `src/domain/notes.js`.
 
 ### Who may change one
 
-**Only the author**, and only while the project is still live.
+**Anybody may edit any note**, while the project is still live, because every edit
+keeps what it replaced: `editNote` pushes the old wording onto `history` (`{text,
+at, by}`, newest first) and stamps `edited` / `editedBy`. The page says who changed a
+note and folds the earlier wordings under "Show earlier". **Removing** a note is its
+author's alone, since removing takes the history with it.
 
-Be clear about what that is: it is a **courtesy, not a control**. It stops people
-accidentally rewriting each other's notes. It is enforced in the browser, and
-SharePoint cannot express per-item authorship without item-level permissions — which
-is a different and much heavier thing. Anyone with Contribute on the list could still
-edit any note directly.
+It used to be author-only, which on a local board with nobody chosen under "You are"
+meant nobody could edit a note at all.
+
+Be clear about what the remove rule is: a **courtesy, not a control**. It is
+enforced in the browser, and SharePoint cannot express per-item authorship without
+item-level permissions. Anyone with Contribute on the list could still change any
+note directly.
 
 That is fine for working notes. It would not be fine for anything sensitive, which is
 why sensitive numbers live in `projectDetails` instead, on their own permissioned
 list. The distinction is the point.
 
-Somebody not on the roster has no person id. They can still write a note — it is
-stored with an empty `authorId` — but they can never edit one, because two such
-people cannot be told apart.
+Somebody not on the roster has no person id. They can write and edit notes — stored
+with an empty `authorId` / `editedBy` — but never remove one, because two such people
+cannot be told apart.
 
 ### They lock when the project finishes
 
@@ -471,8 +479,8 @@ extraction is finished.
 - **`doneOn` uses today's date, everything else uses the meeting date**
   (board.html:1637). Not wrong exactly, but inconsistent, and it means an action
   closed while reviewing last week's meeting is stamped with today.
-- **A rating and a meeting note written at the same moment can clobber each other**,
-  because both writers replace the whole `meetings` document rather than patching it.
+- ~~**A rating and a meeting note written at the same moment can clobber each
+  other.**~~ Moot: ratings and the closing note were removed from the board.
 
 - **`fmt()` renders an unparseable date as the literal text "undefined NaN".**
   Every caller today guards against a missing date first, so it does not show. Worth
