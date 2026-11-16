@@ -141,8 +141,9 @@ export function copilotPrompt(snap, tab, d) {
   const L = [];
   L.push('You are helping update a meeting board after the "' + tab.name +
     '" meeting on ' + fmtLong(d) + '.');
-  L.push('Read the meeting transcript or recap (it is either already available to you, or ' +
-    'pasted below this prompt) and suggest changes to the board.');
+  L.push('Read the meeting transcript or recap (it is already available to you, attached ' +
+    'as a file, or pasted below this prompt) - all of it, start to finish - and suggest ' +
+    'changes to the board.');
   L.push('');
   L.push('Reply with ONE JSON object and nothing else, in exactly this shape. Leave out any ' +
     'list that has nothing in it. Only suggest something if the meeting clearly said it; ' +

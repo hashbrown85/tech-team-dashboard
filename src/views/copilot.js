@@ -32,7 +32,7 @@ export function copilotPanel(snap, ui, env, tab, d) {
     '<ol class="cp-steps">' +
     '<li><button class="btn sm" type="button" data-act="copilotPrompt">Copy prompt</button> ' +
     '<span class="why">Paste it into Copilot - in the Teams meeting chat it already has the ' +
-    'transcript; anywhere else, paste the recap after it.</span></li>' +
+    'transcript; anywhere else, attach the transcript file (.docx) to the same message.</span></li>' +
     '<li><span class="why">Paste Copilot’s whole reply here:</span>' +
     '<form class="add" data-form="copilotReply">' +
     '<textarea class="fld full" name="reply" rows="4" required ' +
