@@ -65,7 +65,7 @@ test('It splits at the first @, so a date is never mangled', () => {
 
 test('A missing meeting reads as empty rather than undefined', () => {
   const snap = board();
-  eq(getMeeting(snap, 't1', MEETING), { ratings: {}, note: '' });
+  eq(getMeeting(snap, 't1', MEETING), { ratings: {}, note: '', discussed: '' });
 });
 
 test('Reading a missing meeting does not create one', () => {
@@ -141,7 +141,7 @@ test('Writing the note keeps the ratings alongside it', () => {
   const snap = board();
   snap.meetings[memoryKey('t1', MEETING)] = { ratings: { p1: 4 }, note: 'old' };
 
-  eq(setNote(snap, 't1', MEETING, 'new'), { ratings: { p1: 4 }, note: 'new' });
+  eq(setNote(snap, 't1', MEETING, 'new'), { ratings: { p1: 4 }, note: 'new', discussed: '' });
 });
 
 test('Both writers replace the whole record — which is the documented race', () => {

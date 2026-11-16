@@ -34,11 +34,12 @@ import {
   ACTIVE_STATUSES, segmentsFor, stepIndex, TECHDIR_TAB_ID
 } from '../domain/constants.js';
 import {
-  meetingDate, nextMeetingAfter, meetingSummary,
+  meetingDate, nextMeetingAfter, meetingSummary, getMeeting,
   summaryRecipients
 } from '../domain/meetings.js';
 import { actionLabel } from '../domain/actions.js';
 import { stepOf } from '../ui.js';
+import { copilotPanel } from './copilot.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -98,6 +99,9 @@ export function renderMeeting(snap, ui, env, tab) {
     // segment, where it used to live - so it sits in the header.
     '<button class="btn sm" type="button" data-act="toggleSummary" aria-expanded="' +
     (ui.sumShow ? 'true' : 'false') + '">Summary</button>' +
+    // Turning a Copilot recap into proposed board changes. See views/copilot.js.
+    '<button class="btn ghost sm" type="button" data-act="toggleCopilot" aria-expanded="' +
+    (ui.copilotShow ? 'true' : 'false') + '">Copilot</button>' +
     '<button class="btn ghost sm" type="button" data-act="openSettings">Settings</button>';
 
   const head = '<header class="ph"><div><div class="lbl">' +
@@ -145,7 +149,8 @@ export function renderMeeting(snap, ui, env, tab) {
       : '') +
     '</div>' + (showTimer ? '<div class="t-hint" id="t-hint"></div>' : '');
 
-  return head + (ui.sumShow ? summaryPanel(snap, env, tab, d) : '') + stepper +
+  return head + (ui.copilotShow ? copilotPanel(snap, ui, env, tab, d) : '') +
+    (ui.sumShow ? summaryPanel(snap, env, tab, d) : '') + stepper +
     '<div class="mgrid">' +
     '<section class="panel stage" aria-live="polite">' +
     renderStage(snap, ui, env, tab, step, d, ents, segs) +
@@ -284,6 +289,13 @@ function summaryPanel(snap, env, tab, d) {
     '<p class="sub">Email opens a new message to them with the subject filled in. ' +
     'The summary is copied at the same time; if it is not already in the message, ' +
     'paste it in (Ctrl+V).</p>' +
+    // Topics talked through that did not necessarily touch the board. Saved when
+    // you click out of the box, and the summary below picks them up then.
+    '<label class="lbl" for="f-discussed">Discussed <span class="why">one topic per line' +
+    '</span></label>' +
+    '<textarea class="fld" id="f-discussed" rows="4" data-edit="meetingDiscussed"' +
+    ' placeholder="Topics talked through that did not change the board"' + dis(env) + '>' +
+    esc(getMeeting(snap, tab.id, d).discussed) + '</textarea>' +
     '<div class="sumbox"><textarea class="fld mono" id="f-summary" rows="18" readonly ' +
     'aria-label="Summary text">' + esc(meetingSummary(snap, tab, d, env.today)) +
     '</textarea></div></section>';

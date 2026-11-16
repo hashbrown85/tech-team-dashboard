@@ -58,6 +58,8 @@ const MODULES = [
   '../src/views/people.js',
   '../src/views/config.js',
   '../src/views/actionEditor.js',
+  '../src/views/copilot.js',
+  '../src/domain/copilot.js',
   '../src/domain/opportunities.js',
   '../src/views/settings.js',
   // Added late and easy to forget - which is exactly what this list is for. A

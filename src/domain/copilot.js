@@ -1,0 +1,371 @@
+// @ts-check
+/**
+ * Copilot, by copy and paste: turn a meeting recap into proposed board changes.
+ *
+ * The board cannot call Copilot - it is a page in a browser, and Copilot lives in
+ * Microsoft 365. So the round trip goes through the clipboard:
+ *
+ *   1. copilotPrompt() builds a prompt holding this meeting's people, projects,
+ *      Horizon and open issues, and asks for one JSON reply in a fixed shape.
+ *   2. Kevin pastes it into Copilot (ideally the Teams meeting chat, which already
+ *      has the transcript) and pastes the reply back.
+ *   3. readReply() pulls the JSON out of whatever Copilot wrapped it in.
+ *   4. proposalsFrom() checks every suggestion against the board as it is NOW and
+ *      returns a list to tick through. Anything that names a project, issue or
+ *      person the board does not have is shown with the reason and cannot be
+ *      applied - Copilot is guessing from a transcript and will garble names.
+ *   5. planFrom() turns the ticked ones into the same writes the board's own
+ *      buttons make, so nothing here has its own idea of what a status change is.
+ *
+ * The prompt and the reply shape are also what the automated version will use
+ * once the board is on SharePoint: a flow sends this prompt with the transcript
+ * and drops the reply where the board can find it. Only the transport changes.
+ *
+ * Pure: no DOM, no store. The handler applies what planFrom returns.
+ */
+
+import { byId } from '../lib/seq.js';
+import { attendeeIds, issueItems, isOpportunity, oppStage } from './queries.js';
+import { STATUSES, STATUS_LABELS, SEVERITIES } from './constants.js';
+import { projectTitle, newOpportunity, statusChange } from './projects.js';
+import { decisionsFor, decideOpportunity, horizonFor } from './opportunities.js';
+import { newIssue } from './issues.js';
+import { fmtLong } from '../lib/dates.js';
+
+/**
+ * @typedef {import('./queries.js').Snapshot} Snapshot
+ *
+ * @typedef {object} Proposal
+ * @property {string} key - stable within one reply: '<section>.<index>'
+ * @property {string} kind - win | loss | opportunity | decision | status | issue | action | discussed
+ * @property {string} text - what it would do, in words
+ * @property {boolean} ok - false when it cannot be applied as given
+ * @property {string} reason - why not, when ok is false
+ * @property {any} payload - what planFrom needs
+ */
+
+/** Projects in this meeting that the prompt offers by id: live, not opportunities. */
+function liveProjects(snap, tab) {
+  return snap.projects.filter(function (p) {
+    return p.tab === tab.id && !isOpportunity(p) &&
+      ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0;
+  });
+}
+
+/** People in this meeting first, then everyone else. */
+function peopleFor(snap, tab) {
+  const ids = attendeeIds(tab);
+  const inMeeting = snap.people.filter(function (p) { return ids.indexOf(p.id) >= 0; });
+  const rest = snap.people.filter(function (p) { return ids.indexOf(p.id) < 0; });
+  return inMeeting.concat(rest);
+}
+
+/**
+ * The prompt to paste into Copilot.
+ *
+ * Written for Copilot, not for a person: exact shape, exact ids, and an explicit
+ * "leave it out if unsure", because a missing suggestion costs nothing and a
+ * wrong one costs a correction.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} d - the meeting date
+ * @returns {string}
+ */
+export function copilotPrompt(snap, tab, d) {
+  const L = [];
+  L.push('You are helping update a meeting board after the "' + tab.name +
+    '" meeting on ' + fmtLong(d) + '.');
+  L.push('Read the meeting transcript or recap (it is either already available to you, or ' +
+    'pasted below this prompt) and suggest changes to the board.');
+  L.push('');
+  L.push('Reply with ONE JSON object and nothing else, in exactly this shape. Leave out any ' +
+    'list that has nothing in it. Only suggest something if the meeting clearly said it; ' +
+    'if unsure, leave it out.');
+  L.push('');
+  L.push('{');
+  L.push('  "wins_losses": [{"kind": "win or loss", "person": "name", "text": "what happened", ' +
+    '"why": "why it happened", "change": "for a loss: what we will do differently"}],');
+  L.push('  "new_opportunities": [{"customer": "", "title": "", "owner": "name", ' +
+    '"mission": "what it is for and what could stop it"}],');
+  L.push('  "opportunity_decisions": [{"id": "an id from HORIZON", ' +
+    '"decision": "promoted or hold or cancelled"}],');
+  L.push('  "status_changes": [{"id": "an id from CURRENT PROJECTS", ' +
+    '"status": "on or off or hold or cancelled or done"}],');
+  L.push('  "issues": [{"text": "", "owner": "name", "severity": "stopper or risk"}],');
+  L.push('  "actions": [{"text": "", "owner": "name", "due": "YYYY-MM-DD", ' +
+    '"related_id": "an id from CURRENT PROJECTS, HORIZON or OPEN ISSUES, or empty"}],');
+  L.push('  "discussed": ["a short line for each topic talked through that is not one of ' +
+    'the changes above"]');
+  L.push('}');
+  L.push('');
+  L.push('Rules: use ids and names exactly as listed below. status "on" means on track, ' +
+    '"off" means off track. Severity "stopper" is urgent, "risk" is important. Dates as ' +
+    'YYYY-MM-DD; if a due date was said as a weekday, give the next one after ' + d + '.');
+  L.push('');
+  L.push('PEOPLE');
+  peopleFor(snap, tab).forEach(function (p) { L.push('- ' + p.name); });
+  L.push('');
+  L.push('CURRENT PROJECTS (id | name | status)');
+  const live = liveProjects(snap, tab);
+  if (!live.length) L.push('- none');
+  live.forEach(function (p) {
+    L.push('- ' + p.id + ' | ' + projectTitle(p) + ' | ' + (STATUS_LABELS[p.status] || p.status));
+  });
+  L.push('');
+  L.push('HORIZON - opportunities waiting for a decision (id | name)');
+  const opps = horizonFor(snap, tab.id, d).filter(function (p) {
+    const s = oppStage(p);
+    return s === 'open' || s === 'hold';
+  });
+  if (!opps.length) L.push('- none');
+  opps.forEach(function (p) {
+    L.push('- ' + p.id + ' | ' + projectTitle(p) + (oppStage(p) === 'hold' ? ' (on hold)' : ''));
+  });
+  L.push('');
+  L.push('OPEN ISSUES (id | issue)');
+  const issues = snap.issues.filter(function (i) { return i.tab === tab.id && i.status === 'open'; });
+  if (!issues.length) L.push('- none');
+  issues.forEach(function (i) { L.push('- ' + i.id + ' | ' + i.text); });
+  L.push('');
+  L.push('MEETING RECAP OR TRANSCRIPT (if not already available to you):');
+  L.push('');
+  return L.join('\n');
+}
+
+/**
+ * The JSON in Copilot's reply, wherever it is.
+ *
+ * Copilot tends to wrap JSON in a ```json fence, or put a sentence before it.
+ * Everything from the first "{" to the last "}" is tried, which handles both.
+ *
+ * @param {string} text
+ * @returns {{ok: boolean, data: any, error: string}}
+ */
+export function readReply(text) {
+  const s = String(text || '');
+  const a = s.indexOf('{');
+  const b = s.lastIndexOf('}');
+  if (a < 0 || b <= a) {
+    return { ok: false, data: null, error: 'There is no JSON in that reply. Ask Copilot to ' +
+      'reply with the JSON only, using the prompt.' };
+  }
+  try {
+    const data = JSON.parse(s.slice(a, b + 1));
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not an object');
+    return { ok: true, data: data, error: '' };
+  } catch (e) {
+    return { ok: false, data: null, error: 'That reply is not readable JSON (' +
+      String(e && e.message || e) + '). Copy the whole reply, including the braces.' };
+  }
+}
+
+/**
+ * A roster person from a name Copilot wrote.
+ *
+ * Exact full name first, ignoring case. Then a first name, but only when exactly
+ * one person has it - preferring the meeting's own people. Anything else is no
+ * match, never a guess.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {any} name
+ * @returns {any | null}
+ */
+export function personFor(snap, tab, name) {
+  const want = String(name || '').trim().toLowerCase();
+  if (!want) return null;
+  const exact = snap.people.filter(function (p) { return String(p.name).toLowerCase() === want; });
+  if (exact.length === 1) return exact[0];
+  const first = function (p) { return String(p.name).split(/\s+/)[0].toLowerCase(); };
+  const ids = attendeeIds(tab);
+  const inMeeting = snap.people.filter(function (p) { return ids.indexOf(p.id) >= 0 && first(p) === want; });
+  if (inMeeting.length === 1) return inMeeting[0];
+  const anyone = snap.people.filter(function (p) { return first(p) === want; });
+  return anyone.length === 1 ? anyone[0] : null;
+}
+
+/** A list from the reply, or empty when it is missing or not a list. */
+function listOf(data, key) {
+  return data && Array.isArray(data[key]) ? data[key] : [];
+}
+
+function str(v) {
+  return String(v == null ? '' : v).trim();
+}
+
+/** A real calendar date as YYYY-MM-DD, or ''. */
+function dateOf(v) {
+  const s = str(v);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const t = new Date(s + 'T00:00:00Z');
+  return !isNaN(t.getTime()) && t.toISOString().slice(0, 10) === s ? s : '';
+}
+
+/**
+ * Every suggestion in the reply, checked against the board as it is now.
+ *
+ * Checked at render, not when pasted: if somebody promotes an opportunity by hand
+ * while the checklist is open, the suggestion to promote it turns into "already
+ * decided" rather than applying twice.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} d
+ * @param {any} data - the reply, from readReply
+ * @returns {Proposal[]}
+ */
+export function proposalsFrom(snap, tab, d, data) {
+  /** @type {Proposal[]} */
+  const out = [];
+  function add(key, kind, text, reason, payload) {
+    out.push({ key: key, kind: kind, text: text, ok: !reason, reason: reason || '', payload: payload });
+  }
+
+  listOf(data, 'wins_losses').forEach(function (w, i) {
+    const kind = str(w && w.kind).toLowerCase() === 'loss' ? 'loss' : 'win';
+    const who = personFor(snap, tab, w && w.person);
+    const text = str(w && w.text);
+    const change = str(w && w.change);
+    add('wins_losses.' + i, kind, (kind === 'win' ? 'Win' : 'Loss') + ' · ' +
+      (who ? who.name : str(w && w.person) || '?') + ': ' + text +
+      (str(w && w.why) ? '. Why: ' + str(w.why) : '') +
+      (change ? (kind === 'loss' ? '. Doing differently: ' : '. Keep doing: ') + change : ''),
+      !text ? 'Nothing to record.'
+        : !who ? 'Nobody on the roster is called "' + str(w && w.person) + '".'
+        : kind === 'loss' && !change ? 'A loss needs what we will do differently.' : '',
+      { kind: kind, personId: who && who.id, text: text, why: str(w && w.why), change: change });
+  });
+
+  listOf(data, 'new_opportunities').forEach(function (o, i) {
+    const who = personFor(snap, tab, o && o.owner);
+    const title = str(o && o.title);
+    const customer = str(o && o.customer);
+    add('new_opportunities.' + i, 'opportunity', 'New opportunity · ' +
+      (customer ? customer + ' - ' : '') + title + ' (' + (who ? who.name : str(o && o.owner) || '?') + ')',
+      !title ? 'It has no title.'
+        : !who ? 'Nobody on the roster is called "' + str(o && o.owner) + '".' : '',
+      { personId: who && who.id, customer: customer, title: title, mission: str(o && o.mission) });
+  });
+
+  listOf(data, 'opportunity_decisions').forEach(function (o, i) {
+    const p = byId(snap.projects, str(o && o.id));
+    const decision = str(o && o.decision).toLowerCase();
+    const label = { promoted: 'Promote', hold: 'Put on hold', cancelled: 'Cancel' }[decision] || decision;
+    const allowed = p ? decisionsFor(p).some(function (x) { return x[0] === decision; }) : false;
+    add('opportunity_decisions.' + i, 'decision', label + ' · ' + (p ? projectTitle(p) : str(o && o.id)),
+      !p || p.tab !== tab.id || !isOpportunity(p) ? 'No opportunity "' + str(o && o.id) + '" in this meeting.'
+        : !allowed ? 'Not possible from where it stands (' + oppStage(p) + ').' : '',
+      { id: p && p.id, decision: decision });
+  });
+
+  listOf(data, 'status_changes').forEach(function (c, i) {
+    const p = byId(snap.projects, str(c && c.id));
+    const status = str(c && c.status).toLowerCase();
+    add('status_changes.' + i, 'status', (p ? projectTitle(p) : str(c && c.id)) + ' → ' +
+      (STATUS_LABELS[status] || status),
+      !p || p.tab !== tab.id || isOpportunity(p) ? 'No current project "' + str(c && c.id) + '" in this meeting.'
+        : STATUSES.indexOf(status) < 0 ? 'Not a status: "' + status + '".'
+        : p.status === status ? 'It is already ' + STATUS_LABELS[status] + '.' : '',
+      { id: p && p.id, status: status });
+  });
+
+  listOf(data, 'issues').forEach(function (s, i) {
+    const who = personFor(snap, tab, s && s.owner);
+    const text = str(s && s.text);
+    const sev = SEVERITIES.indexOf(str(s && s.severity).toLowerCase()) >= 0 &&
+      str(s && s.severity).toLowerCase() !== 'offtrack' ? str(s.severity).toLowerCase() : 'stopper';
+    add('issues.' + i, 'issue', 'Issue · ' + text + (who ? ' (' + who.name + ')' : ''),
+      !text ? 'It says nothing.' : '',
+      { personId: who ? who.id : '', text: text, sev: sev });
+  });
+
+  listOf(data, 'actions').forEach(function (a, i) {
+    const who = personFor(snap, tab, a && a.owner);
+    const text = str(a && a.text);
+    const due = dateOf(a && a.due);
+    const rel = str(a && a.related_id);
+    const proj = rel ? byId(snap.projects, rel) : null;
+    const issue = rel && !proj ? byId(snap.issues, rel) : null;
+    const parent = proj && proj.tab === tab.id ? { type: 'project', id: proj.id }
+      : issue && issue.tab === tab.id ? { type: 'issue', id: issue.id } : null;
+    add('actions.' + i, 'action', 'Action · ' + text + ' · ' + (who ? who.name : str(a && a.owner) || '?') +
+      ' · due ' + (due || str(a && a.due) || '?') +
+      (parent ? ' · re ' + (proj ? projectTitle(proj) : issue.text) : ''),
+      !text ? 'It says nothing.'
+        : !who ? 'Nobody on the roster is called "' + str(a && a.owner) + '".'
+        : !due ? 'It needs a due date as YYYY-MM-DD.'
+        : rel && !parent ? 'Nothing in this meeting has the id "' + rel + '".' : '',
+      { owner: who && who.name, text: text, due: due, parent: parent });
+  });
+
+  listOf(data, 'discussed').forEach(function (t, i) {
+    const line = str(typeof t === 'string' ? t : t && t.text);
+    add('discussed.' + i, 'discussed', 'Discussed · ' + line, line ? '' : 'Empty.', { text: line });
+  });
+
+  return out;
+}
+
+/**
+ * The writes for the ticked proposals.
+ *
+ * Built from the same domain functions the board's own buttons use. Actions are
+ * returned separately: each needs the next action number, which only the store
+ * can hand out, one at a time.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} d
+ * @param {Proposal[]} proposals
+ * @param {string[]} skip - keys the reader unticked
+ * @param {() => string} newId
+ * @returns {{ops: any[], actions: any[], discussed: string[], count: number}}
+ */
+export function planFrom(snap, tab, d, proposals, skip, newId) {
+  const take = proposals.filter(function (p) { return p.ok && skip.indexOf(p.key) < 0; });
+  const ops = [];
+  const actions = [];
+  const discussed = [];
+
+  take.forEach(function (p) {
+    const x = p.payload;
+    if (p.kind === 'win' || p.kind === 'loss') {
+      ops.push({ op: 'set', col: 'entries', id: newId(), data: {
+        tab: tab.id, meeting: d, personId: x.personId, kind: x.kind,
+        text: x.text, why: x.why, change: x.change
+      } });
+    } else if (p.kind === 'opportunity') {
+      const entryId = newId();
+      const projectId = newId();
+      const built = newOpportunity({
+        entryId: entryId, projectId: projectId, tab: tab.id, personId: x.personId,
+        text: x.title, customer: x.customer, mission: x.mission, meetingDate: d
+      });
+      ops.push({ op: 'set', col: 'entries', id: entryId, data: built.entry });
+      ops.push({ op: 'set', col: 'projects', id: projectId, data: built.project });
+    } else if (p.kind === 'decision') {
+      decideOpportunity(snap, x.id, x.decision, d).writes.forEach(function (w) { ops.push(w); });
+    } else if (p.kind === 'status') {
+      const doc = statusChange(snap, byId(snap.projects, x.id), x.status, tab.id, d);
+      if (doc) ops.push({ op: 'set', col: 'projects', id: x.id, data: doc });
+    } else if (p.kind === 'issue') {
+      ops.push({ op: 'set', col: 'issues', id: newId(), data: newIssue({
+        snap: snap, tab: tab.id, personId: x.personId, text: x.text, sev: x.sev, meetingDate: d
+      }) });
+    } else if (p.kind === 'action') {
+      actions.push(x);
+    } else if (p.kind === 'discussed') {
+      discussed.push(x.text);
+    }
+  });
+
+  return { ops: ops, actions: actions, discussed: discussed, count: take.length };
+}
+
+/** Plain-language names for the checklist's groups, in the order shown. */
+export const PROPOSAL_GROUPS = [
+  ['win', 'Wins'], ['loss', 'Losses'], ['opportunity', 'New opportunities'],
+  ['decision', 'Opportunity decisions'], ['status', 'Project status changes'],
+  ['issue', 'Issues'], ['action', 'Actions'], ['discussed', 'Discussed']
+];

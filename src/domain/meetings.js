@@ -75,12 +75,42 @@ export function parseDocumentId(id) {
  * @param {Snapshot} snap
  * @param {string} tid
  * @param {string} d
- * @returns {{ratings: Record<string, number>, note: string}}
+ * @returns {{ratings: Record<string, number>, note: string, discussed: string}}
  */
 export function getMeeting(snap, tid, d) {
   const m = snap.meetings[memoryKey(tid, d)];
-  if (!m) return { ratings: {}, note: '' };
-  return { ratings: m.ratings || {}, note: m.note || '' };
+  if (!m) return { ratings: {}, note: '', discussed: '' };
+  return { ratings: m.ratings || {}, note: m.note || '', discussed: m.discussed || '' };
+}
+
+/**
+ * Set what was Discussed at a meeting - topics talked through that did not
+ * necessarily change the board - keeping everything else the record holds.
+ *
+ * One topic per line. Stored as the text typed, so the box shows it back exactly;
+ * discussedTopics() splits it for the summary.
+ *
+ * @param {Snapshot} snap
+ * @param {string} tid
+ * @param {string} d
+ * @param {string} text
+ */
+export function setDiscussed(snap, tid, d, text) {
+  const m = getMeeting(snap, tid, d);
+  return { ratings: m.ratings, note: m.note, discussed: String(text == null ? '' : text) };
+}
+
+/**
+ * The Discussed topics as a list: one per non-blank line, trimmed, with any
+ * leading bullet, dash or number a paste brought along taken off.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function discussedTopics(text) {
+  return String(text || '').split(/\r?\n/)
+    .map(function (l) { return l.replace(/^\s*(?:[-*•–]|\d+[.)])\s*/, '').trim(); })
+    .filter(Boolean);
 }
 
 /**
@@ -204,7 +234,7 @@ export function toggleRating(snap, tid, d, personId, score) {
  */
 export function setNote(snap, tid, d, note) {
   const m = getMeeting(snap, tid, d);
-  return { ratings: m.ratings || {}, note: note };
+  return { ratings: m.ratings || {}, note: note, discussed: m.discussed };
 }
 
 /**
@@ -393,6 +423,9 @@ export function meetingSummary(snap, tab, d, today) {
     L.push('', 'Nothing new recorded at this meeting.');
   }
   sec('Needs attention', attention);
+  // Topics talked through that did not necessarily touch the board. Last, because
+  // the room scans for what changed before it reads the conversation.
+  sec('Discussed', discussedTopics(getMeeting(snap, tab.id, d).discussed));
 
   return L.join('\n') + '\n';
 }

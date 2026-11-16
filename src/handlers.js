@@ -42,8 +42,9 @@ import {
 } from './domain/cascade.js';
 import { decideOpportunity } from './domain/opportunities.js';
 import { stepIndex } from './domain/constants.js';
+import { copilotPrompt, readReply, proposalsFrom, planFrom } from './domain/copilot.js';
 import {
-  meetingDate, documentId, meetingSummary, withRole, ROLE_LISTS,
+  meetingDate, documentId, meetingSummary, withRole, ROLE_LISTS, getMeeting, setDiscussed,
   summaryEmail
 } from './domain/meetings.js';
 
@@ -301,6 +302,69 @@ export function createHandlers(app) {
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
     toggleSummary: function () { ui.sumShow = !ui.sumShow; render(); },
+
+    /* --- Copilot, by copy and paste: see domain/copilot.js --- */
+
+    toggleCopilot: function () { ui.copilotShow = !ui.copilotShow; render(); },
+
+    copilotPrompt: function () {
+      const t = currentTab();
+      if (!t) return;
+      copyText(copilotPrompt(store.snapshot(), t, currentDate(t)),
+        'Prompt copied. Paste it into Copilot.');
+    },
+
+    copilotClear: function () {
+      ui.copilotReply = null;
+      ui.copilotSkip = [];
+      ui.copilotError = '';
+      render();
+    },
+
+    /*
+     * Apply the ticked suggestions. Everything except actions goes in one batch -
+     * entries, projects, issues and meetings are all `content`, so one refusal
+     * cannot mark an unrelated area read-only. Actions follow one at a time,
+     * because each needs the next number. Discussed lines are added to whatever
+     * the meeting's Discussed box already holds.
+     */
+    copilotApply: function () {
+      const t = currentTab();
+      if (!t || !ui.copilotReply) return;
+      const snap = store.snapshot();
+      const d = currentDate(t);
+      const plan = planFrom(snap, t, d, proposalsFrom(snap, t, d, ui.copilotReply),
+        ui.copilotSkip || [], store.newId);
+      if (!plan.count) return;
+
+      const ops = plan.ops.slice();
+      if (plan.discussed.length) {
+        const was = getMeeting(snap, t.id, d).discussed;
+        const text = (was ? was.replace(/\s+$/, '') + '\n' : '') + plan.discussed.join('\n');
+        ops.push({ op: 'set', col: 'meetings', id: documentId(t.id, d), data: setDiscussed(snap, t.id, d, text) });
+      }
+      ui.copilotReply = null;
+      ui.copilotSkip = [];
+      ui.copilotError = '';
+
+      const first = ops.length ? store.batch(ops) : Promise.resolve();
+      first.then(function () {
+        return plan.actions.reduce(function (chain, x) {
+          return chain.then(function () {
+            return store.nextActionNum().then(function (num) {
+              return store.set('actions', store.newId(), newAction({
+                num: num, tab: t.id, text: x.text, owner: x.owner, support: '',
+                due: x.due, parent: x.parent, meetingDate: d
+              }));
+            });
+          });
+        }, Promise.resolve());
+      }).then(function () {
+        toast(plan.count + ' change' + (plan.count === 1 ? '' : 's') + ' from Copilot applied.');
+        render();
+      });
+      render();
+    },
 
     /*
      * Collapse the sidebar to the icon strip, for width during a meeting. Purely a
@@ -853,6 +917,24 @@ export function createHandlers(app) {
      * obvious when somebody reads the roster rather than depending on how it was
      * typed.
      */
+    /* One suggestion ticked or unticked. Unticked keys are remembered; the rest apply. */
+    copilotPick: function (el) {
+      const key = el.dataset.v;
+      const skip = (ui.copilotSkip || []).filter(function (k) { return k !== key; });
+      if (!el.checked) skip.push(key);
+      ui.copilotSkip = skip;
+      render();
+    },
+
+    /* The meeting's Discussed box. Saved on change (leaving the box), so it redraws. */
+    meetingDiscussed: function (el) {
+      const t = currentTab();
+      if (!t) return;
+      const d = currentDate(t);
+      store.set('meetings', documentId(t.id, d), setDiscussed(store.snapshot(), t.id, d, el.value))
+        .then(render);
+    },
+
     personUpn: function (el) {
       store.update('people', el.dataset.id, { upn: upnKey(el.value) });
     },
@@ -1237,6 +1319,15 @@ export function createHandlers(app) {
 
     fieldVal: function (fd) { addToList('field', fd); },
     systemVal: function (fd) { addToList('systems', fd); },
+
+    /* Copilot's reply, pasted in: read it, or say plainly why it could not be. */
+    copilotReply: function (fd) {
+      const r = readReply(String(fd.get('reply') || ''));
+      ui.copilotReply = r.ok ? r.data : null;
+      ui.copilotSkip = [];
+      ui.copilotError = r.error;
+      render();
+    },
 
     /*
      * A value typed into a picker's "+ New ..." box (System). Settled against the

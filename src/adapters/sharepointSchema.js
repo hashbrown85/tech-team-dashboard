@@ -314,7 +314,9 @@ export const SCHEMA = {
     indexes: [],
     fields: {
       ratings: { col: 'RatingsJson', kind: 'json' },
-      note: { col: 'Note', kind: 'note' }
+      note: { col: 'Note', kind: 'note' },
+      // Topics talked through at the meeting, one per line. See setDiscussed.
+      discussed: { col: 'Discussed', kind: 'note' }
     }
   },
 

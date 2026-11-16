@@ -264,6 +264,14 @@ function matrix() {
     ['projects step, horizon folded', { view: 'tab', tab: 't1', steps: { t1: 0 }, hideHorizon: true }],
     ['projects step, current folded', { view: 'tab', tab: 't1', steps: { t1: 0 }, hideCurrent: true }],
     ['tech directors, business review', { view: 'tab', tab: 'techdir', steps: { techdir: 1 } }],
+    // Copilot: the two steps, then a reply mixing good and held-back suggestions.
+    ['copilot, paste step', { view: 'tab', tab: 't1', steps: { t1: 0 }, copilotShow: true }],
+    ['copilot, checklist', { view: 'tab', tab: 't1', steps: { t1: 0 }, copilotShow: true,
+      copilotReply: {
+        status_changes: [{ id: 'pr1', status: 'off' }, { id: 'nope', status: 'on' }],
+        actions: [{ text: 'A deliberately long action text that has to wrap inside the narrow checklist row without pushing anything sideways', owner: 'Alex Morgan', due: '2026-09-25', related_id: 'i1' }],
+        discussed: ['Holiday cover', 'Pricing review']
+      }, copilotSkip: ['discussed.1'] }],
     ['summary from the header', { view: 'tab', tab: 't1', steps: { t1: 1 }, sumShow: true }],
     ['wins & losses, adding', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl' }],
     ['wins & losses, adding a loss', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl', wlKind: 'loss' }],

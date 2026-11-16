@@ -113,7 +113,8 @@ loud if you can — it catches things reading never does.
 | 2 | **Projects** — Current | Set a status on each. Mark one **off track**. Use the ▲▼ arrows. Click **Filter actions** | Off-track should appear in Issues. Does the rail show that project's actions? |
 | 3 | **Wins & Losses** | **+ Win or loss** for two people. Make one a loss, which asks what you will do differently | Does the extra question appear only for a loss? |
 | 4 | **Issues** | Work the queue: agree an action, **one** owner, a date. Then in **Already Owed**, push one date and re-date another | Does the owned issue leave the queue? Does the overdue label update without a reload? |
-| 5 | **Summary** (top right) | Open it, press **Email** | Outlook opens addressed to the meeting, with the summary in it or ready to paste |
+| 5 | **Copilot** (top right) | **Copy prompt**, paste it into Copilot with a short made-up recap, paste the reply back, **Read reply**, untick one, **Apply** | Do the applied changes appear? Is anything held back, and does the reason make sense? |
+| 6 | **Summary** (top right) | Add two lines to **Discussed**, click out of the box, then press **Email** | DISCUSSED is the last section; Outlook opens addressed to the meeting, with the summary in it or ready to paste |
 
 Then the between-meetings screens: **Action items** (sort each column, search, check
 the Origin column, Reset), **Projects**, **Timeline**, and a **project page**.

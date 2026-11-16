@@ -28,6 +28,12 @@ function defaults() {
     // The meeting's Projects step: Horizon and Current projects, each foldable.
     hideHorizon: false,
     hideCurrent: false,
+    // The Copilot panel: open or not, the reply as read (a draft until applied),
+    // which suggestions were unticked, and why a paste could not be read.
+    copilotShow: false,
+    copilotReply: null,
+    copilotSkip: [],
+    copilotError: '',
     tab: null,          // which meeting, when view === 'tab'
     settings: false,    // showing that meeting's settings
     dates: {},          // per-meeting week override: {tabId: 'YYYY-MM-DD'}
