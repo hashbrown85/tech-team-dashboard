@@ -312,9 +312,26 @@ test('Actions are listed by number, with owner, date and what they are about', (
   const second = lines.findIndex((l) => l.indexOf('A-002') >= 0);
 
   ok(first >= 0 && second > first, 'sorted by number, not insertion order');
-  ok(out.indexOf('A-002 book the lab · Owner: First Person (with Second Person) · Due Mon, Sep 21 · Re: slipping one (project)') >= 0);
-  ok(out.indexOf('A-001 call the supplier · Owner: Second Person · Due no date · DONE') >= 0,
+  ok(out.indexOf('A-002 - slipping one - book the lab · Owner: First Person (with Second Person) · Due Mon, Sep 21') >= 0,
+    'number, then the project, then the action');
+  ok(out.indexOf('A-001 - call the supplier · Owner: Second Person · Due no date · DONE') >= 0,
     'a closed action is marked, and a missing date says so');
+});
+
+test('Summary actions lead with customer and project, or the issue they are for', () => {
+  const snap = fullBoard();
+  snap.projects.filter(function (p) { return p.id === 'pr1'; })[0].customer = 'Demo Basalt';
+  snap.actions.push(
+    { id: 'a5', num: 43, tab: 't1', text: 'pull the oil samples', owner: 'Second Person',
+      status: 'done', doneOn: '2026-09-10', meeting: '2026-09-07',
+      parent: { type: 'project', id: 'pr1' } },
+    { id: 'a6', num: 44, tab: 't1', text: 'find cover', owner: 'First Person',
+      meeting: MEETING, parent: { type: 'issue', id: 'i1' } });
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('• A-043 - Demo Basalt - slipping one - pull the oil samples (Second Person)') >= 0,
+    'DONE: number - customer - project - action');
+  ok(out.indexOf('A-002 - Demo Basalt - slipping one - book the lab') >= 0, 'NEW the same way');
+  ok(out.indexOf('A-044 - Issue: no capacity - find cover') >= 0, 'an issue\'s action names the issue');
 });
 
 test('Only this meeting\'s entries and actions appear', () => {
@@ -350,7 +367,7 @@ test('Actions finished in the week up to the meeting are under DONE', () => {
     { id: 'a4', num: 4, tab: 't1', text: 'ancient history', owner: 'Second Person',
       status: 'done', doneOn: '2026-08-20', meeting: '2026-08-17' });
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ok(out.indexOf('• A-003 sent the samples (Second Person)') >= 0, 'this week');
+  ok(out.indexOf('• A-003 - sent the samples (Second Person)') >= 0, 'this week');
   notOk(out.indexOf('ancient history') >= 0, 'not weeks ago');
   eq(out.split('call the supplier').length, 2,
     'a new action already done is listed once, under NEW, not again under DONE');
@@ -361,7 +378,7 @@ test('Overdue actions are named, as of the day it is sent', () => {
   // a2 is due Sep 21: not overdue at the meeting, overdue by the 25th.
   notOk(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('Overdue:') >= 0);
   ok(meetingSummary(snap, snap.tabs[0], MEETING, '2026-09-25')
-    .indexOf('• Overdue: A-002 book the lab (First Person, due Mon, Sep 21)') >= 0);
+    .indexOf('• Overdue: A-002 - slipping one - book the lab (First Person, due Mon, Sep 21)') >= 0);
 });
 
 test('Projects are named with their customer, as on the board', () => {

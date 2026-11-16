@@ -21,7 +21,7 @@ import {
   personName,
   person,
   attendeeIds,
-  parentText,
+  parentRef,
   isOpportunity,
   oppStage,
   raisedOn
@@ -293,6 +293,23 @@ const OPP_SUMMARY = {
 };
 
 /**
+ * An action as the summary names it: number, then what it is for, then the
+ * action - "A-043 - HPE - Oil Quality Investigation - pull the oil samples".
+ * What it is for is the project by its full title (customer first, as on every
+ * screen), or the issue it was raised against; an action raised on its own goes
+ * straight from number to text.
+ *
+ * @param {Snapshot} snap
+ * @param {any} a
+ * @returns {string}
+ */
+function actionHead(snap, a) {
+  const ref = parentRef(snap, a);
+  const what = !ref ? '' : ref.type === 'issue' ? 'Issue: ' + ref.issue.text : projectTitle(ref.project);
+  return actionLabel(a) + ' - ' + (what ? what + ' - ' : '') + a.text;
+}
+
+/**
  * The plain-text meeting summary, written to be emailed to the people in it.
  *
  * Plain text, not HTML: it has to survive being pasted into anything.
@@ -376,12 +393,10 @@ export function meetingSummary(snap, tab, d, today) {
     .filter(function (a) { return here(a) && a.meeting === d; })
     .sort(function (a, b) { return a.num - b.num; });
   newActs.forEach(function (a) {
-    const pt = parentText(snap, a);
-    fresh.push(actionLabel(a) + ' ' + a.text +
+    fresh.push(actionHead(snap, a) +
       ' · Owner: ' + (a.owner || 'none') +
       (a.support ? ' (with ' + a.support + ')' : '') +
       ' · Due ' + (a.due ? fmtDay(a.due) : 'no date') +
-      (pt ? ' · Re: ' + pt : '') +
       (isOpen(a) ? '' : ' · DONE'));
   });
 
@@ -392,7 +407,7 @@ export function meetingSummary(snap, tab, d, today) {
     return here(a) && !isOpen(a) && a.doneOn && a.doneOn > weekStart && a.doneOn <= d &&
       a.meeting !== d;
   }).sort(function (a, b) { return a.num - b.num; }).map(function (a) {
-    return actionLabel(a) + ' ' + a.text + ' (' + (a.owner || 'no owner') + ')';
+    return actionHead(snap, a) + ' (' + (a.owner || 'no owner') + ')';
   }).concat(snap.issues.filter(function (i) {
     return here(i) && i.status === 'resolved' && i.resolvedMeeting === d;
   }).map(function (i) { return 'Issue resolved: ' + i.text; }));
@@ -412,7 +427,7 @@ export function meetingSummary(snap, tab, d, today) {
     return here(a) && isOpen(a) && a.due && a.due < now;
   }).sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : a.num - b.num; })
     .forEach(function (a) {
-      attention.push('Overdue: ' + actionLabel(a) + ' ' + a.text + ' (' + (a.owner || 'no owner') +
+      attention.push('Overdue: ' + actionHead(snap, a) + ' (' + (a.owner || 'no owner') +
         ', due ' + fmtDay(a.due) + ')');
     });
 
