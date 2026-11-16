@@ -11,7 +11,9 @@
  */
 
 import { esc } from '../lib/dom.js';
-import { proposalsFrom, PROPOSAL_GROUPS } from '../domain/copilot.js';
+import { proposalsFrom, PROPOSAL_GROUPS, meetingLists } from '../domain/copilot.js';
+import { projectTitle } from '../domain/projects.js';
+import { STATUSES, STATUS_LABELS, SEVERITY_LABELS } from '../domain/constants.js';
 
 /**
  * @typedef {import('../domain/queries.js').Snapshot} Snapshot
@@ -64,11 +66,18 @@ function checklist(snap, ui, tab, d, ro) {
     const mine = all.filter(function (p) { return p.kind === g[0]; });
     if (!mine.length) return '';
     return '<div class="lbl">' + g[1] + '</div><ul class="cpl">' + mine.map(function (p) {
+      // Being corrected: the row becomes its form. One at a time, like every
+      // other inline editor on the board.
+      if (!ro && ui.open === 'cpfix:' + p.key) {
+        return '<li class="cpi">' + fixForm(snap, tab, d, p.key, ui.copilotReply) + '</li>';
+      }
       const on = p.ok && skip.indexOf(p.key) < 0;
       return '<li class="cpi' + (p.ok ? '' : ' no') + '"><label>' +
         '<input type="checkbox" data-edit="copilotPick" data-v="' + esc(p.key) + '"' +
         (on ? ' checked' : '') + (p.ok && !ro ? '' : ' disabled') + '> ' +
         '<span>' + esc(p.text) + '</span></label>' +
+        (ro ? '' : ' <button type="button" class="linkbtn" data-act="copilotEdit" data-v="' +
+          esc(p.key) + '">Edit</button>') +
         (p.ok ? '' : '<span class="why">Can’t apply: ' + esc(p.reason) + '</span>') +
         '</li>';
     }).join('') + '</ul>';
@@ -81,4 +90,97 @@ function checklist(snap, ui, tab, d, ro) {
     '<button class="btn" type="button" data-act="copilotApply"' +
     (chosen && !ro ? '' : ' disabled') + '>Apply ' + chosen + ' change' + (chosen === 1 ? '' : 's') +
     '</button> <button class="btn ghost" type="button" data-act="copilotClear">Discard</button></div>';
+}
+
+/**
+ * Correcting one suggestion: the reply's own values, in a form.
+ *
+ * Anything that has to match the board - a person, a project, an opportunity,
+ * an issue, a status, a severity - is a dropdown of what the board actually has,
+ * so a name the audio garbled is a pick, not a retype. When the value Copilot
+ * wrote matches nothing, the dropdown says so and starts on that, so saving it
+ * unchanged keeps it held back rather than quietly picking somebody.
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} d
+ * @param {string} key - '<section>.<index>'
+ * @param {any} reply
+ */
+function fixForm(snap, tab, d, key, reply) {
+  const m = /^([a-z_]+)\.(\d+)$/.exec(key);
+  const section = m ? m[1] : '';
+  const raw = m && reply && Array.isArray(reply[section]) ? reply[section][Number(m[2])] : null;
+  const v = function (f) {
+    return raw && typeof raw === 'object' && raw[f] != null ? String(raw[f]) : '';
+  };
+  const lists = meetingLists(snap, tab, d);
+
+  function text(name, label, value) {
+    return '<input class="fld" type="text" name="' + name + '" value="' + esc(value) +
+      '" placeholder="' + esc(label) + '" aria-label="' + esc(label) + '">';
+  }
+  /** A dropdown of [value, label] pairs, on `current` - or on a "not on the board" line. */
+  function pick(name, label, pairs, current, blank) {
+    const known = pairs.some(function (o) { return o[0] === current; });
+    return '<select class="fld" name="' + name + '" aria-label="' + esc(label) + '">' +
+      (blank != null
+        ? '<option value=""' + (current === '' ? ' selected' : '') + '>' + esc(blank) + '</option>'
+        : '') +
+      (!known && current
+        ? '<option value="' + esc(current) + '" selected>' + esc(current) +
+          ' (not on the board)</option>'
+        : '') +
+      pairs.map(function (o) {
+        return '<option value="' + esc(o[0]) + '"' + (o[0] === current ? ' selected' : '') + '>' +
+          esc(o[1]) + '</option>';
+      }).join('') + '</select>';
+  }
+
+  // People by NAME, because that is what the reply holds and personFor matches.
+  const people = lists.people.map(function (p) { return [p.name, p.name]; });
+  const projects = lists.projects.map(function (p) { return [p.id, projectTitle(p)]; });
+  const horizon = lists.horizon.map(function (p) { return [p.id, projectTitle(p)]; });
+
+  let fields = '';
+  if (section === 'wins_losses') {
+    fields = pick('kind', 'Win or loss', [['win', 'Win'], ['loss', 'Loss']],
+      v('kind') === 'loss' ? 'loss' : 'win') +
+      pick('person', 'Who', people, v('person'), 'Who…') +
+      text('text', 'What happened', v('text')) + text('why', 'Why', v('why')) +
+      text('change', 'For a loss: what we will do differently', v('change'));
+  } else if (section === 'new_opportunities') {
+    fields = text('customer', 'Customer', v('customer')) + text('title', 'Title', v('title')) +
+      pick('owner', 'Owner', people, v('owner'), 'Owner…') +
+      text('mission', 'Mission & challenges', v('mission'));
+  } else if (section === 'opportunity_decisions') {
+    fields = pick('id', 'Opportunity', horizon, v('id'), 'Opportunity…') +
+      pick('decision', 'Decision', [['promoted', 'Promote to project'], ['hold', 'Put on hold'],
+        ['cancelled', 'Cancel']], v('decision'));
+  } else if (section === 'status_changes') {
+    fields = pick('id', 'Project', projects, v('id'), 'Project…') +
+      pick('status', 'Status',
+        STATUSES.map(function (s) { return [s, STATUS_LABELS[s]]; }), v('status'));
+  } else if (section === 'issues') {
+    fields = text('text', 'The issue', v('text')) +
+      pick('owner', 'Raised by', people, v('owner'), 'Nobody in particular') +
+      pick('severity', 'Severity',
+        [['stopper', SEVERITY_LABELS.stopper], ['risk', SEVERITY_LABELS.risk]],
+        v('severity') === 'risk' ? 'risk' : 'stopper');
+  } else if (section === 'actions') {
+    const related = projects.concat(horizon)
+      .map(function (o) { return [o[0], 'Project · ' + o[1]]; })
+      .concat(lists.issues.map(function (i) { return [i.id, 'Issue · ' + i.text]; }));
+    const due = /^\d{4}-\d{2}-\d{2}$/.test(v('due')) ? v('due') : '';
+    fields = text('text', 'What will be done', v('text')) +
+      pick('owner', 'Owner', people, v('owner'), 'Owner…') +
+      '<input class="fld" type="date" name="due" value="' + esc(due) + '" aria-label="Due date">' +
+      pick('related_id', 'Related to', related, v('related_id'), 'Related to: nothing specific');
+  } else if (section === 'discussed') {
+    fields = text('text', 'Topic', typeof raw === 'string' ? raw : '');
+  }
+
+  return '<form class="add cpfix" data-form="copilotFix" data-v="' + esc(key) + '">' + fields +
+    '<button class="btn sm" type="submit">Save</button>' +
+    '<button class="btn ghost sm" type="button" data-act="closeForm">Cancel</button></form>';
 }

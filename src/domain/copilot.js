@@ -44,20 +44,85 @@ import { fmtLong } from '../lib/dates.js';
  * @property {any} payload - what planFrom needs
  */
 
-/** Projects in this meeting that the prompt offers by id: live, not opportunities. */
-function liveProjects(snap, tab) {
-  return snap.projects.filter(function (p) {
-    return p.tab === tab.id && !isOpportunity(p) &&
-      ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0;
-  });
+/**
+ * What a meeting offers Copilot by name or id - and, the same lists, what the
+ * Edit form offers as dropdowns when a suggestion needs correcting. One source,
+ * so a correction can only pick something the prompt could have named.
+ *
+ *   people    this meeting's first, then everyone else
+ *   projects  live current projects (not opportunities)
+ *   horizon   opportunities still undecided or on hold
+ *   issues    open issues
+ *
+ * @param {Snapshot} snap
+ * @param {any} tab
+ * @param {string} d
+ */
+export function meetingLists(snap, tab, d) {
+  const ids = attendeeIds(tab);
+  return {
+    people: snap.people.filter(function (p) { return ids.indexOf(p.id) >= 0; })
+      .concat(snap.people.filter(function (p) { return ids.indexOf(p.id) < 0; })),
+    projects: snap.projects.filter(function (p) {
+      return p.tab === tab.id && !isOpportunity(p) &&
+        ['new', 'on', 'off', 'hold'].indexOf(p.status) >= 0;
+    }),
+    horizon: horizonFor(snap, tab.id, d).filter(function (p) {
+      const s = oppStage(p);
+      return s === 'open' || s === 'hold';
+    }),
+    issues: snap.issues.filter(function (i) { return i.tab === tab.id && i.status === 'open'; })
+  };
 }
 
-/** People in this meeting first, then everyone else. */
-function peopleFor(snap, tab) {
-  const ids = attendeeIds(tab);
-  const inMeeting = snap.people.filter(function (p) { return ids.indexOf(p.id) >= 0; });
-  const rest = snap.people.filter(function (p) { return ids.indexOf(p.id) < 0; });
-  return inMeeting.concat(rest);
+/**
+ * The fields of each reply section a correction may set. Anything else in a
+ * submitted form is ignored - the form comes off the page and is not trusted.
+ */
+export const FIX_FIELDS = {
+  wins_losses: ['kind', 'person', 'text', 'why', 'change'],
+  new_opportunities: ['customer', 'title', 'owner', 'mission'],
+  opportunity_decisions: ['id', 'decision'],
+  status_changes: ['id', 'status'],
+  issues: ['text', 'owner', 'severity'],
+  actions: ['text', 'owner', 'due', 'related_id']
+};
+
+/**
+ * The reply with one suggestion corrected - a new object; the old one is left
+ * alone. `key` is a proposal key ('<section>.<index>'); `values` maps field to
+ * new value. A Discussed topic is a plain string and takes `values.text`.
+ *
+ * Returns the reply unchanged when the key does not name a suggestion in it.
+ *
+ * @param {any} reply
+ * @param {string} key
+ * @param {Record<string, any>} values
+ * @returns {any}
+ */
+export function correctReply(reply, key, values) {
+  const m = /^([a-z_]+)\.(\d+)$/.exec(String(key || ''));
+  if (!reply || !m) return reply;
+  const section = m[1];
+  const i = Number(m[2]);
+  const list = Array.isArray(reply[section]) ? reply[section] : null;
+  if (!list || i >= list.length) return reply;
+
+  let item;
+  if (section === 'discussed') {
+    item = str(values.text);
+  } else if (FIX_FIELDS[section]) {
+    item = Object.assign({}, typeof list[i] === 'object' && list[i] ? list[i] : {});
+    FIX_FIELDS[section].forEach(function (f) {
+      if (values[f] != null) item[f] = str(values[f]);
+    });
+  } else {
+    return reply;
+  }
+  const out = Object.assign({}, reply);
+  out[section] = list.slice();
+  out[section][i] = item;
+  return out;
 }
 
 /**
@@ -103,30 +168,25 @@ export function copilotPrompt(snap, tab, d) {
     '"off" means off track. Severity "stopper" is urgent, "risk" is important. Dates as ' +
     'YYYY-MM-DD; if a due date was said as a weekday, give the next one after ' + d + '.');
   L.push('');
+  const lists = meetingLists(snap, tab, d);
   L.push('PEOPLE');
-  peopleFor(snap, tab).forEach(function (p) { L.push('- ' + p.name); });
+  lists.people.forEach(function (p) { L.push('- ' + p.name); });
   L.push('');
   L.push('CURRENT PROJECTS (id | name | status)');
-  const live = liveProjects(snap, tab);
-  if (!live.length) L.push('- none');
-  live.forEach(function (p) {
+  if (!lists.projects.length) L.push('- none');
+  lists.projects.forEach(function (p) {
     L.push('- ' + p.id + ' | ' + projectTitle(p) + ' | ' + (STATUS_LABELS[p.status] || p.status));
   });
   L.push('');
   L.push('HORIZON - opportunities waiting for a decision (id | name)');
-  const opps = horizonFor(snap, tab.id, d).filter(function (p) {
-    const s = oppStage(p);
-    return s === 'open' || s === 'hold';
-  });
-  if (!opps.length) L.push('- none');
-  opps.forEach(function (p) {
+  if (!lists.horizon.length) L.push('- none');
+  lists.horizon.forEach(function (p) {
     L.push('- ' + p.id + ' | ' + projectTitle(p) + (oppStage(p) === 'hold' ? ' (on hold)' : ''));
   });
   L.push('');
   L.push('OPEN ISSUES (id | issue)');
-  const issues = snap.issues.filter(function (i) { return i.tab === tab.id && i.status === 'open'; });
-  if (!issues.length) L.push('- none');
-  issues.forEach(function (i) { L.push('- ' + i.id + ' | ' + i.text); });
+  if (!lists.issues.length) L.push('- none');
+  lists.issues.forEach(function (i) { L.push('- ' + i.id + ' | ' + i.text); });
   L.push('');
   L.push('MEETING RECAP OR TRANSCRIPT (if not already available to you):');
   L.push('');

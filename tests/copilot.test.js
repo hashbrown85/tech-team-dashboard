@@ -17,7 +17,7 @@ import { demoBoard } from '../src/demo-data.js';
 import { renderApp } from '../src/views/render.js';
 import { loadUi } from '../src/ui.js';
 import {
-  copilotPrompt, readReply, personFor, proposalsFrom, planFrom
+  copilotPrompt, readReply, personFor, proposalsFrom, planFrom, correctReply
 } from '../src/domain/copilot.js';
 import {
   setDiscussed, discussedTopics, getMeeting, meetingSummary, memoryKey
@@ -244,4 +244,95 @@ test('The box is in the Summary panel, and saves through its own handler', async
   a.H.edits.meetingDiscussed(/** @type {any} */ ({ value: 'Holiday cover' }));
   await settle();
   eq(getMeeting(a.store.snapshot(), 't1', MEETING).discussed, 'Holiday cover');
+});
+
+group('Correcting a suggestion before applying it');
+
+const GARBLED = {
+  wins_losses: [{ kind: 'loss', person: 'Pria Ramon', text: 'Lost the bid', why: 'Price' }],
+  status_changes: [{ id: 'pr 1', status: 'off' }],
+  actions: [{ text: 'Book the rheometer', owner: 'Alex Morgan', due: 'Thursday' }],
+  discussed: ['Holliday cover']
+};
+
+test('A correction replaces only that suggestion, and only allowed fields', () => {
+  const fixed = correctReply(GARBLED, 'wins_losses.0',
+    { person: 'Priya Raman', change: 'Quote earlier', secret: 'ignored' });
+  eq(fixed.wins_losses[0], { kind: 'loss', person: 'Priya Raman', text: 'Lost the bid',
+    why: 'Price', change: 'Quote earlier' });
+  eq(GARBLED.wins_losses[0].person, 'Pria Ramon', 'the original is left alone');
+  eq(fixed.status_changes, GARBLED.status_changes, 'other suggestions untouched');
+  eq(correctReply(GARBLED, 'discussed.0', { text: ' Holiday cover ' }).discussed, ['Holiday cover']);
+  ok(correctReply(GARBLED, 'nonsense', { text: 'x' }) === GARBLED, 'a bad key changes nothing');
+  ok(correctReply(GARBLED, 'actions.9', { text: 'x' }) === GARBLED, 'nor one past the end');
+});
+
+test('The Edit form offers the real roster and the meeting’s projects as dropdowns', () => {
+  const ui = Object.assign(loadUi(), { view: 'tab', tab: 't1', dates: { t1: MEETING },
+    copilotShow: true, copilotReply: GARBLED, open: 'cpfix:wins_losses.0' });
+  const html = renderApp(demoBoard(DAY), ui, { today: DAY, modes: LIVE,
+    identity: { kind: 'demo', personId: 'p1' } });
+  const form = /<form class="add cpfix" data-form="copilotFix" data-v="wins_losses.0">[\s\S]*?<\/form>/.exec(html);
+  ok(form, 'the row is a form');
+  if (!form) return;
+  ok(form[0].indexOf('<option value="Pria Ramon" selected>Pria Ramon (not on the board)</option>') > 0,
+    'what Copilot heard is shown for what it is');
+  ok(form[0].indexOf('<option value="Priya Raman">Priya Raman</option>') > 0, 'the real name is a pick');
+
+  ui.open = 'cpfix:status_changes.0';
+  const html2 = renderApp(demoBoard(DAY), ui, { today: DAY, modes: LIVE,
+    identity: { kind: 'demo', personId: 'p1' } });
+  ok(html2.indexOf('<option value="pr1">Meridian Coatings - Coating additive trial</option>') > 0,
+    'projects by their full title');
+  notOk(html2.indexOf('<option value="pr5">') > 0, 'not another meeting’s');
+});
+
+test('Every row offers Edit, held back or not', () => {
+  const ui = Object.assign(loadUi(), { view: 'tab', tab: 't1', dates: { t1: MEETING },
+    copilotShow: true, copilotReply: GARBLED });
+  const html = renderApp(demoBoard(DAY), ui, { today: DAY, modes: LIVE,
+    identity: { kind: 'demo', personId: 'p1' } });
+  ['wins_losses.0', 'status_changes.0', 'actions.0', 'discussed.0'].forEach(function (k) {
+    ok(html.indexOf('data-act="copilotEdit" data-v="' + k + '"') > 0, k);
+  });
+});
+
+test('Garbled in, corrected, applied: the reported case', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify(GARBLED)]]));
+  const before = proposalsFrom(a.store.snapshot(), byId(a.store.snapshot().tabs, 't1'), MEETING, a.ui.copilotReply);
+  ok(before.every(function (p) { return p.key === 'discussed.0' ? p.ok : !p.ok; }),
+    'everything but the topic is held back at first');
+
+  a.H.clicks.copilotEdit(null, '', 'wins_losses.0');
+  eq(a.ui.open, 'cpfix:wins_losses.0');
+  const form = /** @type {any} */ ({ dataset: { v: 'wins_losses.0' } });
+  a.H.forms.copilotFix(new Map([['kind', 'loss'], ['person', 'Priya Raman'], ['text', 'Lost the bid'],
+    ['why', 'Price'], ['change', 'Quote earlier']]), form);
+  eq(a.ui.open, null, 'the form closes');
+  a.H.forms.copilotFix(new Map([['id', 'pr1'], ['status', 'off']]),
+    /** @type {any} */ ({ dataset: { v: 'status_changes.0' } }));
+  a.H.forms.copilotFix(new Map([['text', 'Book the rheometer'], ['owner', 'Alex Morgan'],
+    ['due', '2026-09-24'], ['related_id', 'i1']]), /** @type {any} */ ({ dataset: { v: 'actions.0' } }));
+
+  const after = proposalsFrom(a.store.snapshot(), byId(a.store.snapshot().tabs, 't1'), MEETING, a.ui.copilotReply);
+  ok(after.every(function (p) { return p.ok; }), 'all of them can apply now');
+
+  a.H.clicks.copilotApply(null, '', '');
+  await settle();
+  const snap = a.store.snapshot();
+  ok(snap.entries.some(function (e) { return e.kind === 'loss' && e.personId === 'p2' && e.change === 'Quote earlier'; }),
+    'the loss, credited to the right person');
+  eq(byId(snap.projects, 'pr1').status, 'off');
+  ok(snap.actions.some(function (x) { return x.text === 'Book the rheometer' && x.due === '2026-09-24' &&
+    x.parent && x.parent.id === 'i1'; }), 'the action, dated and attached');
+});
+
+test('Correcting a row someone had unticked ticks it again', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify({ discussed: ['Pricing'] })]]));
+  a.H.edits.copilotPick(/** @type {any} */ ({ dataset: { v: 'discussed.0' }, checked: false }));
+  eq(a.ui.copilotSkip, ['discussed.0']);
+  a.H.forms.copilotFix(new Map([['text', 'Pricing review']]), /** @type {any} */ ({ dataset: { v: 'discussed.0' } }));
+  eq(a.ui.copilotSkip, []);
 });

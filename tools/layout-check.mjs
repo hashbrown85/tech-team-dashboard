@@ -272,6 +272,9 @@ function matrix() {
         actions: [{ text: 'A deliberately long action text that has to wrap inside the narrow checklist row without pushing anything sideways', owner: 'Alex Morgan', due: '2026-09-25', related_id: 'i1' }],
         discussed: ['Holiday cover', 'Pricing review']
       }, copilotSkip: ['discussed.1'] }],
+    ['copilot, correcting an action', { view: 'tab', tab: 't1', steps: { t1: 0 }, copilotShow: true,
+      open: 'cpfix:actions.0', copilotReply: {
+        actions: [{ text: 'Book the rheometer', owner: 'Alx Morgn', due: 'Thursday', related_id: 'i1' }] } }],
     ['summary from the header', { view: 'tab', tab: 't1', steps: { t1: 1 }, sumShow: true }],
     ['wins & losses, adding', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl' }],
     ['wins & losses, adding a loss', { view: 'tab', tab: 't1', steps: { t1: 1 }, open: 'wl', wlKind: 'loss' }],

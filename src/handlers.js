@@ -42,7 +42,9 @@ import {
 } from './domain/cascade.js';
 import { decideOpportunity } from './domain/opportunities.js';
 import { stepIndex } from './domain/constants.js';
-import { copilotPrompt, readReply, proposalsFrom, planFrom } from './domain/copilot.js';
+import {
+  copilotPrompt, readReply, proposalsFrom, planFrom, correctReply
+} from './domain/copilot.js';
 import {
   meetingDate, documentId, meetingSummary, withRole, ROLE_LISTS, getMeeting, setDiscussed,
   summaryEmail
@@ -312,6 +314,13 @@ export function createHandlers(app) {
       if (!t) return;
       copyText(copilotPrompt(store.snapshot(), t, currentDate(t)),
         'Prompt copied. Paste it into Copilot.');
+    },
+
+    /* Open the correction form on one suggestion. */
+    copilotEdit: function (el, id, v) {
+      ui.open = 'cpfix:' + v;
+      render();
+      focusFirst();
     },
 
     copilotClear: function () {
@@ -1319,6 +1328,27 @@ export function createHandlers(app) {
 
     fieldVal: function (fd) { addToList('field', fd); },
     systemVal: function (fd) { addToList('systems', fd); },
+
+    /*
+     * A corrected suggestion. Written back into the draft reply, so it is checked
+     * against the board again like any other: if it now matches, it becomes a
+     * ticked row. correctReply takes only the fields allowed for that section.
+     */
+    copilotFix: function (fd, form) {
+      const key = form && form.dataset ? form.dataset.v : '';
+      if (!ui.copilotReply || !key) return;
+      const values = {};
+      ['kind', 'person', 'text', 'why', 'change', 'customer', 'title', 'owner', 'mission',
+        'id', 'decision', 'status', 'severity', 'due', 'related_id'].forEach(function (f) {
+        const x = fd.get(f);
+        if (x != null) values[f] = x;
+      });
+      ui.copilotReply = correctReply(ui.copilotReply, key, values);
+      // Corrected means wanted: tick it again if it had been unticked.
+      ui.copilotSkip = (ui.copilotSkip || []).filter(function (k) { return k !== key; });
+      ui.open = null;
+      render();
+    },
 
     /* Copilot's reply, pasted in: read it, or say plainly why it could not be. */
     copilotReply: function (fd) {
