@@ -59,6 +59,7 @@ function defaults() {
     projSort: null,
     projSortDir: 'desc',
     railProj: null,     // project whose actions the meeting rail is filtered to
+    railNoOrigin: false, // the rail showing only actions with no origin
     project: null,      // the project whose own page is open (view === 'project')
     tlGroup: 'meeting', // timeline grouping
     follow: false,      // showing the copyable follow-up text

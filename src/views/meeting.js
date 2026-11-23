@@ -19,7 +19,7 @@ import { fmt, fmtDay, fmtLong, rel, nextOn, addDays } from '../lib/dates.js';
 import { byId } from '../lib/seq.js';
 import {
   issueItems, actionedItems, actsOf, projVisible, openActsFor,
-  personName, person, attendeeIds, isOpen, isOpportunity, oppStage
+  personName, person, attendeeIds, isOpen, isOpportunity, oppStage, parentRef
 } from '../domain/queries.js';
 import { byPriority, projectTitle } from '../domain/projects.js';
 import {
@@ -27,7 +27,7 @@ import {
 } from '../domain/opportunities.js';
 import { dueClass, dueLabel, isOverdue } from '../domain/dueness.js';
 import {
-  ownerOptions, actionEditor, editButton, editingAction, originLine
+  ownerOptions, actionEditor, editButton, editingAction, originLine, relatedOptions
 } from './actionEditor.js';
 import {
   MEETING_KINDS, WEEKDAYS, SEVERITY_LABELS, SEVERITIES, STATUS_LABELS, STATUSES,
@@ -733,10 +733,13 @@ function renderRail(snap, ui, env, tab, step, d) {
     ? actionForm(snap, ui, env, tab, { d: d })
     : '<button class="btn sm edit-only" type="button" data-act="openForm" data-v="rail"' + dis(env) + '>+ Action</button>';
 
-  const list = selected
-    ? actsOf(snap, selected.id)
-    : snap.actions.filter(function (a) { return a.tab === tab.id && isOpen(a); })
-        .sort(function (a, b) { return (a.due || '9') < (b.due || '9') ? -1 : 1; });
+  const open = snap.actions.filter(function (a) { return a.tab === tab.id && isOpen(a); })
+    .sort(function (a, b) { return (a.due || '9') < (b.due || '9') ? -1 : 1; });
+  // Actions with no origin: not tied to a project, opportunity or issue (or tied to
+  // one since deleted). The filter is how they get found and given one.
+  const loose = open.filter(function (a) { return !parentRef(snap, a); });
+  const noOrigin = !selected && !!ui.railNoOrigin;
+  const list = selected ? actsOf(snap, selected.id) : noOrigin ? loose : open;
 
   const rows = list.length
     ? '<ul class="alist">' + list.map(function (a) {
@@ -755,11 +758,20 @@ function renderRail(snap, ui, env, tab, step, d) {
           '<span class="ameta">' + esc(a.owner || 'No owner') + ' · ' + dueLabel(a, env.today) + '</span>' +
           dueControls(a, tab, d, env) + '</li>';
       }).join('') + '</ul>'
-    : '<p class="none">' + (selected ? 'No actions on this project yet.' : 'No open actions in this meeting.') + '</p>';
+    : '<p class="none">' + (selected ? 'No actions on this project yet.'
+      : noOrigin ? 'Every open action has an origin.' : 'No open actions in this meeting.') + '</p>';
 
   const railHead = '<div class="pan-h"><h2>' +
-    (selected ? esc(projectTitle(selected)) : 'Open actions') + '</h2>' +
-    (selected ? '<button class="btn ghost sm" type="button" data-act="clearProject">Show all</button>' : '') +
+    (selected ? esc(projectTitle(selected)) : noOrigin ? 'No origin' : 'Open actions') + '</h2>' +
+    (selected
+      ? '<button class="btn ghost sm" type="button" data-act="clearProject">Show all</button>'
+      : noOrigin
+        ? '<button class="btn ghost sm" type="button" data-act="railNoOrigin">Show all</button>'
+        : loose.length
+          ? '<button class="btn ghost sm" type="button" data-act="railNoOrigin" ' +
+            'title="Open actions not tied to a project, opportunity or issue">No origin (' +
+            loose.length + ')</button>'
+          : '') +
     '</div>';
 
   const issueShortlist = segmentsFor(tab)[step] && segmentsFor(tab)[step].key !== 'issues'
@@ -840,39 +852,6 @@ function whoFields(snap, tab, withSupport) {
       : '');
 }
 
-/** What an action can be attached to. */
-function relatedOptions(snap, tab, selected) {
-  const live = snap.projects.filter(function (p) {
-    return p.tab === tab.id && ACTIVE_STATUSES.indexOf(p.status) >= 0;
-  });
-  // Opportunities carry actions too - "I'll call them Thursday" is often the first
-  // thing said about one - so they are offered, but under their own heading: an
-  // opportunity is not a project until somebody promotes it. A cancelled one is
-  // not going anywhere and is left out.
-  const projects = live.filter(function (p) { return !isOpportunity(p); });
-  const opps = live.filter(function (p) {
-    const s = oppStage(p);
-    return s === 'open' || s === 'hold';
-  });
-  const open = snap.issues.filter(function (i) { return i.tab === tab.id && i.status === 'open'; });
-
-  function opt(v, label) {
-    return '<option value="' + esc(v) + '"' + (selected === v ? ' selected' : '') + '>' + label + '</option>';
-  }
-
-  return opt('', 'Related to: nothing specific') +
-    (projects.length ? '<optgroup label="Projects">' + projects.map(function (p) {
-      return opt('p:' + p.id, 'Project · ' + esc(p.name) +
-        (p.status !== 'on' ? ' (' + STATUS_LABELS[p.status].toLowerCase() + ')' : ''));
-    }).join('') + '</optgroup>' : '') +
-    (opps.length ? '<optgroup label="Opportunities">' + opps.map(function (p) {
-      return opt('p:' + p.id, 'Opportunity · ' + esc(projectTitle(p)) +
-        (oppStage(p) === 'hold' ? ' (on hold)' : ''));
-    }).join('') + '</optgroup>' : '') +
-    (open.length ? '<optgroup label="Open issues">' + open.map(function (i) {
-      return opt('i:' + i.id, 'Issue · ' + esc(i.text));
-    }).join('') + '</optgroup>' : '');
-}
 
 /**
  * The action form. One owner, optional support, a date, and what it relates to —

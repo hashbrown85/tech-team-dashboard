@@ -433,6 +433,9 @@ export function createHandlers(app) {
     },
     clearProject: function () { ui.railProj = null; render(); },
 
+    /* The rail's "No origin" filter: on, and back off with Show all. */
+    railNoOrigin: function () { ui.railNoOrigin = !ui.railNoOrigin; render(); },
+
     showActions: function (el, id, v) {
       ui.filter = v || 'open';
       ui.regTab = 'all';
@@ -1213,8 +1216,9 @@ export function createHandlers(app) {
     },
 
     /*
-     * Save an edited action: what it says, owner, support and due date. What it is
-     * related to is deliberately not editable here - see views/actionEditor.js.
+     * Save an edited action: what it says, owner, support, due date and what it is
+     * related to. A related-to that no longer resolves becomes nothing, never a
+     * dangling pointer (parseParentRef).
      * A blank text or owner is refused rather than saved: an action nobody owns, or
      * that says nothing, is not one.
      */
@@ -1229,7 +1233,9 @@ export function createHandlers(app) {
         text: text,
         owner: owner,
         support: String(fd.get('support') || '').trim(),
-        due: String(fd.get('due') || '') || a.due || ''
+        due: String(fd.get('due') || '') || a.due || '',
+        parent: fd.get('rel') == null ? (a.parent || null)
+          : parseParentRef(store.snapshot(), String(fd.get('rel') || ''))
       }).then(render);
       render();
     },

@@ -155,3 +155,72 @@ test('An action that no longer exists is left alone', async () => {
   await settle();
   eq(a.store.snapshot().actions.length, before, 'no action conjured into being');
 });
+
+/* ---------- Related to, in the editor ---------- */
+
+test('The editor has Related to, on what the action is tied to now', () => {
+  const ed = editorFor(screen(Object.assign({ open: 'act:a1' }, PLACES['the meeting side rail'])), 'a1');
+  ok(ed.indexOf('name="rel"') >= 0, 'the dropdown is there');
+  ok(/<option value="p:pr2" selected>/.test(ed), 'a1 starts on its project');
+  ok(ed.indexOf('value="i:i1"') >= 0, 'open issues are offered');
+});
+
+test('A loose action can be tied to an issue, and untied again', async () => {
+  const a = await app();
+  a.H.forms.editAction(new Map([
+    ['text', 'Book lab time'], ['owner', 'Alex Morgan'], ['due', '2026-09-25'], ['rel', 'i:i1']
+  ]), form('a2'));
+  await settle();
+  eq(JSON.stringify(byId(a.store.snapshot().actions, 'a2').parent), '{"type":"issue","id":"i1"}');
+
+  a.H.forms.editAction(new Map([
+    ['text', 'Book lab time'], ['owner', 'Alex Morgan'], ['due', '2026-09-25'], ['rel', '']
+  ]), form('a2'));
+  await settle();
+  eq(byId(a.store.snapshot().actions, 'a2').parent, null, 'nothing specific');
+});
+
+test('A related-to that does not exist is saved as nothing, not a dangling link', async () => {
+  const a = await app();
+  a.H.forms.editAction(new Map([
+    ['text', 'x'], ['owner', 'Alex Morgan'], ['due', '2026-09-25'], ['rel', 'i:gone']
+  ]), form('a1'));
+  await settle();
+  eq(byId(a.store.snapshot().actions, 'a1').parent, null);
+});
+
+test('A resolved issue an action is tied to stays selected, so Save does not detach it', () => {
+  const snap = demoBoard(DAY);
+  byId(snap.actions, 'a3').status = 'open';
+  const ed = editorFor(screen(Object.assign({ open: 'act:a3' }, PLACES['the meeting side rail']),
+    { snap: snap }), 'a3');
+  ok(/<option value="i:i3" selected>/.test(ed));
+});
+
+/* ---------- the rail's No origin filter ---------- */
+
+test('The rail offers No origin with a count, and filters to just those', async () => {
+  const rail = PLACES['the meeting side rail'];
+  const off = screen(rail);
+  ok(off.indexOf('data-act="railNoOrigin"') >= 0 && off.indexOf('No origin (2)') >= 0,
+    'a2 and a7 have no origin');
+
+  const on = screen(Object.assign({ railNoOrigin: true }, rail));
+  // The rail's rows are the ones with row- ids; the segment's own list has none.
+  const list = on;
+  ok(list.indexOf('id="row-a2"') >= 0 && list.indexOf('id="row-a7"') >= 0);
+  notOk(list.indexOf('id="row-a1"') >= 0, 'a1 has a project, so it is hidden');
+  ok(on.indexOf('>Show all</button>') >= 0, 'and a way back');
+
+  const a = await app();
+  a.H.clicks.railNoOrigin(null, '', '');
+  eq(a.ui.railNoOrigin, true);
+  a.H.clicks.railNoOrigin(null, '', '');
+  eq(a.ui.railNoOrigin, false);
+});
+
+test('No origin is not offered when every open action has one', () => {
+  const snap = demoBoard(DAY);
+  snap.actions.forEach(function (x) { if (!x.parent) x.parent = { type: 'issue', id: 'i1' }; });
+  notOk(screen(PLACES['the meeting side rail'], { snap: snap }).indexOf('No origin (') >= 0);
+});
