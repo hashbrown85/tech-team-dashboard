@@ -331,7 +331,8 @@ test('Summary actions lead with customer and project, or the issue they are for'
   ok(out.indexOf('• A-043 - Demo Basalt - slipping one - pull the oil samples (Second Person)') >= 0,
     'DONE: number - customer - project - action');
   ok(out.indexOf('A-002 - Demo Basalt - slipping one - book the lab') >= 0, 'NEW the same way');
-  ok(out.indexOf('A-044 - Issue: no capacity - find cover') >= 0, 'an issue\'s action names the issue');
+  ok(out.indexOf('• no capacity (' + SEVERITY_LABELS.stopper + ', raised by First Person)\n    – A-044 - find cover') >= 0,
+    'an issue\'s action sits right under the issue');
 });
 
 test('Only this meeting\'s entries and actions appear', () => {
@@ -344,7 +345,8 @@ test('Resolved issues and the ones still without a path both show', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
 
-  ok(out.indexOf('DONE\n') >= 0 && out.indexOf('• Issue resolved: sorted now') >= 0);
+  ok(out.indexOf('• RESOLVED · sorted now (' + SEVERITY_LABELS.risk + ')') >= 0,
+    'a resolved issue is listed with the others, marked');
 
   // Counts issues and off-track projects together, since they share one queue -
   // but NOT pr1 ("slipping one"), which has an open action and therefore already
@@ -356,7 +358,7 @@ test('Resolved issues and the ones still without a path both show', () => {
 test('A new issue is listed with who raised it and how serious it is', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ok(out.indexOf('• Issue · First Person: no capacity (' + SEVERITY_LABELS.stopper + ')') >= 0);
+  ok(out.indexOf('• no capacity (' + SEVERITY_LABELS.stopper + ', raised by First Person) - no action yet') >= 0);
 });
 
 test('Actions finished in the week up to the meeting are under DONE', () => {
@@ -407,7 +409,8 @@ test('Empty sections are left out, and a quiet meeting says so in one line', () 
   // happen. A meeting where nothing at all was recorded says that, once.
   const snap = board();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ['WHAT CHANGED', 'NEW THIS MEETING', 'DONE', 'NEEDS ATTENTION'].forEach(function (h) {
+  ['WINS & LOSSES', 'WHAT CHANGED', 'NEW OPPORTUNITIES & PROJECTS', 'ISSUES', 'NEW ACTIONS',
+    'DONE', 'NEEDS ATTENTION'].forEach(function (h) {
     notOk(out.indexOf(h) >= 0, h + ' is left out when empty');
   });
   ok(out.indexOf('Nothing new recorded at this meeting.') >= 0);
@@ -423,14 +426,49 @@ test('It is plain text and ends with a newline', () => {
 
 test('Sections always come in the same order', () => {
   const snap = fullBoard();
+  snap.actions.push({ id: 'a3', num: 3, tab: 't1', text: 'sent the samples', owner: 'Second Person',
+    status: 'done', doneOn: '2026-09-10', meeting: '2026-09-07' });
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  const order = ['WHAT CHANGED', 'NEW THIS MEETING', 'DONE', 'NEEDS ATTENTION'];
+  const order = ['WINS & LOSSES', 'WHAT CHANGED', 'NEW OPPORTUNITIES & PROJECTS', 'ISSUES',
+    'NEW ACTIONS', 'DONE', 'NEEDS ATTENTION'];
   const found = order.map((h) => out.indexOf('\n' + h));
 
   found.forEach(function (at, i) {
     ok(at > 0, order[i] + ' should be present');
     if (i > 0) ok(at > found[i - 1], order[i] + ' comes after ' + order[i - 1]);
   });
+});
+
+test('Issues are listed together, each with its actions right under it', () => {
+  const snap = fullBoard();
+  snap.actions.push(
+    { id: 'a5', num: 5, tab: 't1', text: 'find cover', owner: 'First Person', due: '2026-09-17',
+      status: 'open', meeting: MEETING, parent: { type: 'issue', id: 'i1' } },
+    { id: 'a6', num: 6, tab: 't1', text: 'ask the other crew', owner: 'Second Person',
+      status: 'open', meeting: '2026-09-07', parent: { type: 'issue', id: 'i1' } });
+  const lines = meetingSummary(snap, snap.tabs[0], MEETING).split('\n');
+  const at = lines.indexOf('• no capacity (' + SEVERITY_LABELS.stopper + ', raised by First Person)');
+  ok(at > 0, 'the issue, no "no action yet" now it has some');
+  ok(lines[at + 1].indexOf('    – A-005 - find cover · Owner: First Person') === 0, 'raised today');
+  ok(lines[at + 2].indexOf('    – A-006 - ask the other crew') === 0, 'and still open from before');
+  eq(lines.filter((l) => l.indexOf('find cover') >= 0).length, 1,
+    'not repeated under NEW ACTIONS');
+  ok(lines.indexOf('ISSUES') > lines.indexOf('WINS & LOSSES'));
+});
+
+test('Wins come before losses, together in one section', () => {
+  const snap = fullBoard();
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  const w = out.indexOf('• Win · First Person: landed the trial');
+  const l = out.indexOf('• Loss · Second Person: lost the retender');
+  ok(out.indexOf('WINS & LOSSES\n') >= 0 && w > 0 && l > w);
+});
+
+test('Actions not raised against an issue are under NEW ACTIONS, named by project', () => {
+  const snap = fullBoard();
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('NEW ACTIONS\n• A-001 - call the supplier') >= 0);
+  ok(out.indexOf('• A-002 - slipping one - book the lab') >= 0);
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */

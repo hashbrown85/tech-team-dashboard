@@ -303,6 +303,9 @@ const OPP_SUMMARY = {
  * @param {any} a
  * @returns {string}
  */
+/** How an action sits under its issue in the summary: indented, with a dash. */
+const SUB = '    – ';
+
 function actionHead(snap, a) {
   const ref = parentRef(snap, a);
   const what = !ref ? '' : ref.type === 'issue' ? 'Issue: ' + ref.issue.text : projectTitle(ref.project);
@@ -314,15 +317,22 @@ function actionHead(snap, a) {
  *
  * Plain text, not HTML: it has to survive being pasted into anything.
  *
- * Four sections, always in this order, so it reads the same every week:
+ * Sections, always in this order, so it reads the same every week - what was won
+ * and lost, then what moved, then the problems with what is being done about each,
+ * then the rest:
  *
- *   WHAT CHANGED     decisions on opportunities, and project status changes
- *   NEW THIS MEETING wins and losses, opportunities, projects, issues, actions
- *   DONE             actions finished this week, issues resolved
- *   NEEDS ATTENTION  off track, without a path, overdue
+ *   WINS & LOSSES     this meeting's, together
+ *   WHAT CHANGED      decisions on opportunities, project status changes
+ *   NEW OPPORTUNITIES & PROJECTS
+ *   ISSUES            each issue raised, resolved or worked on at this meeting,
+ *                     with its actions indented right under it
+ *   NEW ACTIONS       the other actions raised, named by their project
+ *   DONE              actions finished in the week up to the meeting
+ *   NEEDS ATTENTION   off track, without a path, overdue
+ *   DISCUSSED         topics talked through that did not touch the board
  *
- * A section with nothing in it is left out, so a quiet week is short. If the
- * first three are all empty it says so in one line rather than looking broken.
+ * A section with nothing in it is left out, so a quiet week is short. If nothing
+ * at all was recorded it says so in one line rather than looking broken.
  *
  * "This meeting" is the meeting date `d`: things decided, raised or changed at
  * it. "Done" is the week up to and including it. "Overdue" is as of `today`,
@@ -352,6 +362,16 @@ export function meetingSummary(snap, tab, d, today) {
 
   L.push(tab.name + ' · ' + fmtLong(d));
 
+  /* Wins and losses. */
+  const ents = snap.entries.filter(function (e) { return here(e) && e.meeting === d; });
+  const wl = ents.filter(function (e) { return e.kind === 'win' || e.kind === 'loss'; })
+    .sort(function (a, b) { return a.kind === b.kind ? 0 : a.kind === 'win' ? -1 : 1; })
+    .map(function (e) {
+      return (e.kind === 'win' ? 'Win' : 'Loss') + ' · ' + who(e.personId) + ': ' + e.text +
+        (e.why ? '. Why: ' + e.why : '') +
+        (e.change ? (e.kind === 'loss' ? '. Doing differently: ' : '. Keep doing: ') + e.change : '');
+    });
+
   /* What changed: decisions, then status changes. */
   const decided = snap.projects.filter(function (p) {
     return here(p) && p.oppDecided === d && OPP_SUMMARY[oppStage(p)];
@@ -367,38 +387,55 @@ export function meetingSummary(snap, tab, d, today) {
   });
   const changed = decided.concat(moved);
 
-  /* New this meeting. */
-  const ents = snap.entries.filter(function (e) { return here(e) && e.meeting === d; });
-  const fresh = [];
-  ents.filter(function (e) { return e.kind === 'win' || e.kind === 'loss'; }).forEach(function (e) {
-    fresh.push((e.kind === 'win' ? 'Win' : 'Loss') + ' · ' + who(e.personId) + ': ' + e.text +
-      (e.why ? '. Why: ' + e.why : '') +
-      (e.change ? (e.kind === 'loss' ? '. Doing differently: ' : '. Keep doing: ') + e.change : ''));
-  });
+  /* New opportunities and projects. */
+  const added = [];
   ents.filter(function (e) { return e.kind === 'opp'; }).forEach(function (e) {
     const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
     // Named from the project record, which holds the customer as it stands now.
-    fresh.push('Opportunity · ' + who(e.personId) + ': ' + (pj ? projectTitle(pj) : e.text));
+    added.push('Opportunity · ' + who(e.personId) + ': ' + (pj ? projectTitle(pj) : e.text));
   });
   snap.projects.filter(function (p) {
     return here(p) && !p.fromOpp && p.added === d;
   }).forEach(function (p) {
-    fresh.push('Project · ' + who(p.personId) + ': ' + projectTitle(p));
+    added.push('Project · ' + who(p.personId) + ': ' + projectTitle(p));
   });
-  snap.issues.filter(function (i) { return here(i) && i.meeting === d; }).forEach(function (i) {
-    fresh.push('Issue · ' + who(i.personId) + ': ' + i.text +
-      (SEVERITY_LABELS[i.sev] ? ' (' + SEVERITY_LABELS[i.sev] + ')' : ''));
-  });
+
+  /* Issues, each with its actions right under it. An issue is here if it was
+     raised or resolved at this meeting, or an action was raised against it. Its
+     actions are the open ones plus any raised at this meeting. */
   const newActs = snap.actions
     .filter(function (a) { return here(a) && a.meeting === d; })
     .sort(function (a, b) { return a.num - b.num; });
-  newActs.forEach(function (a) {
-    fresh.push(actionHead(snap, a) +
-      ' · Owner: ' + (a.owner || 'none') +
+  function actDetail(a) {
+    return ' · Owner: ' + (a.owner || 'none') +
       (a.support ? ' (with ' + a.support + ')' : '') +
       ' · Due ' + (a.due ? fmtDay(a.due) : 'no date') +
-      (isOpen(a) ? '' : ' · DONE'));
+      (isOpen(a) ? '' : ' · DONE');
+  }
+  function issueActs(i) {
+    return snap.actions.filter(function (a) {
+      return a.parent && a.parent.type === 'issue' && a.parent.id === i.id &&
+        (isOpen(a) || a.meeting === d);
+    }).sort(function (a, b) { return a.num - b.num; });
+  }
+  const issueBlocks = snap.issues.filter(function (i) {
+    return here(i) && (i.meeting === d || i.resolvedMeeting === d ||
+      newActs.some(function (a) { return a.parent && a.parent.type === 'issue' && a.parent.id === i.id; }));
+  }).map(function (i) {
+    const acts = issueActs(i);
+    const head = (i.status === 'resolved' ? 'RESOLVED · ' : '') + i.text +
+      ' (' + (SEVERITY_LABELS[i.sev] || 'Issue') +
+      (i.meeting === d ? ', raised by ' + who(i.personId) : '') + ')' +
+      (!acts.length && i.status !== 'resolved' ? ' - no action yet' : '');
+    return [head].concat(acts.map(function (a) {
+      return SUB + actionLabel(a) + ' - ' + a.text + actDetail(a);
+    }));
   });
+
+  /* Other new actions: the ones not already shown under an issue above. */
+  const otherActs = newActs.filter(function (a) {
+    return !(a.parent && a.parent.type === 'issue' && byId(snap.issues, a.parent.id));
+  }).map(function (a) { return actionHead(snap, a) + actDetail(a); });
 
   /* Done in the week up to the meeting. A new action already marked DONE above
      is not listed twice. */
@@ -408,9 +445,7 @@ export function meetingSummary(snap, tab, d, today) {
       a.meeting !== d;
   }).sort(function (a, b) { return a.num - b.num; }).map(function (a) {
     return actionHead(snap, a) + ' (' + (a.owner || 'no owner') + ')';
-  }).concat(snap.issues.filter(function (i) {
-    return here(i) && i.status === 'resolved' && i.resolvedMeeting === d;
-  }).map(function (i) { return 'Issue resolved: ' + i.text; }));
+  });
 
   /* Needs attention. */
   const attention = [];
@@ -431,10 +466,20 @@ export function meetingSummary(snap, tab, d, today) {
         ', due ' + fmtDay(a.due) + ')');
     });
 
+  sec('Wins & losses', wl);
   sec('What changed', changed);
-  sec('New this meeting', fresh);
+  sec('New opportunities & projects', added);
+  if (issueBlocks.length) {
+    L.push('', 'ISSUES');
+    issueBlocks.forEach(function (lines) {
+      L.push('• ' + lines[0]);
+      lines.slice(1).forEach(function (x) { L.push(x); });
+    });
+  }
+  sec('New actions', otherActs);
   sec('Done', done);
-  if (!changed.length && !fresh.length && !done.length) {
+  if (!wl.length && !changed.length && !added.length && !issueBlocks.length &&
+      !otherActs.length && !done.length) {
     L.push('', 'Nothing new recorded at this meeting.');
   }
   sec('Needs attention', attention);
