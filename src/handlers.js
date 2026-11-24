@@ -43,7 +43,7 @@ import {
 import { decideOpportunity } from './domain/opportunities.js';
 import { stepIndex } from './domain/constants.js';
 import {
-  copilotPrompt, readReply, proposalsFrom, planFrom, correctReply, retypeReply
+  copilotPrompt, readReply, proposalsFrom, planFrom, correctReply, retypeReply, overrideLegal
 } from './domain/copilot.js';
 import {
   meetingDate, documentId, meetingSummary, withRole, ROLE_LISTS, getMeeting, setDiscussed,
@@ -334,9 +334,34 @@ export function createHandlers(app) {
       focusFirst();
     },
 
+    /*
+     * A subject Copilot set aside under the legal rules, added anyway: it becomes
+     * a suggestion with its correction form open, so the reader picks its type
+     * and writes it - Copilot never gave the details.
+     */
+    copilotLegalAdd: function (el, id, v) {
+      if (!ui.copilotReply) return;
+      const r = overrideLegal(ui.copilotReply, Number(v));
+      if (!r.key) return;
+      ui.copilotReply = r.reply;
+      ui.copilotLegalOk = (ui.copilotLegalOk || []).filter(function (k) { return k !== Number(v); });
+      ui.open = 'cpfix:' + r.key;
+      render();
+      focusFirst();
+    },
+
+    /* The reader agrees it stays off the board. */
+    copilotLegalKeep: function (el, id, v) {
+      const n = Number(v);
+      const kept = ui.copilotLegalOk || [];
+      if (kept.indexOf(n) < 0) ui.copilotLegalOk = kept.concat([n]);
+      render();
+    },
+
     copilotClear: function () {
       ui.copilotReply = null;
       ui.copilotSkip = [];
+      ui.copilotLegalOk = [];
       ui.copilotError = '';
       render();
     },
@@ -365,6 +390,7 @@ export function createHandlers(app) {
       }
       ui.copilotReply = null;
       ui.copilotSkip = [];
+      ui.copilotLegalOk = [];
       ui.copilotError = '';
 
       const first = ops.length ? store.batch(ops) : Promise.resolve();
@@ -1386,6 +1412,7 @@ export function createHandlers(app) {
       const r = readReply(String(fd.get('reply') || ''));
       ui.copilotReply = r.ok ? r.data : null;
       ui.copilotSkip = [];
+      ui.copilotLegalOk = [];
       ui.copilotError = r.error;
       render();
     },

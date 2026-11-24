@@ -45,7 +45,8 @@ export function copilotPanel(snap, ui, env, tab, d) {
   const error = ui.copilotError
     ? '<p class="scope-note">' + esc(ui.copilotError) + '</p>' : '';
 
-  const list = ui.copilotReply ? checklist(snap, ui, tab, d, ro) + legalNote(ui.copilotReply) : '';
+  const list = ui.copilotReply
+    ? checklist(snap, ui, tab, d, ro) + legalNote(ui.copilotReply, ui.copilotLegalOk || [], ro) : '';
 
   return '<section class="panel" aria-label="Copilot"><div class="pan-h">' +
     '<h2>Copilot</h2><span class="sub">Suggested changes from the meeting</span>' +
@@ -57,14 +58,22 @@ export function copilotPanel(snap, ui, env, tab, d) {
  * What Copilot set aside for a Legal check - subjects only. Never applied; it is
  * there so nothing is dropped without anyone knowing.
  */
-function legalNote(reply) {
+function legalNote(reply, kept, ro) {
   const items = legalReview(reply);
   if (!items.length) return '';
   return '<div class="cp-legal"><div class="lbl">Set aside for a check with Legal</div>' +
-    '<p class="why">Copilot left these off the board under the legal rules in the prompt. ' +
-    'Nothing here is applied; raise them with Legal if they need following up.</p>' +
+    '<p class="why">Copilot left these off the board under the legal rules in the prompt, ' +
+    'and gave only the subject. Keep off confirms that. Add anyway makes it a suggestion ' +
+    'above for you to type and word yourself.</p>' +
     '<ul class="cpl">' + items.map(function (x) {
+      const isKept = kept.indexOf(x.i) >= 0;
       return '<li class="cpi no"><span>' + esc(x.topic) + '</span>' +
+        (isKept ? ' <span class="chip">Kept off</span>' : '') +
+        (ro ? '' :
+          ' <button type="button" class="linkbtn" data-act="copilotLegalAdd" data-v="' + x.i +
+          '">Add anyway</button>' +
+          (isKept ? '' : ' <button type="button" class="linkbtn" data-act="copilotLegalKeep" data-v="' +
+            x.i + '">Keep off</button>')) +
         (x.reason ? '<span class="why">' + esc(x.reason) + '</span>' : '') + '</li>';
     }).join('') + '</ul></div>';
 }

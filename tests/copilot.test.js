@@ -17,7 +17,7 @@ import { demoBoard } from '../src/demo-data.js';
 import { renderApp } from '../src/views/render.js';
 import { loadUi } from '../src/ui.js';
 import {
-  copilotPrompt, readReply, personFor, proposalsFrom, planFrom, correctReply, retypeReply
+  copilotPrompt, readReply, personFor, proposalsFrom, planFrom, correctReply, retypeReply, overrideLegal
 } from '../src/domain/copilot.js';
 import {
   setDiscussed, discussedTopics, getMeeting, meetingSummary, memoryKey
@@ -496,4 +496,43 @@ test('No legal_review, no note', async () => {
   const a = await app();
   a.H.forms.copilotReply(new Map([['reply', JSON.stringify({ discussed: ['Holiday cover'] })]]));
   notOk(a.html().indexOf('Set aside for a check with Legal') >= 0);
+});
+
+test('Keep off marks it; Add anyway turns it into a suggestion to write, form open', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify({
+    discussed: ['Holiday cover'],
+    legal_review: [{ topic: 'Competitor pricing', reason: 'Confidential source' },
+      { topic: 'A personal matter', reason: 'Personal' }]
+  })]]));
+  ok(a.html().indexOf('data-act="copilotLegalAdd" data-v="0"') >= 0);
+
+  a.H.clicks.copilotLegalKeep(null, '', '1');
+  eq(a.ui.copilotLegalOk, [1]);
+  ok(a.html().indexOf('Kept off') >= 0);
+
+  a.H.clicks.copilotLegalAdd(null, '', '0');
+  eq(a.ui.copilotReply.discussed, ['Holiday cover', 'Competitor pricing']);
+  eq(a.ui.copilotReply.legal_review[0], null, 'gone from the set-aside list');
+  eq(a.ui.open, 'cpfix:discussed.1', 'its form open, to pick a type and write it');
+  const html = a.html();
+  ok(html.indexOf('A personal matter') >= 0, 'the other one stays');
+  ok(/<select class="fld" name="type"[^>]*data-v="discussed.1"/.test(html), 'with Type to switch');
+
+  a.H.edits.copilotType(/** @type {any} */ ({ dataset: { v: 'discussed.1' }, value: 'loss', form: null }));
+  a.H.forms.copilotFix(new Map([['type', 'loss'], ['person', 'Alex Morgan'],
+    ['text', 'Lost on price to the incumbent'], ['why', 'Customer said we were high'],
+    ['change', 'Quote earlier']]), /** @type {any} */ ({ dataset: { v: a.ui.open.slice(6) } }));
+  a.H.clicks.copilotApply(null, '', '');
+  await settle();
+  ok(a.store.snapshot().entries.some(function (e) { return e.text === 'Lost on price to the incumbent'; }),
+    'written by the reader, applied like any other');
+  eq(a.ui.copilotLegalOk, [], 'and the marks clear with the reply');
+});
+
+test('Nothing in legal_review can be added twice or out of range', () => {
+  const r = { legal_review: ['Topic'] };
+  eq(overrideLegal(r, 5).key, '');
+  const once = overrideLegal(r, 0).reply;
+  eq(overrideLegal(once, 0).key, '', 'already added');
 });

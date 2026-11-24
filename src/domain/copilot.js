@@ -257,14 +257,40 @@ export const LEGAL_RULES = [
  * What Copilot set aside for a check with Legal: subjects only, as it was told
  * to give them. Shown in the checklist, never applied.
  *
+ * Each keeps its place in the list (`i`), which is how Add anyway and Keep off
+ * name it; one already added to the board leaves an empty slot behind.
+ *
  * @param {any} data - the reply
- * @returns {{topic: string, reason: string}[]}
+ * @returns {{i: number, topic: string, reason: string}[]}
  */
 export function legalReview(data) {
-  return listOf(data, 'legal_review').map(function (x) {
-    return typeof x === 'string' ? { topic: str(x), reason: '' }
-      : { topic: str(x && x.topic), reason: str(x && x.reason) };
-  }).filter(function (x) { return x.topic; });
+  const out = [];
+  each(data, 'legal_review', function (x, i) {
+    const it = typeof x === 'string' ? { i: i, topic: str(x), reason: '' }
+      : { i: i, topic: str(x && x.topic), reason: str(x && x.reason) };
+    if (it.topic) out.push(it);
+  });
+  return out;
+}
+
+/**
+ * Add anyway: a set-aside subject becomes an ordinary suggestion - a Discussed
+ * topic holding the subject - for the reader to switch to the right type and
+ * write themselves. Copilot never gave the details, so whatever goes on the board
+ * is written by a person who chose to put it there.
+ *
+ * @param {any} reply
+ * @param {number} i - its place in legal_review
+ * @returns {{reply: any, key: string}}
+ */
+export function overrideLegal(reply, i) {
+  const item = legalReview(reply).filter(function (x) { return x.i === i; })[0];
+  if (!item) return { reply: reply, key: '' };
+  const out = Object.assign({}, reply);
+  out.legal_review = reply.legal_review.slice();
+  out.legal_review[i] = null;
+  out.discussed = (Array.isArray(reply.discussed) ? reply.discussed : []).concat([item.topic]);
+  return { reply: out, key: 'discussed.' + (out.discussed.length - 1) };
 }
 
 /**

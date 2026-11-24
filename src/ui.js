@@ -33,6 +33,7 @@ function defaults() {
     copilotShow: false,
     copilotReply: null,
     copilotSkip: [],
+    copilotLegalOk: [], // legal_review places the reader agreed to keep off
     copilotError: '',
     tab: null,          // which meeting, when view === 'tab'
     settings: false,    // showing that meeting's settings
