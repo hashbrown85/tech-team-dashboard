@@ -27,7 +27,7 @@ import {
   raisedOn
 } from './queries.js';
 
-import { STATUS_LABELS, SEVERITY_LABELS } from './constants.js';
+import { SEVERITY_LABELS } from './constants.js';
 import { actionLabel } from './actions.js';
 import { projectTitle } from './projects.js';
 
@@ -318,18 +318,24 @@ function actionHead(snap, a) {
  * Plain text, not HTML: it has to survive being pasted into anything.
  *
  * Sections, always in this order, so it reads the same every week - what was won
- * and lost, then what moved, then the problems with what is being done about each,
- * then the rest:
+ * and lost, what is new, the problems with what is being done about each, what
+ * got finished, what needs attention:
  *
  *   WINS & LOSSES     this meeting's, together
- *   WHAT CHANGED      decisions on opportunities, project status changes
  *   NEW OPPORTUNITIES & PROJECTS
+ *                     raised at this meeting, and opportunities promoted, put
+ *                     on hold or cancelled at it
  *   ISSUES            each issue raised, resolved or worked on at this meeting,
  *                     with its actions indented right under it
- *   NEW ACTIONS       the other actions raised, named by their project
- *   DONE              actions finished in the week up to the meeting
+ *   NEW ACTIONS       the other actions raised and still open, named by project
+ *   COMPLETED ITEMS   projects marked done at this meeting, actions finished in
+ *                     the week up to it
  *   NEEDS ATTENTION   off track, without a path, overdue
  *   DISCUSSED         topics talked through that did not touch the board
+ *
+ * There is no list of status changes: a project going off track is under Needs
+ * attention, one finished is under Completed, and the rest (an opportunity
+ * promoted to "on track") is noise in an email.
  *
  * A section with nothing in it is left out, so a quiet week is short. If nothing
  * at all was recorded it says so in one line rather than looking broken.
@@ -372,22 +378,7 @@ export function meetingSummary(snap, tab, d, today) {
         (e.change ? (e.kind === 'loss' ? '. Doing differently: ' : '. Keep doing: ') + e.change : '');
     });
 
-  /* What changed: decisions, then status changes. */
-  const decided = snap.projects.filter(function (p) {
-    return here(p) && p.oppDecided === d && OPP_SUMMARY[oppStage(p)];
-  }).map(function (p) {
-    return OPP_SUMMARY[oppStage(p)] + ': ' + projectTitle(p) + ' (' + who(p.personId) + ')';
-  });
-  const moved = snap.projects.filter(function (p) {
-    return here(p) && !isOpportunity(p) && p.statusMeeting === d &&
-      p.prevStatus && p.prevStatus !== p.status;
-  }).map(function (p) {
-    return projectTitle(p) + ' (' + who(p.personId) + '): ' +
-      STATUS_LABELS[p.prevStatus] + ' → ' + STATUS_LABELS[p.status];
-  });
-  const changed = decided.concat(moved);
-
-  /* New opportunities and projects. */
+  /* New opportunities and projects, then decisions on opportunities. */
   const added = [];
   ents.filter(function (e) { return e.kind === 'opp'; }).forEach(function (e) {
     const pj = e.projectId ? byId(snap.projects, e.projectId) : null;
@@ -398,6 +389,11 @@ export function meetingSummary(snap, tab, d, today) {
     return here(p) && !p.fromOpp && p.added === d;
   }).forEach(function (p) {
     added.push('Project · ' + who(p.personId) + ': ' + projectTitle(p));
+  });
+  snap.projects.filter(function (p) {
+    return here(p) && p.oppDecided === d && OPP_SUMMARY[oppStage(p)];
+  }).forEach(function (p) {
+    added.push(OPP_SUMMARY[oppStage(p)] + ' · ' + who(p.personId) + ': ' + projectTitle(p));
   });
 
   /* Issues, each with its actions right under it. An issue is here if it was
@@ -432,27 +428,35 @@ export function meetingSummary(snap, tab, d, today) {
     }));
   });
 
-  /* Other new actions: the ones not already shown under an issue above. */
+  /* Other new actions: open ones not already shown under an issue above. One
+     raised and finished at the meeting is under Completed instead. */
   const otherActs = newActs.filter(function (a) {
-    return !(a.parent && a.parent.type === 'issue' && byId(snap.issues, a.parent.id));
+    return isOpen(a) && !(a.parent && a.parent.type === 'issue' && byId(snap.issues, a.parent.id));
   }).map(function (a) { return actionHead(snap, a) + actDetail(a); });
 
-  /* Done in the week up to the meeting. A new action already marked DONE above
-     is not listed twice. */
+  /* Completed: projects marked done at this meeting, then actions finished in
+     the week up to it. */
   const weekStart = addDays(d, -7);
-  const done = snap.actions.filter(function (a) {
-    return here(a) && !isOpen(a) && a.doneOn && a.doneOn > weekStart && a.doneOn <= d &&
-      a.meeting !== d;
+  const done = snap.projects.filter(function (p) {
+    return here(p) && !isOpportunity(p) && p.status === 'done' && p.statusMeeting === d;
+  }).map(function (p) {
+    return 'Project done · ' + who(p.personId) + ': ' + projectTitle(p);
+  }).concat(snap.actions.filter(function (a) {
+    return here(a) && !isOpen(a) && a.doneOn && a.doneOn > weekStart && a.doneOn <= d;
   }).sort(function (a, b) { return a.num - b.num; }).map(function (a) {
     return actionHead(snap, a) + ' (' + (a.owner || 'no owner') + ')';
-  });
+  }));
 
   /* Needs attention. */
   const attention = [];
-  const still = snap.projects.filter(function (p) {
-    return here(p) && !isOpportunity(p) && p.status === 'off' && p.statusMeeting !== d;
-  }).map(projectTitle);
-  if (still.length) attention.push('Still off track: ' + still.join(', '));
+  // Every project off track - the ones that went off at this meeting marked, since
+  // there is no longer a list of status changes to see that in.
+  const off = snap.projects.filter(function (p) {
+    return here(p) && !isOpportunity(p) && p.status === 'off';
+  }).map(function (p) {
+    return projectTitle(p) + (p.statusMeeting === d ? ' (new this meeting)' : '');
+  });
+  if (off.length) attention.push('Off track: ' + off.join(', '));
   const np = issueItems(snap, tab.id);
   if (np.length) {
     attention.push('Without a path (' + np.length + '): ' +
@@ -467,7 +471,6 @@ export function meetingSummary(snap, tab, d, today) {
     });
 
   sec('Wins & losses', wl);
-  sec('What changed', changed);
   sec('New opportunities & projects', added);
   if (issueBlocks.length) {
     L.push('', 'ISSUES');
@@ -477,8 +480,8 @@ export function meetingSummary(snap, tab, d, today) {
     });
   }
   sec('New actions', otherActs);
-  sec('Done', done);
-  if (!wl.length && !changed.length && !added.length && !issueBlocks.length &&
+  sec('Completed items', done);
+  if (!wl.length && !added.length && !issueBlocks.length &&
       !otherActs.length && !done.length) {
     L.push('', 'Nothing new recorded at this meeting.');
   }

@@ -270,14 +270,14 @@ test('An undecided opportunity reads as raised, with no promise attached', () =>
   notOk(out.indexOf('Joins Current Projects') >= 0);
 });
 
-test('Decisions on opportunities lead WHAT CHANGED, one each', () => {
+test('Decisions on opportunities are listed with the new ones, one each', () => {
   ['promoted', 'hold', 'cancelled'].forEach(function (stage) {
     const snap = fullBoard();
     const opp = snap.projects.filter(function (p) { return p.fromOpp; })[0];
     Object.assign(opp, { oppStage: stage, oppDecided: MEETING, customer: 'Demo Quartz' });
     const out = meetingSummary(snap, snap.tabs[0], MEETING);
     const label = { promoted: 'Promoted to project', hold: 'Put on hold', cancelled: 'Cancelled' }[stage];
-    ok(out.indexOf('WHAT CHANGED\n• ' + label + ': Demo Quartz - a new line (First Person)') >= 0,
+    ok(out.indexOf('• ' + label + ' · First Person: Demo Quartz - a new line') >= 0,
       stage + ' reads as "' + label + '", with the customer');
   });
 });
@@ -289,33 +289,48 @@ test('A decision from an earlier meeting is not repeated', () => {
   notOk(meetingSummary(snap, snap.tabs[0], MEETING).indexOf('Cancelled:') >= 0);
 });
 
-test('A status change reads as an arrow between the two labels', () => {
+test('No list of status changes - an opportunity going "on track" is not news', () => {
   const snap = fullBoard();
+  snap.projects.push({ id: 'pr9', tab: 't1', personId: 'p1', name: 'promoted one', status: 'on',
+    prevStatus: 'new', statusMeeting: MEETING });
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-
-  ok(out.indexOf('• slipping one (First Person): On track → Off track') >= 0);
+  notOk(out.indexOf('WHAT CHANGED') >= 0);
+  notOk(out.indexOf('→') >= 0, 'no "was → now" lines');
+  notOk(out.indexOf('promoted one') >= 0);
 });
 
-test('Projects still off track from earlier meetings get their own line', () => {
+test('Every project off track is under Needs attention, the new ones marked', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-
-  ok(out.indexOf('• Still off track: long-term problem') >= 0,
+  ok(out.indexOf('• Off track: slipping one (new this meeting), long-term problem') >= 0,
     'so nothing quietly stays broken across weeks');
+});
+
+test('Completed items: projects marked done here, and actions finished this week', () => {
+  const snap = fullBoard();
+  snap.projects.push({ id: 'pr9', tab: 't1', personId: 'p2', name: 'wrapped up', customer: 'Demo Quartz',
+    status: 'done', prevStatus: 'on', statusMeeting: MEETING });
+  const out = meetingSummary(snap, snap.tabs[0], MEETING);
+  ok(out.indexOf('COMPLETED ITEMS\n• Project done · Second Person: Demo Quartz - wrapped up\n' +
+    '• A-001 - call the supplier (Second Person)') >= 0, out);
+  ok(out.indexOf('COMPLETED ITEMS') < out.indexOf('NEEDS ATTENTION'), 'right above Needs attention');
 });
 
 test('Actions are listed by number, with owner, date and what they are about', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
   const lines = out.split('\n');
-  const first = lines.findIndex((l) => l.indexOf('A-001') >= 0);
-  const second = lines.findIndex((l) => l.indexOf('A-002') >= 0);
+  snap.actions.push({ id: 'a0', num: 3, tab: 't1', text: 'later one', owner: 'First Person',
+    due: '2026-09-30', status: 'open', meeting: MEETING });
+  const out2 = meetingSummary(snap, snap.tabs[0], MEETING).split('\n');
+  const first = out2.findIndex((l) => l.indexOf('A-002') >= 0);
+  const second = out2.findIndex((l) => l.indexOf('A-003') >= 0);
 
   ok(first >= 0 && second > first, 'sorted by number, not insertion order');
   ok(out.indexOf('A-002 - slipping one - book the lab · Owner: First Person (with Second Person) · Due Mon, Sep 21') >= 0,
     'number, then the project, then the action');
-  ok(out.indexOf('A-001 - call the supplier · Owner: Second Person · Due no date · DONE') >= 0,
-    'a closed action is marked, and a missing date says so');
+  notOk(out.indexOf('A-001 - call the supplier · Owner') >= 0,
+    'one raised and finished at the meeting is under Completed, not New actions');
 });
 
 test('Summary actions lead with customer and project, or the issue they are for', () => {
@@ -387,7 +402,7 @@ test('Projects are named with their customer, as on the board', () => {
   const snap = fullBoard();
   snap.projects.filter(function (p) { return p.id === 'pr1'; })[0].customer = 'Demo Basalt';
   ok(meetingSummary(snap, snap.tabs[0], MEETING)
-    .indexOf('• Demo Basalt - slipping one (First Person): On track → Off track') >= 0);
+    .indexOf('• Off track: Demo Basalt - slipping one (new this meeting)') >= 0);
 });
 
 test('Who it goes to: everybody in the meeting with a work email', () => {
@@ -409,8 +424,8 @@ test('Empty sections are left out, and a quiet meeting says so in one line', () 
   // happen. A meeting where nothing at all was recorded says that, once.
   const snap = board();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ['WINS & LOSSES', 'WHAT CHANGED', 'NEW OPPORTUNITIES & PROJECTS', 'ISSUES', 'NEW ACTIONS',
-    'DONE', 'NEEDS ATTENTION'].forEach(function (h) {
+  ['WINS & LOSSES', 'NEW OPPORTUNITIES & PROJECTS', 'ISSUES', 'NEW ACTIONS',
+    'COMPLETED ITEMS', 'NEEDS ATTENTION'].forEach(function (h) {
     notOk(out.indexOf(h) >= 0, h + ' is left out when empty');
   });
   ok(out.indexOf('Nothing new recorded at this meeting.') >= 0);
@@ -429,8 +444,8 @@ test('Sections always come in the same order', () => {
   snap.actions.push({ id: 'a3', num: 3, tab: 't1', text: 'sent the samples', owner: 'Second Person',
     status: 'done', doneOn: '2026-09-10', meeting: '2026-09-07' });
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  const order = ['WINS & LOSSES', 'WHAT CHANGED', 'NEW OPPORTUNITIES & PROJECTS', 'ISSUES',
-    'NEW ACTIONS', 'DONE', 'NEEDS ATTENTION'];
+  const order = ['WINS & LOSSES', 'NEW OPPORTUNITIES & PROJECTS', 'ISSUES',
+    'NEW ACTIONS', 'COMPLETED ITEMS', 'NEEDS ATTENTION'];
   const found = order.map((h) => out.indexOf('\n' + h));
 
   found.forEach(function (at, i) {
@@ -467,8 +482,7 @@ test('Wins come before losses, together in one section', () => {
 test('Actions not raised against an issue are under NEW ACTIONS, named by project', () => {
   const snap = fullBoard();
   const out = meetingSummary(snap, snap.tabs[0], MEETING);
-  ok(out.indexOf('NEW ACTIONS\n• A-001 - call the supplier') >= 0);
-  ok(out.indexOf('• A-002 - slipping one - book the lab') >= 0);
+  ok(out.indexOf('NEW ACTIONS\n• A-002 - slipping one - book the lab') >= 0);
 });
 
 /* Tests run on import. tests/all.test.js gathers every file and reports once. */
