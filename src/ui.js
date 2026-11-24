@@ -38,6 +38,7 @@ function defaults() {
     tab: null,          // which meeting, when view === 'tab'
     settings: false,    // showing that meeting's settings
     dates: {},          // per-meeting week override: {tabId: 'YYYY-MM-DD'}
+    autoDates: {},      // the ones Copilot/Summary set, undone on close or reload
     steps: {},          // per-meeting agenda step: {tabId: 0-4}
     timers: {},         // per-meeting clock: {tabId: {acc, start}}
     filter: 'open',     // action register filter
@@ -101,9 +102,15 @@ export function loadUi() {
     const saved = JSON.parse(raw);
     const merged = Object.assign(base, saved);
     // These must be objects; anything else would break lookups.
-    ['dates', 'steps', 'timers', 'openDetails'].forEach(function (k) {
+    ['dates', 'steps', 'timers', 'openDetails', 'autoDates'].forEach(function (k) {
       if (!merged[k] || typeof merged[k] !== 'object') merged[k] = {};
     });
+    // A meeting moved back to the one just held by Copilot or the Summary goes
+    // forward again on a fresh start - otherwise next week would open on last week.
+    Object.keys(merged.autoDates).forEach(function (k) {
+      if (merged.dates[k] === merged.autoDates[k]) delete merged.dates[k];
+    });
+    merged.autoDates = {};
     return merged;
   } catch (e) {
     return base;

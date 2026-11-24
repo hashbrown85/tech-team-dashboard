@@ -278,7 +278,8 @@ function summaryPanel(snap, env, tab, d) {
       '</b>, so the email will not include them. Add one on the People page.</p>'
     : '';
   return '<section class="panel" aria-label="Meeting summary"><div class="pan-h">' +
-    '<h2>Meeting summary</h2><span class="sub">' + esc(to) + '</span>' +
+    '<h2>Meeting summary</h2><span class="sub">For the meeting on ' + fmtDay(d) + ' · ' +
+    esc(to) + '</span>' +
     '<div class="r">' +
     '<button class="btn sm" type="button" data-act="emailSummary">Email</button> ' +
     '<button class="btn ghost sm" type="button" data-act="copySummary">Copy</button> ' +

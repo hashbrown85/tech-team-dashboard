@@ -11,6 +11,7 @@
  */
 
 import { esc } from '../lib/dom.js';
+import { fmtDay } from '../lib/dates.js';
 import {
   proposalsFrom, PROPOSAL_GROUPS, meetingLists, RETYPES, typeOf, pendingOf, legalReview
 } from '../domain/copilot.js';
@@ -49,7 +50,8 @@ export function copilotPanel(snap, ui, env, tab, d) {
     ? checklist(snap, ui, tab, d, ro) + legalNote(ui.copilotReply, ui.copilotLegalOk || [], ro) : '';
 
   return '<section class="panel" aria-label="Copilot"><div class="pan-h">' +
-    '<h2>Copilot</h2><span class="sub">Suggested changes from the meeting</span>' +
+    '<h2>Copilot</h2><span class="sub">Suggested changes from the meeting on ' + fmtDay(d) +
+    '</span>' +
     '<div class="r"><button class="btn ghost sm" type="button" data-act="toggleCopilot">Close</button>' +
     '</div></div>' + (list ? '' : steps) + error + list + '</section>';
 }

@@ -97,6 +97,19 @@ export function nextOn(s, wd) {
   return toStr(d);
 }
 
+/**
+ * The most recent given weekday on or before a date: the meeting just held.
+ *
+ * @param {string} s - 'YYYY-MM-DD'
+ * @param {number} wd - 0 Sunday … 6 Saturday
+ * @returns {string}
+ */
+export function lastOn(s, wd) {
+  const d = parseD(s);
+  d.setDate(d.getDate() - (((d.getDay() - wd) + 7) % 7));
+  return toStr(d);
+}
+
 /* ---------- moments in time ---------- */
 
 /*

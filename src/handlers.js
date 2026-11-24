@@ -15,7 +15,7 @@
  */
 
 import { byId, byName } from './lib/seq.js';
-import { addDays, nowIso } from './lib/dates.js';
+import { addDays, nowIso, lastOn } from './lib/dates.js';
 import { toast, flash, focusFirst } from './lib/dom.js';
 import { newNote, editNote, canEditNote, canRemoveNote } from './domain/notes.js';
 import { issueItems, detailsArrived, projVisible } from './domain/queries.js';
@@ -112,6 +112,33 @@ export function createHandlers(app) {
   }
 
   /** The meeting occurrence currently on screen. */
+  /*
+   * Copilot and the Summary are always about a meeting that has happened - a
+   * transcript is of one, an email goes out after one. Between meetings the board
+   * shows the NEXT one, so opening either of them then moves the meeting back to
+   * the one just held, where everything will be filed and summarised. Only when
+   * nobody picked a date with the arrows: a date chosen on purpose is kept.
+   */
+  function toMeetingJustHeld() {
+    const t = currentTab();
+    if (!t || ui.dates[t.id]) return;
+    const held = lastOn(app.today(), Number(t.weekday));
+    if (held === currentDate(t)) return;
+    ui.dates[t.id] = held;
+    ui.autoDates = Object.assign({}, ui.autoDates, { [t.id]: held });
+  }
+
+  /* Both panels closed: a meeting moved back automatically goes forward again. */
+  function backFromHeld() {
+    const t = currentTab();
+    if (!t || ui.copilotShow || ui.sumShow) return;
+    const auto = ui.autoDates || {};
+    if (auto[t.id] && ui.dates[t.id] === auto[t.id]) delete ui.dates[t.id];
+    const rest = Object.assign({}, auto);
+    delete rest[t.id];
+    ui.autoDates = rest;
+  }
+
   function currentDate(tab) {
     const t = tab || currentTab();
     if (!t) return app.today();
@@ -314,11 +341,19 @@ export function createHandlers(app) {
     },
     clearPerson: function () { ui.person = 'all'; render(); },
     toggleFollow: function () { ui.follow = !ui.follow; render(); },
-    toggleSummary: function () { ui.sumShow = !ui.sumShow; render(); },
+    toggleSummary: function () {
+      ui.sumShow = !ui.sumShow;
+      if (ui.sumShow) toMeetingJustHeld(); else backFromHeld();
+      render();
+    },
 
     /* --- Copilot, by copy and paste: see domain/copilot.js --- */
 
-    toggleCopilot: function () { ui.copilotShow = !ui.copilotShow; render(); },
+    toggleCopilot: function () {
+      ui.copilotShow = !ui.copilotShow;
+      if (ui.copilotShow) toMeetingJustHeld(); else backFromHeld();
+      render();
+    },
 
     copilotPrompt: function () {
       const t = currentTab();

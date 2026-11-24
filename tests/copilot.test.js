@@ -26,6 +26,7 @@ import { createStore } from '../src/store.js';
 import { createMemoryAdapter } from '../src/adapters/memoryAdapter.js';
 import { createHandlers } from '../src/handlers.js';
 import { byId } from '../src/lib/seq.js';
+import { lastOn } from '../src/lib/dates.js';
 
 const DAY = '2026-09-22';
 const MEETING = '2026-09-21';
@@ -535,4 +536,63 @@ test('Nothing in legal_review can be added twice or out of range', () => {
   eq(overrideLegal(r, 5).key, '');
   const once = overrideLegal(r, 0).reply;
   eq(overrideLegal(once, 0).key, '', 'already added');
+});
+
+group('Copilot and Summary use the meeting just held');
+
+test('lastOn: the given weekday on or before a date', () => {
+  eq(lastOn('2026-09-22', 1), '2026-09-21', 'Tuesday back to Monday');
+  eq(lastOn('2026-09-21', 1), '2026-09-21', 'on the day itself');
+  eq(lastOn('2026-09-20', 1), '2026-09-14', 'Sunday back a week');
+});
+
+test('Opened the day after, both move the meeting back to the one just held', async () => {
+  for (const act of ['toggleCopilot', 'toggleSummary']) {
+    const a = await app();
+    a.ui.dates = {};
+    a.ui.copilotShow = false;
+    a.H.clicks[act](null, '', '');
+    eq(a.ui.dates.t1, '2026-09-21', act + ': Tuesday the 22nd opens on Monday the 21st');
+  }
+});
+
+test('A date picked with the arrows is kept', async () => {
+  const a = await app();
+  a.ui.dates = { t1: '2026-09-28' };
+  a.ui.copilotShow = false;
+  a.H.clicks.toggleCopilot(null, '', '');
+  eq(a.ui.dates.t1, '2026-09-28');
+});
+
+test('Applied there: filed under the meeting just held, and the panels say which', async () => {
+  const a = await app();
+  a.ui.dates = {};
+  a.ui.copilotShow = false;
+  a.H.clicks.toggleCopilot(null, '', '');
+  ok(a.html().indexOf('Suggested changes from the meeting on Mon, Sep 21') >= 0);
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify({
+    wins_losses: [{ kind: 'win', person: 'Alex Morgan', text: 'Held-meeting win', why: 'x' }] })]]));
+  a.H.clicks.copilotApply(null, '', '');
+  await settle();
+  const e = a.store.snapshot().entries.filter(function (x) { return x.text === 'Held-meeting win'; })[0];
+  eq(e.meeting, '2026-09-21', 'not next week');
+  a.H.clicks.toggleSummary(null, '', '');
+  ok(a.html().indexOf('For the meeting on Mon, Sep 21') >= 0);
+});
+
+test('Closing both panels puts the meeting forward again; an arrow-picked date stays', async () => {
+  const a = await app();
+  a.ui.dates = {};
+  a.ui.copilotShow = false;
+  a.H.clicks.toggleCopilot(null, '', '');
+  a.H.clicks.toggleSummary(null, '', '');
+  a.H.clicks.toggleCopilot(null, '', '');
+  eq(a.ui.dates.t1, '2026-09-21', 'still back while the Summary is open');
+  a.H.clicks.toggleSummary(null, '', '');
+  eq(a.ui.dates.t1, undefined, 'both closed: back to showing the next meeting');
+
+  a.ui.dates = { t1: '2026-09-14' };
+  a.H.clicks.toggleCopilot(null, '', '');
+  a.H.clicks.toggleCopilot(null, '', '');
+  eq(a.ui.dates.t1, '2026-09-14', 'a date picked on purpose is left alone');
 });
