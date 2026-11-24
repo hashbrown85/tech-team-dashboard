@@ -12,7 +12,7 @@
 
 import { esc } from '../lib/dom.js';
 import {
-  proposalsFrom, PROPOSAL_GROUPS, meetingLists, RETYPES, typeOf, pendingOf
+  proposalsFrom, PROPOSAL_GROUPS, meetingLists, RETYPES, typeOf, pendingOf, legalReview
 } from '../domain/copilot.js';
 import { projectTitle } from '../domain/projects.js';
 import { STATUSES, STATUS_LABELS, SEVERITY_LABELS } from '../domain/constants.js';
@@ -45,12 +45,28 @@ export function copilotPanel(snap, ui, env, tab, d) {
   const error = ui.copilotError
     ? '<p class="scope-note">' + esc(ui.copilotError) + '</p>' : '';
 
-  const list = ui.copilotReply ? checklist(snap, ui, tab, d, ro) : '';
+  const list = ui.copilotReply ? checklist(snap, ui, tab, d, ro) + legalNote(ui.copilotReply) : '';
 
   return '<section class="panel" aria-label="Copilot"><div class="pan-h">' +
     '<h2>Copilot</h2><span class="sub">Suggested changes from the meeting</span>' +
     '<div class="r"><button class="btn ghost sm" type="button" data-act="toggleCopilot">Close</button>' +
     '</div></div>' + (list ? '' : steps) + error + list + '</section>';
+}
+
+/**
+ * What Copilot set aside for a Legal check - subjects only. Never applied; it is
+ * there so nothing is dropped without anyone knowing.
+ */
+function legalNote(reply) {
+  const items = legalReview(reply);
+  if (!items.length) return '';
+  return '<div class="cp-legal"><div class="lbl">Set aside for a check with Legal</div>' +
+    '<p class="why">Copilot left these off the board under the legal rules in the prompt. ' +
+    'Nothing here is applied; raise them with Legal if they need following up.</p>' +
+    '<ul class="cpl">' + items.map(function (x) {
+      return '<li class="cpi no"><span>' + esc(x.topic) + '</span>' +
+        (x.reason ? '<span class="why">' + esc(x.reason) + '</span>' : '') + '</li>';
+    }).join('') + '</ul></div>';
 }
 
 /** The suggestions, grouped, each with a tick box - or the reason it cannot apply. */

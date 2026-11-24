@@ -270,7 +270,8 @@ function matrix() {
       copilotReply: {
         status_changes: [{ id: 'pr1', status: 'off' }, { id: 'nope', status: 'on' }],
         actions: [{ text: 'A deliberately long action text that has to wrap inside the narrow checklist row without pushing anything sideways', owner: 'Alex Morgan', due: '2026-09-25', related_id: 'i1' }],
-        discussed: ['Holiday cover', 'Pricing review']
+        discussed: ['Holiday cover', 'Pricing review'],
+        legal_review: [{ topic: 'A competitor conversation', reason: 'Talking with a competitor about bids' }]
       }, copilotSkip: ['discussed.1'] }],
     ['copilot, correcting an action', { view: 'tab', tab: 't1', steps: { t1: 0 }, copilotShow: true,
       open: 'cpfix:actions.0', copilotReply: {

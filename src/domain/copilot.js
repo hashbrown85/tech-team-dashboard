@@ -221,6 +221,53 @@ export function retypeReply(reply, key, type, values) {
 }
 
 /**
+ * Standing rules that keep what Copilot writes onto the board on safe legal
+ * ground. Board records are business records: they can be read by anyone in
+ * the company and turned over in a dispute, so they should hold facts, with
+ * where each came from, and nothing that was not ours to have.
+ *
+ * Borderline material is reworded to the safe version or left out - and when
+ * left out, it is named (subject only) under legal_review, so it is flagged for
+ * a check with Legal rather than silently dropped. Nothing is hidden; the
+ * details just do not go onto the board.
+ */
+export const LEGAL_RULES = [
+  'Keep everything you write within legal and ethical bounds. These records are ' +
+    'business records that others may read. Follow these rules:',
+  '- Competitors may be named, with facts and where they came from (for example ' +
+    '"customer says X Chemical supplies the scrubbers today"). No insults, and no ' +
+    'guesses stated as facts.',
+  '- Leave out a competitor\'s pricing, quotes, formulas or documents if they came ' +
+    'from a confidential source (a competitor\'s paperwork, a former employee, or a ' +
+    'customer sharing something under confidentiality). A customer\'s own target ' +
+    '("customer needs to be under $X") is fine.',
+  '- Leave out anything about talking WITH a competitor about prices, bids, ' +
+    'customers, territories or wages. Do not summarise it.',
+  '- Leave out personal matters about any individual: health, family, ' +
+    'performance or disciplinary issues, and anything about age, race, religion or ' +
+    'similar.',
+  '- Write about customers and people factually and neutrally - nothing you would ' +
+    'not want them to read.',
+  '- If something is borderline, either reword it to the plainly safe version or ' +
+    'leave it out. Whatever you leave out, add to legal_review by subject only - ' +
+    'a few neutral words, no details - so it can be checked with Legal.'
+];
+
+/**
+ * What Copilot set aside for a check with Legal: subjects only, as it was told
+ * to give them. Shown in the checklist, never applied.
+ *
+ * @param {any} data - the reply
+ * @returns {{topic: string, reason: string}[]}
+ */
+export function legalReview(data) {
+  return listOf(data, 'legal_review').map(function (x) {
+    return typeof x === 'string' ? { topic: str(x), reason: '' }
+      : { topic: str(x && x.topic), reason: str(x && x.reason) };
+  }).filter(function (x) { return x.topic; });
+}
+
+/**
  * The prompt to paste into Copilot.
  *
  * Written for Copilot, not for a person: exact shape, exact ids, and an explicit
@@ -259,12 +306,16 @@ export function copilotPrompt(snap, tab, d) {
     'opportunity or new issue in this same reply, its place in that list counting from 0, ' +
     'like new_opportunities.0 or issues.1; or empty"}],');
   L.push('  "discussed": ["a short line for each topic talked through that is not one of ' +
-    'the changes above"]');
+    'the changes above"],');
+  L.push('  "legal_review": [{"topic": "a few neutral words naming the subject, no details", ' +
+    '"reason": "which rule below kept it out"}]');
   L.push('}');
   L.push('');
   L.push('Rules: use ids and names exactly as listed below. status "on" means on track, ' +
     '"off" means off track. Severity "stopper" is urgent, "risk" is important. Dates as ' +
     'YYYY-MM-DD; if a due date was said as a weekday, give the next one after ' + d + '.');
+  L.push('');
+  LEGAL_RULES.forEach(function (r) { L.push(r); });
   L.push('');
   const lists = meetingLists(snap, tab, d);
   L.push('PEOPLE');

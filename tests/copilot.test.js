@@ -467,3 +467,33 @@ test('Edit offers the new opportunity and issue under Related to', async () => {
   ok(html.indexOf('<option value="new_opportunities.0" selected>New opportunity: Demo Quartz - Scale squeeze</option>') >= 0);
   ok(html.indexOf('<option value="issues.0">New issue: Loads cancelled</option>') >= 0);
 });
+
+group('Keeping Copilot within legal bounds');
+
+test('The prompt carries the legal rules and asks for a legal_review list', () => {
+  const snap = demoBoard(DAY);
+  const text = copilotPrompt(snap, t1(snap), MEETING);
+  ['Competitors may be named', 'confidential source', 'talking WITH a competitor',
+    'personal matters', 'reword it to the plainly safe version or leave it out', '"legal_review"']
+    .forEach(function (s) { ok(text.indexOf(s) >= 0, s); });
+});
+
+test('What was set aside is shown by subject, and never applied', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify({
+    discussed: ['Holiday cover'],
+    legal_review: [{ topic: 'A competitor conversation', reason: 'Talking with a competitor about bids' }, '  ']
+  })]]));
+  const html = a.html();
+  ok(html.indexOf('Set aside for a check with Legal') >= 0);
+  ok(html.indexOf('A competitor conversation') >= 0 && html.indexOf('Talking with a competitor about bids') >= 0);
+  notOk(/data-edit="copilotPick" data-v="legal_review/.test(html), 'no tick box - it cannot be applied');
+  eq(proposalsFrom(a.store.snapshot(), byId(a.store.snapshot().tabs, 't1'), MEETING, a.ui.copilotReply).length, 1,
+    'only the topic is a suggestion');
+});
+
+test('No legal_review, no note', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify({ discussed: ['Holiday cover'] })]]));
+  notOk(a.html().indexOf('Set aside for a check with Legal') >= 0);
+});
