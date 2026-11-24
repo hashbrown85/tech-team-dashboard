@@ -11,7 +11,9 @@
  */
 
 import { esc } from '../lib/dom.js';
-import { proposalsFrom, PROPOSAL_GROUPS, meetingLists } from '../domain/copilot.js';
+import {
+  proposalsFrom, PROPOSAL_GROUPS, meetingLists, RETYPES, typeOf
+} from '../domain/copilot.js';
 import { projectTitle } from '../domain/projects.js';
 import { STATUSES, STATUS_LABELS, SEVERITY_LABELS } from '../domain/constants.js';
 
@@ -144,9 +146,7 @@ function fixForm(snap, tab, d, key, reply) {
 
   let fields = '';
   if (section === 'wins_losses') {
-    fields = pick('kind', 'Win or loss', [['win', 'Win'], ['loss', 'Loss']],
-      v('kind') === 'loss' ? 'loss' : 'win') +
-      pick('person', 'Who', people, v('person'), 'Who…') +
+    fields = pick('person', 'Who', people, v('person'), 'Who…') +
       text('text', 'What happened', v('text')) + text('why', 'Why', v('why')) +
       text('change', 'For a loss: what we will do differently', v('change'));
   } else if (section === 'new_opportunities') {
@@ -180,7 +180,18 @@ function fixForm(snap, tab, d, key, reply) {
     fields = text('text', 'Topic', typeof raw === 'string' ? raw : '');
   }
 
-  return '<form class="add cpfix" data-form="copilotFix" data-v="' + esc(key) + '">' + fields +
+  // The type, first: switching it redraws the form with the new type's fields,
+  // carrying the words and the person across.
+  const type = typeOf(reply, key);
+  const typeSel = type
+    ? '<select class="fld" name="type" aria-label="Type" data-edit="copilotType" data-v="' +
+      esc(key) + '">' + RETYPES.map(function (t) {
+        return '<option value="' + t[0] + '"' + (t[0] === type ? ' selected' : '') + '>' +
+          t[1] + '</option>';
+      }).join('') + '</select>'
+    : '';
+
+  return '<form class="add cpfix" data-form="copilotFix" data-v="' + esc(key) + '">' + typeSel + fields +
     '<button class="btn sm" type="submit">Save</button>' +
     '<button class="btn ghost sm" type="button" data-act="closeForm">Cancel</button></form>';
 }

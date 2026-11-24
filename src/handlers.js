@@ -43,7 +43,7 @@ import {
 import { decideOpportunity } from './domain/opportunities.js';
 import { stepIndex } from './domain/constants.js';
 import {
-  copilotPrompt, readReply, proposalsFrom, planFrom, correctReply
+  copilotPrompt, readReply, proposalsFrom, planFrom, correctReply, retypeReply
 } from './domain/copilot.js';
 import {
   meetingDate, documentId, meetingSummary, withRole, ROLE_LISTS, getMeeting, setDiscussed,
@@ -60,6 +60,17 @@ import {
  * @param {() => string} app.today
  * @param {(question: string) => boolean} [app.confirm] - defaults to window.confirm
  */
+/** The fields of a Copilot correction form, as plain values. */
+function fixValues(fd) {
+  const values = {};
+  ['kind', 'person', 'text', 'why', 'change', 'customer', 'title', 'owner', 'mission',
+    'id', 'decision', 'status', 'severity', 'due', 'related_id'].forEach(function (f) {
+    const x = fd.get(f);
+    if (x != null) values[f] = x;
+  });
+  return values;
+}
+
 export function createHandlers(app) {
   const store = app.store;
   const ui = app.ui;
@@ -930,6 +941,22 @@ export function createHandlers(app) {
      * typed.
      */
     /* One suggestion ticked or unticked. Unticked keys are remembered; the rest apply. */
+    /*
+     * A Copilot suggestion switched to another type in its correction form. Takes
+     * effect at once, keeping what was typed, and the form stays open on the
+     * moved suggestion so the new type's own fields can be filled in.
+     */
+    copilotType: function (el) {
+      const key = el.dataset.v;
+      if (!ui.copilotReply || !key) return;
+      const values = el.form ? fixValues(new FormData(el.form)) : {};
+      const r = retypeReply(ui.copilotReply, key, el.value, values);
+      ui.copilotReply = r.reply;
+      ui.copilotSkip = (ui.copilotSkip || []).filter(function (k) { return k !== key && k !== r.key; });
+      ui.open = 'cpfix:' + r.key;
+      render();
+    },
+
     copilotPick: function (el) {
       const key = el.dataset.v;
       const skip = (ui.copilotSkip || []).filter(function (k) { return k !== key; });
@@ -1343,13 +1370,11 @@ export function createHandlers(app) {
     copilotFix: function (fd, form) {
       const key = form && form.dataset ? form.dataset.v : '';
       if (!ui.copilotReply || !key) return;
-      const values = {};
-      ['kind', 'person', 'text', 'why', 'change', 'customer', 'title', 'owner', 'mission',
-        'id', 'decision', 'status', 'severity', 'due', 'related_id'].forEach(function (f) {
-        const x = fd.get(f);
-        if (x != null) values[f] = x;
-      });
-      ui.copilotReply = correctReply(ui.copilotReply, key, values);
+      const values = fixValues(fd);
+      const type = fd.get('type');
+      ui.copilotReply = type
+        ? retypeReply(ui.copilotReply, key, String(type), values).reply
+        : correctReply(ui.copilotReply, key, values);
       // Corrected means wanted: tick it again if it had been unticked.
       ui.copilotSkip = (ui.copilotSkip || []).filter(function (k) { return k !== key; });
       ui.open = null;

@@ -17,7 +17,7 @@ import { demoBoard } from '../src/demo-data.js';
 import { renderApp } from '../src/views/render.js';
 import { loadUi } from '../src/ui.js';
 import {
-  copilotPrompt, readReply, personFor, proposalsFrom, planFrom, correctReply
+  copilotPrompt, readReply, personFor, proposalsFrom, planFrom, correctReply, retypeReply
 } from '../src/domain/copilot.js';
 import {
   setDiscussed, discussedTopics, getMeeting, meetingSummary, memoryKey
@@ -335,4 +335,68 @@ test('Correcting a row someone had unticked ticks it again', async () => {
   eq(a.ui.copilotSkip, ['discussed.0']);
   a.H.forms.copilotFix(new Map([['text', 'Pricing review']]), /** @type {any} */ ({ dataset: { v: 'discussed.0' } }));
   eq(a.ui.copilotSkip, []);
+});
+
+group('Switching a suggestion to another type');
+
+test('An issue becomes a loss: words and person carried, the rest of the list untouched', () => {
+  const r = retypeReply(REPLY, 'issues.0', 'loss', {});
+  eq(r.key, 'wins_losses.2', 'on the end of the wins and losses');
+  eq(r.reply.wins_losses[2], { kind: 'loss', person: 'Ravi', text: 'No lab capacity', why: '', change: '' });
+  eq(r.reply.issues[0], null, 'its old slot emptied, not removed');
+  eq(r.reply.actions, REPLY.actions, 'nothing else moves, so every other key - and tick - holds');
+  eq(REPLY.issues.length, 1, 'the original reply is not changed');
+
+  const ps = proposalsFrom(demoBoard(DAY), t1(demoBoard(DAY)), MEETING, r.reply);
+  notOk(ps.some(function (p) { return p.key === 'issues.0'; }), 'the issue row is gone');
+  const loss = find(ps, 'wins_losses.2');
+  eq(loss.kind, 'loss');
+  eq(loss.reason, 'A loss needs what we will do differently.', 'held back until that is filled in');
+});
+
+test('What was typed in the form before switching is kept', () => {
+  const r = retypeReply(REPLY, 'issues.0', 'action', { text: 'Rent lab time', owner: 'Ravi Chandra' });
+  eq(r.reply.actions[4], { text: 'Rent lab time', owner: 'Ravi Chandra', due: '', related_id: '' });
+});
+
+test('Every way round: win to loss in place, topic to action, opportunity to discussed', () => {
+  const w = retypeReply(REPLY, 'wins_losses.0', 'loss', {});
+  eq(w.key, 'wins_losses.0', 'win and loss are one list, so it stays put');
+  eq(w.reply.wins_losses[0].kind, 'loss');
+
+  const t = retypeReply(REPLY, 'discussed.0', 'action', {});
+  eq(t.reply.actions[4].text, 'Holiday cover');
+
+  const o = retypeReply(REPLY, 'new_opportunities.0', 'discussed', {});
+  eq(o.reply.discussed[2], 'Scale squeeze');
+});
+
+test('Decisions and status changes cannot be switched', () => {
+  eq(retypeReply(REPLY, 'status_changes.0', 'issue', {}).reply, REPLY);
+  eq(retypeReply(REPLY, 'opportunity_decisions.0', 'win', {}).reply, REPLY);
+});
+
+test('The form offers Type; switching keeps it open on the moved suggestion, ticked', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify(REPLY)]]));
+  a.H.clicks.copilotEdit(null, '', 'issues.0');
+  const html = a.html();
+  ok(/<select class="fld" name="type"[^>]*data-edit="copilotType" data-v="issues.0"/.test(html));
+  ok(html.indexOf('<option value="issue" selected>Issue</option>') >= 0);
+
+  a.ui.copilotSkip = ['issues.0'];
+  a.H.edits.copilotType(/** @type {any} */ ({ dataset: { v: 'issues.0' }, value: 'loss', form: null }));
+  eq(a.ui.open, 'cpfix:wins_losses.2', 'the form stays open, on the loss now');
+  eq(a.ui.copilotSkip, []);
+  ok(a.html().indexOf('<option value="loss" selected>Loss</option>') >= 0);
+
+  a.H.forms.copilotFix(new Map([['type', 'loss'], ['person', 'Ravi Chandra'], ['text', 'No lab capacity'],
+    ['why', 'Booked out'], ['change', 'Book a month ahead']]),
+    /** @type {any} */ ({ dataset: { v: 'wins_losses.2' } }));
+  a.H.clicks.copilotApply(null, '', '');
+  await settle();
+  const snap = a.store.snapshot();
+  ok(snap.entries.some(function (e) { return e.kind === 'loss' && e.text === 'No lab capacity' &&
+    e.change === 'Book a month ahead'; }), 'applied as a loss');
+  notOk(snap.issues.some(function (i) { return i.text === 'No lab capacity'; }), 'and not as an issue');
 });

@@ -110,7 +110,7 @@ export function correctReply(reply, key, values) {
 
   let item;
   if (section === 'discussed') {
-    item = str(values.text);
+    item = values.text != null ? str(values.text) : list[i];
   } else if (FIX_FIELDS[section]) {
     item = Object.assign({}, typeof list[i] === 'object' && list[i] ? list[i] : {});
     FIX_FIELDS[section].forEach(function (f) {
@@ -123,6 +123,101 @@ export function correctReply(reply, key, values) {
   out[section] = list.slice();
   out[section][i] = item;
   return out;
+}
+
+/**
+ * The types a suggestion can be switched between, in the order the dropdown
+ * offers them. Opportunity decisions and status changes are not here: they are
+ * about one record by its id, and mean nothing as anything else.
+ */
+export const RETYPES = [
+  ['win', 'Win'], ['loss', 'Loss'], ['issue', 'Issue'], ['action', 'Action'],
+  ['opportunity', 'New opportunity'], ['discussed', 'Discussed topic']
+];
+
+const TYPE_SECTION = {
+  win: 'wins_losses', loss: 'wins_losses', issue: 'issues', action: 'actions',
+  opportunity: 'new_opportunities', discussed: 'discussed'
+};
+
+/**
+ * What type a suggestion is now, for the dropdown - or '' when it cannot be
+ * switched.
+ *
+ * @param {any} reply
+ * @param {string} key
+ * @returns {string}
+ */
+export function typeOf(reply, key) {
+  const m = /^([a-z_]+)\.(\d+)$/.exec(String(key || ''));
+  if (!m || !reply || !Array.isArray(reply[m[1]])) return '';
+  const item = reply[m[1]][Number(m[2])];
+  if (m[1] === 'wins_losses') return str(item && item.kind).toLowerCase() === 'loss' ? 'loss' : 'win';
+  const t = Object.keys(TYPE_SECTION).filter(function (k) {
+    return k !== 'win' && k !== 'loss' && TYPE_SECTION[k] === m[1];
+  });
+  return t.length ? t[0] : '';
+}
+
+/**
+ * Switch one suggestion to another type: an issue that was really a loss, a
+ * discussed topic that should have been an action, a "win" that was only talk.
+ *
+ * The form's current values are applied first, so nothing typed is lost. Then
+ * what carries across does: the words (text, or an opportunity's title), the
+ * person (whoever it was about, or owned it), and any field both types share.
+ * What the new type needs and the old did not have - a loss's "what we will do
+ * differently", an action's due date - is left blank, so it shows as held back
+ * until filled in.
+ *
+ * The old slot is emptied, not removed, so every other suggestion keeps its key;
+ * the moved one goes on the end of its new list and gets a new key, returned so
+ * the form can stay open on it.
+ *
+ * @param {any} reply
+ * @param {string} key - '<section>.<index>'
+ * @param {string} type - one of RETYPES
+ * @param {Record<string, any>} values - the form's current values
+ * @returns {{reply: any, key: string}}
+ */
+export function retypeReply(reply, key, type, values) {
+  const m = /^([a-z_]+)\.(\d+)$/.exec(String(key || ''));
+  const target = TYPE_SECTION[type];
+  if (!reply || !m || !target || !typeOf(reply, key)) return { reply: reply, key: key };
+  const section = m[1];
+  const i = Number(m[2]);
+  const base = correctReply(reply, key, values || {});
+  const item = base[section][i];
+
+  if (section === target) {
+    if (section !== 'wins_losses') return { reply: base, key: key };
+    const out = Object.assign({}, base);
+    out[section] = base[section].slice();
+    out[section][i] = Object.assign({}, item, { kind: type });
+    return { reply: out, key: key };
+  }
+
+  const o = typeof item === 'object' && item ? item : {};
+  const text = typeof item === 'string' ? str(item) : str(o.text || o.title);
+  const who = str(o.person || o.owner);
+  let moved;
+  if (target === 'wins_losses') {
+    moved = { kind: type, person: who, text: text, why: str(o.why), change: str(o.change) };
+  } else if (target === 'issues') {
+    moved = { text: text, owner: who, severity: str(o.severity) || 'stopper' };
+  } else if (target === 'actions') {
+    moved = { text: text, owner: who, due: str(o.due), related_id: str(o.related_id) };
+  } else if (target === 'new_opportunities') {
+    moved = { customer: str(o.customer), title: text, owner: who, mission: str(o.mission || o.why) };
+  } else {
+    moved = text;
+  }
+
+  const out = Object.assign({}, base);
+  out[section] = base[section].slice();
+  out[section][i] = null;
+  out[target] = (Array.isArray(base[target]) ? base[target] : []).concat([moved]);
+  return { reply: out, key: target + '.' + (out[target].length - 1) };
 }
 
 /**
@@ -251,6 +346,16 @@ function listOf(data, key) {
   return data && Array.isArray(data[key]) ? data[key] : [];
 }
 
+/*
+ * Each item of one list, with its index - skipping the empty slot a suggestion
+ * leaves when it is moved to another type (see retypeReply). The slot is left
+ * rather than removed so every other suggestion keeps its key, and with it its
+ * tick.
+ */
+function each(data, key, fn) {
+  listOf(data, key).forEach(function (x, i) { if (x !== null) fn(x, i); });
+}
+
 function str(v) {
   return String(v == null ? '' : v).trim();
 }
@@ -283,7 +388,7 @@ export function proposalsFrom(snap, tab, d, data) {
     out.push({ key: key, kind: kind, text: text, ok: !reason, reason: reason || '', payload: payload });
   }
 
-  listOf(data, 'wins_losses').forEach(function (w, i) {
+  each(data, 'wins_losses', function (w, i) {
     const kind = str(w && w.kind).toLowerCase() === 'loss' ? 'loss' : 'win';
     const who = personFor(snap, tab, w && w.person);
     const text = str(w && w.text);
@@ -298,7 +403,7 @@ export function proposalsFrom(snap, tab, d, data) {
       { kind: kind, personId: who && who.id, text: text, why: str(w && w.why), change: change });
   });
 
-  listOf(data, 'new_opportunities').forEach(function (o, i) {
+  each(data, 'new_opportunities', function (o, i) {
     const who = personFor(snap, tab, o && o.owner);
     const title = str(o && o.title);
     const customer = str(o && o.customer);
@@ -309,7 +414,7 @@ export function proposalsFrom(snap, tab, d, data) {
       { personId: who && who.id, customer: customer, title: title, mission: str(o && o.mission) });
   });
 
-  listOf(data, 'opportunity_decisions').forEach(function (o, i) {
+  each(data, 'opportunity_decisions', function (o, i) {
     const p = byId(snap.projects, str(o && o.id));
     const decision = str(o && o.decision).toLowerCase();
     const label = { promoted: 'Promote', hold: 'Put on hold', cancelled: 'Cancel' }[decision] || decision;
@@ -320,7 +425,7 @@ export function proposalsFrom(snap, tab, d, data) {
       { id: p && p.id, decision: decision });
   });
 
-  listOf(data, 'status_changes').forEach(function (c, i) {
+  each(data, 'status_changes', function (c, i) {
     const p = byId(snap.projects, str(c && c.id));
     const status = str(c && c.status).toLowerCase();
     add('status_changes.' + i, 'status', (p ? projectTitle(p) : str(c && c.id)) + ' → ' +
@@ -331,7 +436,7 @@ export function proposalsFrom(snap, tab, d, data) {
       { id: p && p.id, status: status });
   });
 
-  listOf(data, 'issues').forEach(function (s, i) {
+  each(data, 'issues', function (s, i) {
     const who = personFor(snap, tab, s && s.owner);
     const text = str(s && s.text);
     const sev = SEVERITIES.indexOf(str(s && s.severity).toLowerCase()) >= 0 &&
@@ -341,7 +446,7 @@ export function proposalsFrom(snap, tab, d, data) {
       { personId: who ? who.id : '', text: text, sev: sev });
   });
 
-  listOf(data, 'actions').forEach(function (a, i) {
+  each(data, 'actions', function (a, i) {
     const who = personFor(snap, tab, a && a.owner);
     const text = str(a && a.text);
     const due = dateOf(a && a.due);
@@ -360,7 +465,7 @@ export function proposalsFrom(snap, tab, d, data) {
       { owner: who && who.name, text: text, due: due, parent: parent });
   });
 
-  listOf(data, 'discussed').forEach(function (t, i) {
+  each(data, 'discussed', function (t, i) {
     const line = str(typeof t === 'string' ? t : t && t.text);
     add('discussed.' + i, 'discussed', 'Discussed · ' + line, line ? '' : 'Empty.', { text: line });
   });
