@@ -255,7 +255,9 @@ export function copilotPrompt(snap, tab, d) {
     '"status": "on or off or hold or cancelled or done"}],');
   L.push('  "issues": [{"text": "", "owner": "name", "severity": "stopper or risk"}],');
   L.push('  "actions": [{"text": "", "owner": "name", "due": "YYYY-MM-DD", ' +
-    '"related_id": "an id from CURRENT PROJECTS, HORIZON or OPEN ISSUES, or empty"}],');
+    '"related_id": "an id from CURRENT PROJECTS, HORIZON or OPEN ISSUES; or, for a new ' +
+    'opportunity or new issue in this same reply, its place in that list counting from 0, ' +
+    'like new_opportunities.0 or issues.1; or empty"}],');
   L.push('  "discussed": ["a short line for each topic talked through that is not one of ' +
     'the changes above"]');
   L.push('}');
@@ -356,6 +358,25 @@ function each(data, key, fn) {
   listOf(data, key).forEach(function (x, i) { if (x !== null) fn(x, i); });
 }
 
+/**
+ * An action's related_id, when it points at a new opportunity or new issue in
+ * the same reply ("new_opportunities.0", "issues.1"): its key, and how to name
+ * it - or no label when that slot is empty (moved to another type).
+ *
+ * @param {any} data - the reply
+ * @param {string} rel
+ * @returns {{key: string, label: string}}
+ */
+export function pendingOf(data, rel) {
+  const m = /^(new_opportunities|issues)\.(\d+)$/.exec(rel || '');
+  if (!m) return { key: '', label: '' };
+  const item = listOf(data, m[1])[Number(m[2])];
+  if (!item || typeof item !== 'object') return { key: rel, label: '' };
+  return { key: rel, label: m[1] === 'issues'
+    ? 'Issue: ' + (str(item.text) || '?')
+    : 'Opportunity: ' + [str(item.customer), str(item.title)].filter(Boolean).join(' - ') };
+}
+
 function str(v) {
   return String(v == null ? '' : v).trim();
 }
@@ -451,18 +472,23 @@ export function proposalsFrom(snap, tab, d, data) {
     const text = str(a && a.text);
     const due = dateOf(a && a.due);
     const rel = str(a && a.related_id);
-    const proj = rel ? byId(snap.projects, rel) : null;
-    const issue = rel && !proj ? byId(snap.issues, rel) : null;
+    // Tied to something new in this same reply - an opportunity or issue that does
+    // not exist yet. Linked on Apply, once it does (planFrom).
+    const pend = pendingOf(data, rel);
+    const proj = rel && !pend.key ? byId(snap.projects, rel) : null;
+    const issue = rel && !pend.key && !proj ? byId(snap.issues, rel) : null;
     const parent = proj && proj.tab === tab.id ? { type: 'project', id: proj.id }
       : issue && issue.tab === tab.id ? { type: 'issue', id: issue.id } : null;
     add('actions.' + i, 'action', 'Action · ' + text + ' · ' + (who ? who.name : str(a && a.owner) || '?') +
       ' · due ' + (due || str(a && a.due) || '?') +
-      (parent ? ' · re ' + (proj ? projectTitle(proj) : issue.text) : ''),
+      (parent ? ' · re ' + (proj ? projectTitle(proj) : issue.text)
+        : pend.label ? ' · re ' + pend.label + ' (new, above)' : ''),
       !text ? 'It says nothing.'
         : !who ? 'Nobody on the roster is called "' + str(a && a.owner) + '".'
         : !due ? 'It needs a due date as YYYY-MM-DD.'
-        : rel && !parent ? 'Nothing in this meeting has the id "' + rel + '".' : '',
-      { owner: who && who.name, text: text, due: due, parent: parent });
+        : pend.key && !pend.label ? 'What it was tied to has been changed to another type - pick again in Edit.'
+        : rel && !parent && !pend.key ? 'Nothing in this meeting has the id "' + rel + '".' : '',
+      { owner: who && who.name, text: text, due: due, parent: parent, pending: pend.label ? pend.key : '' });
   });
 
   each(data, 'discussed', function (t, i) {
@@ -494,6 +520,10 @@ export function planFrom(snap, tab, d, proposals, skip, newId) {
   const actions = [];
   const discussed = [];
 
+  // What each new opportunity and issue became, by its key in the reply, so an
+  // action tied to one can be pointed at the real record.
+  const made = {};
+
   take.forEach(function (p) {
     const x = p.payload;
     if (p.kind === 'win' || p.kind === 'loss') {
@@ -510,13 +540,16 @@ export function planFrom(snap, tab, d, proposals, skip, newId) {
       });
       ops.push({ op: 'set', col: 'entries', id: entryId, data: built.entry });
       ops.push({ op: 'set', col: 'projects', id: projectId, data: built.project });
+      made[p.key] = { type: 'project', id: projectId };
     } else if (p.kind === 'decision') {
       decideOpportunity(snap, x.id, x.decision, d).writes.forEach(function (w) { ops.push(w); });
     } else if (p.kind === 'status') {
       const doc = statusChange(snap, byId(snap.projects, x.id), x.status, tab.id, d);
       if (doc) ops.push({ op: 'set', col: 'projects', id: x.id, data: doc });
     } else if (p.kind === 'issue') {
-      ops.push({ op: 'set', col: 'issues', id: newId(), data: newIssue({
+      const issueId = newId();
+      made[p.key] = { type: 'issue', id: issueId };
+      ops.push({ op: 'set', col: 'issues', id: issueId, data: newIssue({
         snap: snap, tab: tab.id, personId: x.personId, text: x.text, sev: x.sev, meetingDate: d
       }) });
     } else if (p.kind === 'action') {
@@ -526,7 +559,14 @@ export function planFrom(snap, tab, d, proposals, skip, newId) {
     }
   });
 
-  return { ops: ops, actions: actions, discussed: discussed, count: take.length };
+  // Tied to something new: linked if it is being added, otherwise no origin -
+  // the checklist says so beforehand (views/copilot.js).
+  const linked = actions.map(function (x) {
+    if (!x.pending) return x;
+    return Object.assign({}, x, { parent: made[x.pending] || null });
+  });
+
+  return { ops: ops, actions: linked, discussed: discussed, count: take.length };
 }
 
 /** Plain-language names for the checklist's groups, in the order shown. */

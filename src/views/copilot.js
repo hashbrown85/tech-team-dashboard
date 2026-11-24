@@ -12,7 +12,7 @@
 
 import { esc } from '../lib/dom.js';
 import {
-  proposalsFrom, PROPOSAL_GROUPS, meetingLists, RETYPES, typeOf
+  proposalsFrom, PROPOSAL_GROUPS, meetingLists, RETYPES, typeOf, pendingOf
 } from '../domain/copilot.js';
 import { projectTitle } from '../domain/projects.js';
 import { STATUSES, STATUS_LABELS, SEVERITY_LABELS } from '../domain/constants.js';
@@ -64,6 +64,11 @@ function checklist(snap, ui, tab, d, ro) {
   const chosen = all.filter(function (p) { return p.ok && skip.indexOf(p.key) < 0; }).length;
   const blocked = all.filter(function (p) { return !p.ok; }).length;
 
+  /** Is the suggestion with this key going to be applied? */
+  function taking(key) {
+    return all.some(function (p) { return p.key === key && p.ok && skip.indexOf(key) < 0; });
+  }
+
   const groups = PROPOSAL_GROUPS.map(function (g) {
     const mine = all.filter(function (p) { return p.kind === g[0]; });
     if (!mine.length) return '';
@@ -81,6 +86,10 @@ function checklist(snap, ui, tab, d, ro) {
         (ro ? '' : ' <button type="button" class="linkbtn" data-act="copilotEdit" data-v="' +
           esc(p.key) + '">Edit</button>') +
         (p.ok ? '' : '<span class="why">Can’t apply: ' + esc(p.reason) + '</span>') +
+        (on && p.payload && p.payload.pending && !taking(p.payload.pending)
+          ? '<span class="why">What it is tied to is not being added, so it will go on with ' +
+            'no origin.</span>'
+          : '') +
         '</li>';
     }).join('') + '</ul>';
   }).join('');
@@ -168,9 +177,19 @@ function fixForm(snap, tab, d, key, reply) {
         [['stopper', SEVERITY_LABELS.stopper], ['risk', SEVERITY_LABELS.risk]],
         v('severity') === 'risk' ? 'risk' : 'stopper');
   } else if (section === 'actions') {
+    // New opportunities and issues suggested in this same reply can be picked too:
+    // the action is tied to them when they are added.
+    const fresh = ['new_opportunities', 'issues'].reduce(function (acc, sec) {
+      (Array.isArray(reply[sec]) ? reply[sec] : []).forEach(function (x, i) {
+        const pend = pendingOf(reply, sec + '.' + i);
+        if (pend.label) acc.push([pend.key, 'New ' + pend.label.charAt(0).toLowerCase() + pend.label.slice(1)]);
+      });
+      return acc;
+    }, []);
     const related = projects.concat(horizon)
       .map(function (o) { return [o[0], 'Project · ' + o[1]]; })
-      .concat(lists.issues.map(function (i) { return [i.id, 'Issue · ' + i.text]; }));
+      .concat(lists.issues.map(function (i) { return [i.id, 'Issue · ' + i.text]; }))
+      .concat(fresh);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(v('due')) ? v('due') : '';
     fields = text('text', 'What will be done', v('text')) +
       pick('owner', 'Owner', people, v('owner'), 'Owner…') +

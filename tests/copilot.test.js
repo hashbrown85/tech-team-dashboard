@@ -400,3 +400,70 @@ test('The form offers Type; switching keeps it open on the moved suggestion, tic
     e.change === 'Book a month ahead'; }), 'applied as a loss');
   notOk(snap.issues.some(function (i) { return i.text === 'No lab capacity'; }), 'and not as an issue');
 });
+
+group('Actions tied to a new opportunity or issue in the same reply');
+
+const LINKED = {
+  new_opportunities: [{ customer: 'Demo Quartz', title: 'Scale squeeze', owner: 'Sam Okafor', mission: '' }],
+  issues: [{ text: 'Loads cancelled', owner: 'Alex Morgan', severity: 'stopper' }],
+  actions: [
+    { text: 'Send the proposal', owner: 'Sam Okafor', due: '2026-09-25', related_id: 'new_opportunities.0' },
+    { text: 'Call dispatch', owner: 'Alex Morgan', due: '2026-09-24', related_id: 'issues.0' }
+  ]
+};
+
+test('The prompt tells Copilot how to point at something new in the same reply', () => {
+  const snap = demoBoard(DAY);
+  ok(copilotPrompt(snap, t1(snap), MEETING).indexOf('new_opportunities.0 or issues.1') >= 0);
+});
+
+test('They are ready to apply, and say what they are tied to', () => {
+  const snap = demoBoard(DAY);
+  const ps = proposalsFrom(snap, t1(snap), MEETING, LINKED);
+  const opp = find(ps, 'actions.0');
+  ok(opp.ok, opp.reason);
+  ok(opp.text.indexOf('re Opportunity: Demo Quartz - Scale squeeze (new, above)') >= 0, opp.text);
+  ok(find(ps, 'actions.1').text.indexOf('re Issue: Loads cancelled (new, above)') >= 0);
+});
+
+test('Applied: each action is tied to the opportunity or issue just made', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify(LINKED)]]));
+  a.H.clicks.copilotApply(null, '', '');
+  await settle();
+  const snap = a.store.snapshot();
+  const opp = snap.projects.filter(function (p) { return p.name === 'Scale squeeze'; })[0];
+  const iss = snap.issues.filter(function (i) { return i.text === 'Loads cancelled'; })[0];
+  const send = snap.actions.filter(function (x) { return x.text === 'Send the proposal'; })[0];
+  const call = snap.actions.filter(function (x) { return x.text === 'Call dispatch'; })[0];
+  eq(send.parent, { type: 'project', id: opp.id }, 'on the opportunity, not yet promoted');
+  eq(call.parent, { type: 'issue', id: iss.id }, 'and on the issue - so it has its path');
+});
+
+test('If what it is tied to is unticked, the row says so and the action goes on loose', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify(LINKED)]]));
+  a.ui.copilotSkip = ['new_opportunities.0'];
+  ok(a.html().indexOf('What it is tied to is not being added') >= 0);
+  a.H.clicks.copilotApply(null, '', '');
+  await settle();
+  const send = a.store.snapshot().actions.filter(function (x) { return x.text === 'Send the proposal'; })[0];
+  eq(send.parent, null);
+});
+
+test('If what it is tied to changes type, the action is held back to be re-pointed', () => {
+  const snap = demoBoard(DAY);
+  const moved = retypeReply(LINKED, 'issues.0', 'loss', {}).reply;
+  const row = find(proposalsFrom(snap, t1(snap), MEETING, moved), 'actions.1');
+  notOk(row.ok);
+  ok(row.reason.indexOf('changed to another type') >= 0);
+});
+
+test('Edit offers the new opportunity and issue under Related to', async () => {
+  const a = await app();
+  a.H.forms.copilotReply(new Map([['reply', JSON.stringify(LINKED)]]));
+  a.H.clicks.copilotEdit(null, '', 'actions.0');
+  const html = a.html();
+  ok(html.indexOf('<option value="new_opportunities.0" selected>New opportunity: Demo Quartz - Scale squeeze</option>') >= 0);
+  ok(html.indexOf('<option value="issues.0">New issue: Loads cancelled</option>') >= 0);
+});
